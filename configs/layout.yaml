@@ -1,0 +1,33 @@
+page: A4
+orientation: portrait
+dpi: 200
+
+margins_mm:
+  left: 10.0
+  right: 10.0
+  top: 20.0
+  bottom: 30.0
+
+sizes:
+  small:
+    font_px: 28
+    line_spacing: 1.30
+    paragraph_spacing_lines: 0.50
+  normal:
+    font_px: 36
+    line_spacing: 1.35
+    paragraph_spacing_lines: 0.60
+  large:
+    font_px: 48
+    line_spacing: 1.40
+    paragraph_spacing_lines: 0.70
+
+render:
+  threshold: 180
+  remove_small_objects_px: 4
+  padding_px: 4
+
+trace:
+  simplify_epsilon_px: 0.8
+  min_stroke_points: 2
+

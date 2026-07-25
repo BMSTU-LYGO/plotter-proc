@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plotter-processor"
+version = "0.1.0"
+description = "DOCX/PDF to pen-plotter G-code processor"
+requires-python = ">=3.11"
+dependencies = [
+    "PyMuPDF>=1.24",
+    "python-docx>=1.1",
+    "Pillow>=10.4",
+    "numpy>=2.0",
+    "scikit-image>=0.24",
+    "PyYAML>=6.0",
+    "svgwrite>=1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+plotter-processor = "plotter_processor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+

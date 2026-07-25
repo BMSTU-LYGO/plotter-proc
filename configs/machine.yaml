@@ -1,0 +1,34 @@
+machine:
+  name: ender3
+  firmware: th3d
+
+page_origin_mm:
+  x: 10.0
+  y: 10.0
+
+axes:
+  invert_x: false
+  invert_y: true
+
+pen:
+  up_z_mm: 5.0
+  down_z_mm: 1.0
+  settle_ms: 100
+
+feedrate_mm_min:
+  draw: 1000
+  travel: 3000
+  z: 500
+
+workspace_mm:
+  min_x: 0.0
+  max_x: 220.0
+  min_y: 0.0
+  max_y: 220.0
+
+gcode:
+  home: false
+  absolute_positioning: true
+  units_mm: true
+  decimals: 3
+
