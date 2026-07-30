@@ -4,10 +4,10 @@ from plotter_processor.models import DocumentText
 from plotter_processor.text_normalizer import normalize_document, normalize_text
 
 
-def test_replaces_yo_and_normalizes_whitespace() -> None:
+def test_preserves_yo_and_nonbreaking_space() -> None:
     text, warnings = normalize_text("Ёжик\tест  ещё\u00a0ел")
 
-    assert text == "Ежик ест еще ел"
+    assert text == "Ёжик ест ещё\u00a0ел"
     assert warnings == []
 
 
@@ -29,18 +29,18 @@ def test_preserves_paragraphs() -> None:
     assert result.paragraphs == ["Первый", "", "Второй"]
 
 
-def test_replaces_unsupported_character_and_adds_warning() -> None:
+def test_preserves_printable_unicode() -> None:
     text, warnings = normalize_text("Цена © 10")
 
-    assert text == "Цена 10"
-    assert warnings == ["Character '©' was replaced with a space"]
+    assert text == "Цена © 10"
+    assert warnings == []
 
 
-def test_warns_once_for_each_unsupported_character() -> None:
-    text, warnings = normalize_text("aаa")
+def test_warns_once_for_each_control_character() -> None:
+    text, warnings = normalize_text("a\x00а\x00a")
 
-    assert text == " а "
-    assert warnings == ["Character 'a' was replaced with a space"]
+    assert text == "a а a"
+    assert warnings == ["Control character U+0000 was replaced with a space"]
 
 
 def test_keeps_supported_punctuation() -> None:

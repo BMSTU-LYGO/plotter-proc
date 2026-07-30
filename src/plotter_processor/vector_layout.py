@@ -124,7 +124,16 @@ def _tokens(text: str) -> list[tuple[str, bool]]:
 
 
 def _text_advance(text: str, font: LoadedFont, scale: float) -> float:
-    return sum(font.advance_for_glyph(font.glyph_name_for_char(char)) * scale for char in text)
+    total = 0.0
+    for char in text:
+        glyph_name = font.cmap.get(ord(char))
+        if glyph_name is None and char == " ":
+            total += font.metrics.units_per_em * 0.33 * scale
+        elif glyph_name is None:
+            font.glyph_name_for_char(char)
+        else:
+            total += font.advance_for_glyph(glyph_name) * scale
+    return total
 
 
 def _positive(values: Mapping[str, object], key: str) -> float:

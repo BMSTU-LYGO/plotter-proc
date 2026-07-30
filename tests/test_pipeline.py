@@ -41,19 +41,21 @@ def test_runs_complete_pipeline_and_writes_report(tmp_path: Path) -> None:
     assert result.status == "ok", result.error
     for filename in (
         "extracted.txt",
-        "page.png",
-        "skeleton.png",
+        "font-preview.svg",
+        "plotter-preview.svg",
         "paths.json",
-        "preview.svg",
         "output.gcode",
         "report.json",
     ):
         assert (output / filename).is_file()
     report = json.loads((output / "report.json").read_text(encoding="utf-8"))
     assert report["status"] == "ok"
+    assert report["pipeline"] == "ttf-vector"
     assert report["statistics"]["characters"] > 0
     assert report["statistics"]["strokes"] > 0
     assert "G28" not in (output / "output.gcode").read_text(encoding="utf-8")
+    assert not (output / "page.png").exists()
+    assert not (output / "skeleton.png").exists()
 
 
 def test_error_report_removes_existing_gcode(tmp_path: Path) -> None:
