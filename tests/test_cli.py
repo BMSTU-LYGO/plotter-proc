@@ -4,8 +4,16 @@ from plotter_processor.cli import build_parser, main
 def test_parser_exposes_expected_commands() -> None:
     parser = build_parser()
 
-    for command in ("run", "extract", "render", "trace", "gcode", "calibrate"):
-        args = parser.parse_args([command, "input.txt"] if command != "calibrate" else [command])
+    arguments = {
+        "run": ["run", "input.txt", "--font", "font.ttf"],
+        "svg": ["svg", "input.txt", "--font", "font.ttf"],
+        "extract": ["extract", "input.txt"],
+        "font-info": ["font-info", "font.ttf"],
+        "gcode": ["gcode", "paths.json"],
+        "calibrate": ["calibrate"],
+    }
+    for command, argv in arguments.items():
+        args = parser.parse_args(argv)
         assert args.command == command
 
 

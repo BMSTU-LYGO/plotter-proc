@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from plotter_processor.models import PathDocument, Point, Stroke
-from plotter_processor.page_renderer import PAGE_SIZES_MM
+from plotter_processor.models import PathDocument, PlotterStroke, Point
+
+PAGE_SIZES_MM = {"A4": (210.0, 297.0), "A5": (148.0, 210.0)}
 
 DEFAULT_MAX_GCODE_COMMANDS = 1_000_000
 
@@ -52,8 +53,12 @@ def generate_gcode(
     lines.append(f"G0 Z{up_z} F{z_feed}")
 
     for stroke in document.strokes:
+        source_points = [stroke.points[0]]
+        for point in stroke.points[1:]:
+            if point != source_points[-1]:
+                source_points.append(point)
         machine_points = [
-            transform_point(point, document, machine_config) for point in stroke.points
+            transform_point(point, document, machine_config) for point in source_points
         ]
         _validate_workspace(machine_points, settings["workspace"])
         start = machine_points[0]
@@ -61,23 +66,21 @@ def generate_gcode(
             f"G0 X{_format_number(start.x, decimals)} "
             f"Y{_format_number(start.y, decimals)} F{travel_feed}"
         )
-        lines.extend(
-            (
-                f"G0 Z{up_z} F{z_feed}",
-                travel_command,
-                f"G1 Z{down_z} F{z_feed}",
-                f"G4 P{settings['settle_ms']}",
-            )
-        )
-        for index, point in enumerate(machine_points[1:]):
+        _append_unique(lines, f"G0 Z{up_z} F{z_feed}")
+        lines.extend((travel_command, f"G1 Z{down_z} F{z_feed}", f"G4 P{settings['settle_ms']}"))
+        draw_points = list(machine_points[1:])
+        if getattr(stroke, "closed", False) and machine_points[-1] != machine_points[0]:
+            draw_points.append(machine_points[0])
+        for index, point in enumerate(draw_points):
             feed = f" F{draw_feed}" if index == 0 else ""
             lines.append(
                 f"G1 X{_format_number(point.x, decimals)} "
                 f"Y{_format_number(point.y, decimals)}{feed}"
             )
-        lines.append(f"G0 Z{up_z} F{z_feed}")
+        _append_unique(lines, f"G0 Z{up_z} F{z_feed}")
 
-    lines.extend((f"G0 Z{up_z} F{z_feed}", "; End"))
+    _append_unique(lines, f"G0 Z{up_z} F{z_feed}")
+    lines.extend(("M400", "M84", "; End"))
     if len(lines) > max_commands:
         raise ValueError(
             f"G-code would contain {len(lines)} commands, exceeding the safe limit "
@@ -134,11 +137,11 @@ def generate_calibration_gcode(
         Point(square_origin.x, square_origin.y + 20.0),
         square_origin,
     ]
-    drawing_strokes = [Stroke(points=square, source_component=0)]
+    drawing_strokes = [PlotterStroke(id=0, points=square[:-1], closed=True)]
     if full_page_frame:
         drawing_strokes.insert(
             0,
-            Stroke(points=[*corners, corners[0]], source_component=0),
+            PlotterStroke(id=0, points=corners, closed=True),
         )
     document = PathDocument(
         page_width_mm=page_width,
@@ -147,9 +150,7 @@ def generate_calibration_gcode(
         warnings=[],
     )
     settings = _validated_settings(document, machine_config)
-    machine_corners = [
-        transform_point(point, document, machine_config) for point in corners
-    ]
+    machine_corners = [transform_point(point, document, machine_config) for point in corners]
     _validate_workspace(machine_corners, settings["workspace"])
 
     decimals = settings["decimals"]
@@ -253,8 +254,7 @@ def _validate_workspace(points: list[Point], workspace: dict[str, float]) -> Non
             and workspace["min_y"] <= point.y <= workspace["max_y"]
         ):
             raise ValueError(
-                f"Machine coordinate X{point.x:.3f} Y{point.y:.3f} "
-                "is outside workspace limits."
+                f"Machine coordinate X{point.x:.3f} Y{point.y:.3f} is outside workspace limits."
             )
 
 
@@ -291,3 +291,8 @@ def _boolean(config: dict[str, Any], key: str) -> bool:
 
 def _format_number(value: float, decimals: int) -> str:
     return f"{value:.{decimals}f}"
+
+
+def _append_unique(lines: list[str], command: str) -> None:
+    if not lines or lines[-1] != command:
+        lines.append(command)

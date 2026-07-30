@@ -1,87 +1,34 @@
 # plotter-processor
 
-Локальная Python-программа для преобразования текста из DOCX или PDF с
-текстовым слоем в SVG-превью и G-code для Ender 3 с ручкой, поднимаемой
-по оси Z.
+`plotter-processor` преобразует текст из TXT, DOCX или PDF с текстовым слоем и пользовательский TTF в плавные траектории плоттера и безопасный G-code для Ender 3.
 
-Программа заново раскладывает текст на одной странице A4/A5, рендерит его
-рукописным TTF, скелетизирует изображение и превращает скелет в траектории.
+```text
+TXT / DOCX / PDF + TTF
+          ↓
+Unicode NFC → layout в миллиметрах → контуры fontTools
+          ↓
+font-preview.svg + plotter-preview.svg + paths.json + output.gcode
+```
 
-## Ограничения MVP
+В основном pipeline нет рендеринга PNG, бинаризации, skeletonize или обхода пиксельного графа.
 
-Поддерживаются русский текст, цифры, базовая пунктуация, A4/A5 и размеры
-`small`, `normal`, `large`. Один запуск обрабатывает одну страницу.
-
-Не поддерживаются OCR, сканированные PDF, таблицы, изображения, формулы,
-колонки, исходное форматирование, многостраничный вывод и передача G-code
-по USB. Переполненный документ нужно уменьшить или разделить вручную.
+> Обычный TTF содержит контуры букв. Плоттер проходит по внешним и внутренним контурам. Это не восстановление центральной линии человеческого штриха.
 
 ## Установка
 
-Требуется Python 3.11 или новее:
+Требуется Python 3.11 или новее.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m plotter_processor --help
 ```
 
-Либо:
-
-```bash
-make install
-make test
-make lint
-```
-
-## Рукописный шрифт
-
-Положите файл в `assets/handwriting.ttf`. Шрифт не входит в репозиторий и
-игнорируется Git. Нужен тонкий связный рукописный TTF с кириллицей. Толстые
-линии создают ложные ответвления после скелетизации.
-
-Программа проверяет, что Pillow открывает файл, тестовая строка не пуста и
-кириллические глифы присутствуют.
-
-## Настройка принтера
-
-Перед запуском отредактируйте `configs/machine.yaml`:
-
-- `page_origin_mm` — координаты начала листа;
-- `invert_x`, `invert_y` — направления осей относительно листа;
-- `up_z_mm`, `down_z_mm` — безопасные положения ручки;
-- `feedrate_mm_min` — скорости рисования, travel и Z;
-- `workspace_mm` — реальные допустимые границы станка.
-
-Значения в репозитории являются примерами. При стандартном workspace
-220×220 мм книжный A4 не помещается по Y и будет безопасно отклонён
-валидатором. Используйте A5 либо физически корректную конфигурацию станка.
-
-## Калибровка
-
-Начинайте с A5:
-
-```bash
-.venv/bin/python -m plotter_processor calibrate \
-  --machine-config configs/machine.yaml \
-  --page A5 \
-  --output build/calibration.gcode
-```
-
-Файл сначала обходит контрольные углы с поднятой ручкой, затем рисует
-квадрат 20×20 мм. Полная рамка включается только явно:
-
-```bash
-.venv/bin/python -m plotter_processor calibrate --page A5 --full-page-frame
-```
-
-Рекомендуемый порядок физической проверки: travel с поднятой ручкой,
-квадрат 20×20 мм, слово `Привет`, строка с цифрами, небольшой абзац.
+Поместите шрифт, например `handwriting.ttf`, в `assets/`. Получить TTF из фотографии шаблона почерка можно внешним инструментом `draw-your-font`; Node.js и сам инструмент не входят в этот проект.
 
 ## Запуск
 
 ```bash
-.venv/bin/python -m plotter_processor run examples/input.docx \
+.venv/bin/python -m plotter_processor run examples/input.txt \
   --font assets/handwriting.ttf \
   --page A5 \
   --size normal \
@@ -90,55 +37,46 @@ make lint
   --output-dir build
 ```
 
-Эквивалент через Make:
+Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
+
+Полезные команды:
 
 ```bash
-make run INPUT=examples/input.docx PAGE=A5 SIZE=normal
-```
-
-Отладочные команды:
-
-```bash
-python -m plotter_processor extract input.docx --output build/extracted.txt
-python -m plotter_processor render build/extracted.txt --font assets/handwriting.ttf
-python -m plotter_processor trace build/page.png --page A5
-python -m plotter_processor gcode build/paths.json
+.venv/bin/python -m plotter_processor extract input.docx --output build/extracted.txt
+.venv/bin/python -m plotter_processor font-info assets/handwriting.ttf
+.venv/bin/python -m plotter_processor gcode build/paths.json --output build/output.gcode
 ```
 
 ## Результаты
 
-Успешный `run` создаёт:
+- `extracted.txt` — извлечённый нормализованный текст;
+- `font-preview.svg` — точные заполненные кривые TTF;
+- `plotter-preview.svg` — реальные линейные движения ручки;
+- `paths.json` — версионированные траектории в системе page-mm-top-left;
+- `output.gcode` — движения XY/Z без нагрева, extrusion и G28 по умолчанию;
+- `report.json` — статус, предупреждения, статистика и пути артефактов.
 
-- `extracted.txt` — извлечённый текст;
-- `page.png` — заново свёрстанная страница;
-- `skeleton.png` — диагностический однопиксельный скелет;
-- `paths.json` — траектории в миллиметрах;
-- `preview.svg` — физически масштабированное превью;
-- `output.gcode` — команды принтера;
-- `report.json` — статус, предупреждения и статистика.
-
-При ошибке создаётся `report.json`, процесс возвращает код 1, а
-`output.gcode` удаляется.
+Один запуск создаёт одну страницу. OCR, восстановление порядка рукописных штрихов и полный OpenType shaping/GPOS не поддерживаются. Если в TTF отсутствует требуемый глиф или текст не помещается, команда завершается с кодом 1, сохраняет error-report и не оставляет `output.gcode`.
 
 ## Безопасность
 
-Never run generated G-code before checking pen-up and pen-down Z values,
-page origin, axis inversion and workspace limits. Keep G28 disabled until
-the mounted pen has been tested safely.
+Перед рисованием:
 
-Никогда не запускайте созданный G-code, не проверив значения Z поднятой и
-опущенной ручки, начало страницы, инверсию осей и границы рабочей области.
-Не включайте G28, пока установленная ручка не испытана безопасным способом.
+1. Проверьте `up_z_mm`, `down_z_mm`, `page_origin_mm`, `invert_x` и `invert_y` в `configs/machine.yaml`.
+2. Выполните dry-run с поднятой ручкой.
+3. Не включайте `G28`, пока не проверена механика держателя.
+4. Начните с A5 и маленького калибровочного квадрата.
+5. Просмотрите оба SVG и `report.json`, затем проверьте G-code.
 
-## Решение проблем
+Генератор проверяет machine workspace и не выводит команды нагрева `M104/M109/M140/M190` или extrusion `E`.
 
-- `PDF does not contain a usable text layer` — PDF является сканом; OCR в
-  MVP отсутствует.
-- `Text does not fit on one page` — выберите меньший размер или разделите
-  документ.
-- `Selected font does not appear to be connected` — выберите связный
-  рукописный шрифт.
-- `outside workspace limits` — исправьте origin, инверсию осей, формат
-  страницы или границы workspace.
-- `Font does not appear to contain Cyrillic glyphs` — используйте TTF с
-  русским алфавитом.
+## Разработка
+
+```bash
+make install
+make test
+make lint
+make demo FONT=assets/handwriting.ttf
+```
+
+Тесты работают без сети, принтера и системных TTF.

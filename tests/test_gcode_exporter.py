@@ -8,7 +8,7 @@ from plotter_processor.gcode_exporter import (
     transform_point,
     write_gcode_atomic,
 )
-from plotter_processor.models import PathDocument, Point, Stroke
+from plotter_processor.models import PathDocument, PlotterStroke, Point
 
 
 @pytest.fixture
@@ -17,9 +17,10 @@ def path_document() -> PathDocument:
         page_width_mm=100.0,
         page_height_mm=100.0,
         strokes=[
-            Stroke(
+            PlotterStroke(
+                id=0,
                 points=[Point(10.0, 20.0), Point(20.0, 30.0), Point(30.0, 40.0)],
-                source_component=0,
+                closed=False,
             )
         ],
         warnings=[],
@@ -96,7 +97,7 @@ def test_rejects_non_finite_point(machine_config: dict[str, object]) -> None:
     document = PathDocument(
         page_width_mm=100,
         page_height_mm=100,
-        strokes=[Stroke(points=[Point(1, 1), Point(float("nan"), 2)], source_component=0)],
+        strokes=[PlotterStroke(id=0, points=[Point(1, 1), Point(float("nan"), 2)], closed=False)],
         warnings=[],
     )
 

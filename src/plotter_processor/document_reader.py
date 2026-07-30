@@ -5,7 +5,7 @@ from docx import Document
 
 from plotter_processor.models import DocumentText
 
-SUPPORTED_EXTENSIONS = {".docx", ".pdf"}
+SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".txt"}
 PDF_TEXT_LAYER_ERROR = (
     "PDF does not contain a usable text layer. OCR is not supported in MVP."
 )
@@ -21,9 +21,23 @@ def read_document(source_path: str | Path) -> DocumentText:
     if not path.is_file():
         raise FileNotFoundError(f"Input document does not exist: {path}")
 
+    if extension == ".txt":
+        return _read_txt(path)
     if extension == ".docx":
         return _read_docx(path)
     return _read_pdf(path)
+
+
+def _read_txt(path: Path) -> DocumentText:
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeError as error:
+        raise ValueError(f"TXT document is not valid UTF-8: {path}") from error
+    except OSError as error:
+        raise ValueError(f"Cannot read TXT document: {path}") from error
+    if not text.strip():
+        raise ValueError(f"TXT document contains no usable text: {path}")
+    return DocumentText(paragraphs=text.splitlines(), source_path=path, warnings=[])
 
 
 def _read_docx(path: Path) -> DocumentText:

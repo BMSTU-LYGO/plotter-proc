@@ -1,50 +1,61 @@
+from __future__ import annotations
+
 import math
+from collections.abc import Mapping
 from pathlib import Path
 
-from PIL import ImageFont
-
-from plotter_processor.models import PathDocument
-
-FONT_TEST_TEXT = "АБВГД абвгд 0123456789"
+from plotter_processor.font_loader import load_font
+from plotter_processor.models import PageSpec, PathDocument, PlotterStroke
 
 
-def validate_font(font_path: str | Path, size: int = 36) -> None:
-    path = Path(font_path)
-    if not path.is_file():
-        raise FileNotFoundError(f"Font file does not exist: {path}")
-    try:
-        font = ImageFont.truetype(str(path), size=size)
-    except OSError as error:
-        raise ValueError(f"Pillow cannot open font: {path}") from error
-
-    if font.getbbox(FONT_TEST_TEXT) is None or not bytes(font.getmask(FONT_TEST_TEXT)):
-        raise ValueError("Font test string rendered empty")
-
-    glyphs = {bytes(font.getmask(character)) for character in "АБВГДабвгд"}
-    if len(glyphs) < 3:
-        raise ValueError("Font does not appear to contain Cyrillic glyphs")
+def validate_vector_font(font_path: str | Path, text: str = "") -> None:
+    with load_font(font_path) as font:
+        if text:
+            font.validate_text(text)
 
 
-def path_statistics(document: PathDocument) -> dict[str, float | int]:
-    draw_distance = 0.0
-    travel_distance = 0.0
-    points = 0
-    previous_end = None
+def validate_page_spec(page: PageSpec, margins: Mapping[str, object]) -> None:
+    if page.width_mm <= 0 or page.height_mm <= 0:
+        raise ValueError("Page dimensions must be positive")
+    values: dict[str, float] = {}
+    for key in ("left", "right", "top", "bottom"):
+        value = margins.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError(f"Missing or invalid page margin: {key}")
+        values[key] = float(value)
+    if values["left"] + values["right"] >= page.width_mm:
+        raise ValueError("Horizontal margins leave no usable page area")
+    if values["top"] + values["bottom"] >= page.height_mm:
+        raise ValueError("Vertical margins leave no usable page area")
 
+
+def validate_path_document(document: PathDocument, *, max_points_per_contour: int) -> None:
+    if max_points_per_contour < 2:
+        raise ValueError("max_points_per_contour must be at least 2")
+    if not document.strokes:
+        raise ValueError("Font outlines produced no drawable paths")
     for stroke in document.strokes:
-        points += len(stroke.points)
-        for first, second in zip(stroke.points, stroke.points[1:], strict=False):
-            draw_distance += math.hypot(second.x - first.x, second.y - first.y)
-        if previous_end is not None:
-            start = stroke.points[0]
-            travel_distance += math.hypot(start.x - previous_end.x, start.y - previous_end.y)
-        previous_end = stroke.points[-1]
-
-    if draw_distance <= 0:
-        raise ValueError("Total drawing path length is zero")
-    return {
-        "strokes": len(document.strokes),
-        "points": points,
-        "draw_distance_mm": round(draw_distance, 3),
-        "travel_distance_mm": round(travel_distance, 3),
-    }
+        if not isinstance(stroke, PlotterStroke):
+            raise TypeError("Vector pipeline received a legacy stroke")
+        if len(stroke.points) > max_points_per_contour:
+            raise ValueError(f"Stroke {stroke.id} exceeds max_points_per_contour")
+        if len({(point.x, point.y) for point in stroke.points}) < 2:
+            raise ValueError(f"Stroke {stroke.id} has fewer than two unique points")
+        length = 0.0
+        for index, point in enumerate(stroke.points):
+            if not math.isfinite(point.x) or not math.isfinite(point.y):
+                raise ValueError(f"Stroke {stroke.id} contains non-finite coordinates")
+            if not (
+                0 <= point.x <= document.page_width_mm and 0 <= point.y <= document.page_height_mm
+            ):
+                raise ValueError(f"Stroke {stroke.id} lies outside the page bounds")
+            if index:
+                previous = stroke.points[index - 1]
+                length += math.hypot(point.x - previous.x, point.y - previous.y)
+        if stroke.closed:
+            length += math.hypot(
+                stroke.points[0].x - stroke.points[-1].x,
+                stroke.points[0].y - stroke.points[-1].y,
+            )
+        if length <= 0:
+            raise ValueError(f"Stroke {stroke.id} has zero length")

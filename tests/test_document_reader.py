@@ -67,8 +67,25 @@ def test_rejects_pdf_without_usable_text_layer(tmp_path: Path) -> None:
 
 
 def test_rejects_unsupported_extension(tmp_path: Path) -> None:
-    source = tmp_path / "input.txt"
+    source = tmp_path / "input.rtf"
     source.write_text("plain text", encoding="utf-8")
 
     with pytest.raises(ValueError, match="Unsupported input format"):
+        read_document(source)
+
+
+def test_reads_utf8_bom_txt_and_preserves_lines(tmp_path: Path) -> None:
+    source = tmp_path / "input.txt"
+    source.write_text("\ufeffПривет\n\nЁжик", encoding="utf-8")
+
+    result = read_document(source)
+
+    assert result.paragraphs == ["Привет", "", "Ёжик"]
+
+
+def test_rejects_empty_txt(tmp_path: Path) -> None:
+    source = tmp_path / "empty.txt"
+    source.write_text("  \n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="no usable text"):
         read_document(source)
