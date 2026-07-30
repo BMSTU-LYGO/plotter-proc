@@ -56,6 +56,16 @@ class PositionedGlyph:
 
 
 @dataclass(slots=True)
+class LayoutResult:
+    glyphs: list[PositionedGlyph]
+    warnings: list[str]
+    line_count: int
+    character_count: int
+    used_width_mm: float
+    used_height_mm: float
+
+
+@dataclass(slots=True)
 class Stroke:
     points: list[Point]
     source_component: int
