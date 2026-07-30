@@ -40,4 +40,4 @@ calibrate:
 clean:
 	rm -rf "$(BUILD)"
 	mkdir -p "$(BUILD)"
-	touch "$(BUILD)/.gitkeep"
+	printf '\n' > "$(BUILD)/.gitkeep"
