@@ -34,7 +34,9 @@ def render_page(
     if page not in PAGE_SIZES_MM:
         raise ValueError(f"Unsupported page size: {page}")
 
-    dpi = _positive_int(layout_config.get("dpi"), "dpi")
+    # Temporary compatibility for the raster pipeline during the staged migration.
+    # The active configuration is vector-only and intentionally has no DPI setting.
+    dpi = 200
     size_options = layout_config.get("sizes", {}).get(size)
     if not isinstance(size_options, dict):
         raise TypeError(f"Unsupported text size: {size}")
@@ -48,18 +50,21 @@ def render_page(
     height_px = mm_to_px(page_height_mm, dpi)
     left = mm_to_px(_nonnegative_float(margins.get("left"), "left margin"), dpi)
     right = width_px - mm_to_px(_nonnegative_float(margins.get("right"), "right margin"), dpi)
-    top = mm_to_px(_nonnegative_float(margins.get("top"), "top margin"), dpi)
+    top = mm_to_px(max(20.0, _nonnegative_float(margins.get("top"), "top margin")), dpi)
     bottom = height_px - mm_to_px(
-        _nonnegative_float(margins.get("bottom"), "bottom margin"), dpi
+        max(30.0, _nonnegative_float(margins.get("bottom"), "bottom margin")), dpi
     )
     if left >= right or top >= bottom:
         raise ValueError("Page margins leave no usable drawing area")
 
-    font_size = _positive_int(size_options.get("font_px"), f"{size}.font_px")
-    line_spacing = _positive_float(size_options.get("line_spacing"), f"{size}.line_spacing")
-    paragraph_spacing = _nonnegative_float(
-        size_options.get("paragraph_spacing_lines"), f"{size}.paragraph_spacing_lines"
+    em_size_mm = _positive_float(size_options.get("em_size_mm"), f"{size}.em_size_mm")
+    font_size = max(1, mm_to_px(em_size_mm, dpi))
+    line_spacing = _positive_float(
+        size_options.get("line_height_multiplier"), f"{size}.line_height_multiplier"
     )
+    paragraph_spacing = _nonnegative_float(
+        size_options.get("paragraph_spacing_mm"), f"{size}.paragraph_spacing_mm"
+    ) / (em_size_mm * line_spacing)
     font = _load_font(font_path, font_size)
     line_height = max(1, round(font_size * line_spacing))
     paragraph_gap = round(line_height * paragraph_spacing)

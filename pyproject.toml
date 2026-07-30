@@ -15,6 +15,7 @@ dependencies = [
     "scikit-image>=0.24",
     "PyYAML>=6.0",
     "svgwrite>=1.4",
+    "fonttools>=4.0",
 ]
 
 [project.optional-dependencies]
@@ -36,4 +37,3 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-

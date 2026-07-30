@@ -70,7 +70,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         warnings.extend(rendered.warnings)
         save_rendered_page(rendered, output_dir / "page.png")
 
-        render_options = _mapping(layout, "render")
+        render_options = {"threshold": 180, "remove_small_objects_px": 4}
         margins = _mapping(layout, "margins_mm")
         bounds = (
             mm_to_px(_number(margins, "left"), rendered.dpi),
@@ -86,7 +86,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         )
         save_skeleton(skeleton, output_dir / "skeleton.png")
 
-        trace_options = _mapping(layout, "trace")
+        trace_options = {"simplify_epsilon_px": 0.8, "min_stroke_points": 2}
         page_width_mm, page_height_mm = PAGE_SIZES_MM[options.page]
         paths = trace_skeleton(
             skeleton,
