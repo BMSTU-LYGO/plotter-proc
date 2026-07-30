@@ -40,3 +40,33 @@ preview:
 layout:
   missing_glyph_policy: error
   tab_spaces: 4
+
+centerline:
+  algorithm_version: 1
+  render:
+    em_resolution_px: 2048
+    padding_px: 128
+    threshold: 160
+    closing_radius_px: 1
+  skeleton:
+    method: medial_axis
+    min_branch_width_factor: 1.5
+    max_junction_cluster_px: 64
+  strokes:
+    tangent_sample_px: 10
+    junction_max_angle_deg: 35.0
+    resample_step_px: 2.0
+    simplify_tolerance_px: 1.0
+    spline_smoothing_factor: 0.04
+    output_step_px: 3.0
+    max_points_per_stroke: 1000
+  quality:
+    min_mask_coverage: 0.82
+    max_reconstruction_extra: 0.25
+    max_endpoint_factor: 8.0
+    fail_on_low_quality: false
+  cache:
+    enabled: true
+    directory: build/font-cache
+  debug:
+    enabled: false
