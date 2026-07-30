@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from plotter_processor.models import PathDocument, Point, Stroke
-from plotter_processor.page_renderer import PAGE_SIZES_MM
+from plotter_processor.models import PathDocument, PlotterStroke, Point
+
+PAGE_SIZES_MM = {"A4": (210.0, 297.0), "A5": (148.0, 210.0)}
 
 DEFAULT_MAX_GCODE_COMMANDS = 1_000_000
 
@@ -136,11 +137,11 @@ def generate_calibration_gcode(
         Point(square_origin.x, square_origin.y + 20.0),
         square_origin,
     ]
-    drawing_strokes = [Stroke(points=square, source_component=0)]
+    drawing_strokes = [PlotterStroke(id=0, points=square[:-1], closed=True)]
     if full_page_frame:
         drawing_strokes.insert(
             0,
-            Stroke(points=[*corners, corners[0]], source_component=0),
+            PlotterStroke(id=0, points=corners, closed=True),
         )
     document = PathDocument(
         page_width_mm=page_width,

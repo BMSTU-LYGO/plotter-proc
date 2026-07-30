@@ -1,23 +1,11 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
-
 
 @dataclass(slots=True)
 class DocumentText:
     paragraphs: list[str]
     source_path: Path
-    warnings: list[str]
-
-
-@dataclass(slots=True)
-class RenderedPage:
-    width_px: int
-    height_px: int
-    dpi: int
-    image: np.ndarray
-    line_boxes: list[tuple[int, int, int, int]]
     warnings: list[str]
 
 
@@ -66,12 +54,6 @@ class LayoutResult:
 
 
 @dataclass(slots=True)
-class Stroke:
-    points: list[Point]
-    source_component: int
-
-
-@dataclass(slots=True)
 class PlotterStroke:
     id: int
     points: list[Point]
@@ -85,6 +67,6 @@ class PlotterStroke:
 class PathDocument:
     page_width_mm: float
     page_height_mm: float
-    strokes: list[Stroke] | list[PlotterStroke]
+    strokes: list[PlotterStroke]
     warnings: list[str]
     metadata: dict[str, object] = field(default_factory=dict)
