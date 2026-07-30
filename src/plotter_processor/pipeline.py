@@ -3,18 +3,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from plotter_processor.config import load_yaml
 from plotter_processor.document_reader import read_document
 from plotter_processor.font_loader import load_font
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
 from plotter_processor.glyph_outline import extract_exact_outlines
-from plotter_processor.models import PageSpec, PlotterStroke
+from plotter_processor.models import PageSpec
 from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.text_normalizer import normalize_document
+from plotter_processor.validator import validate_page_spec, validate_path_document
 from plotter_processor.vector_layout import layout_text
 
 
@@ -65,6 +65,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         sizes = _mapping(layout_config, "sizes")
         size_options = _mapping(sizes, options.size)
         margins = _mapping(layout_config, "margins_mm")
+        validate_page_spec(page, margins)
         vector = _mapping(layout_config, "vector")
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
@@ -95,7 +96,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
             paths = optimize_paths(paths)
         paths.warnings = list(dict.fromkeys(warnings))
-        _validate_page_paths(paths)
+        validate_path_document(
+            paths, max_points_per_contour=_positive_int(vector, "max_points_per_contour")
+        )
         save_path_document(paths, output_dir / "paths.json")
         export_plotter_preview(
             paths,
@@ -155,19 +158,6 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             },
         )
         return PipelineResult("error", report_path, str(error))
-
-
-def _validate_page_paths(document: Any) -> None:
-    if not document.strokes:
-        raise ValueError("Font outlines produced no drawable paths")
-    for stroke in document.strokes:
-        if not isinstance(stroke, PlotterStroke):
-            raise TypeError("Vector pipeline received a legacy stroke")
-        for point in stroke.points:
-            if not (
-                0 <= point.x <= document.page_width_mm and 0 <= point.y <= document.page_height_mm
-            ):
-                raise ValueError("A path lies outside the page bounds")
 
 
 def _assert_safe_gcode(gcode: str) -> None:
