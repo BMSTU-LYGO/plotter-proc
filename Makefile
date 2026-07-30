@@ -1,11 +1,11 @@
-PYTHON ?= python3
-INPUT ?= examples/input.docx
-FONT ?= assets/1.ttf
+PYTHON ?= .venv/bin/python
+INPUT ?= examples/input.txt
+FONT ?= assets/handwriting.ttf
 PAGE ?= A5
 SIZE ?= normal
 BUILD ?= build
 
-.PHONY: install test lint run extract calibrate clean
+.PHONY: install test lint run demo extract calibrate clean
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -25,6 +25,8 @@ run:
 		--machine-config configs/machine.yaml \
 		--output-dir "$(BUILD)"
 
+demo: run
+
 extract:
 	$(PYTHON) -m plotter_processor extract "$(INPUT)" \
 		--output "$(BUILD)/extracted.txt"
@@ -39,4 +41,3 @@ clean:
 	rm -rf "$(BUILD)"
 	mkdir -p "$(BUILD)"
 	touch "$(BUILD)/.gitkeep"
-
