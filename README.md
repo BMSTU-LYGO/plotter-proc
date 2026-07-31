@@ -40,6 +40,41 @@ python3 -m venv .venv
 
 Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
 
+## Профили скорости
+
+`safe` повторяет прежние Z и скорости и остаётся профилем по умолчанию.
+`balanced` и `fast` — начальные кандидаты: их нужно проверить с конкретной
+ручкой и держателем. На большом числе штрихов высота Z и пауза после опускания
+часто экономят больше времени, чем одно увеличение draw feedrate.
+
+```bash
+make benchmark FONT=assets/1.ttf PROFILE=safe
+make benchmark FONT=assets/1.ttf PROFILE=balanced
+make benchmark FONT=assets/1.ttf PROFILE=fast
+```
+
+Для обычного запуска добавьте `--motion-profile safe|balanced|fast`. Разбивка
+draw/travel/Z/dwell находится в разделе `motion` файла `report.json`. Вернуться
+к безопасным параметрам можно с `--motion-profile safe`.
+
+Перед `balanced` или `fast` создайте калибровочные файлы:
+
+```bash
+.venv/bin/python -m plotter_processor calibrate-pen --motion-profile safe
+.venv/bin/python -m plotter_processor calibrate-speed --motion-profile safe
+```
+
+Они не содержат нагрева, extrusion или `G28`; после теста перо поднято. Карта
+теста и таблица осмотра находятся в `docs/speed-calibration-results.md`.
+
+Сравнение двух готовых заданий:
+
+```bash
+.venv/bin/python -m plotter_processor compare-jobs \
+  build/benchmark-safe build/benchmark-balanced \
+  --output build/benchmark-comparison.json
+```
+
 ## Однолинейный режим
 
 `draw-your-font` остаётся отдельным неизменённым инструментом. Сначала
