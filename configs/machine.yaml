@@ -20,6 +20,31 @@ feedrate_mm_min:
   travel: 3000
   z: 500
 
+motion_profiles:
+  default: safe
+  profiles:
+    safe:
+      feedrate_mm_min: {draw: 1000, travel: 3000, z: 500}
+      pen: {up_z_mm: 5.0, down_z_mm: 1.0, down_settle_ms: 100}
+    balanced:
+      feedrate_mm_min: {draw: 1500, travel: 4500, z: 900}
+      pen: {up_z_mm: 3.0, down_z_mm: 1.0, down_settle_ms: 40}
+    fast:
+      feedrate_mm_min: {draw: 2000, travel: 6000, z: 1200}
+      pen: {up_z_mm: 2.5, down_z_mm: 1.0, down_settle_ms: 20}
+
+motion_analysis:
+  short_segment_mm: 0.20
+  very_short_segment_mm: 0.08
+
+path_simplification:
+  enabled: true
+  duplicate_epsilon_mm: 0.001
+  min_segment_length_mm: 0.04
+  max_deviation_mm:
+    outline: 0.05
+    centerline: 0.06
+
 workspace_mm:
   min_x: 0.0
   max_x: 220.0
@@ -31,4 +56,3 @@ gcode:
   absolute_positioning: true
   units_mm: true
   decimals: 3
-
