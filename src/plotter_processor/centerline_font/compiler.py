@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from plotter_processor.centerline_font.cache import default_cache_path, font_sha256
@@ -70,6 +71,11 @@ def compile_centerline_font(
                 compiled.warnings.append(f'Glyph "{char}" needs centerline review')
                 if strict_quality or config.fail_on_low_quality:
                     raise ValueError(f'Centerline quality gate failed for "{char}"')
+        if strict_quality or config.fail_on_low_quality:
+            failed = [char for char in requested if compiled.glyphs[char].quality.get("needs_review")]
+            if failed:
+                chars_text = ", ".join(repr(char) for char in failed)
+                raise ValueError(f"Centerline quality gate failed for cached glyphs: {chars_text}")
     write_centerline_font_atomic(compiled, target, config=config.serializable())
     return compiled, target
 
@@ -81,6 +87,7 @@ def _compile_glyph(
     config: CenterlineConfig,
     debug_dir: Path | None,
 ) -> CenterlineGlyph:
+    config = _config_for_glyph(config, char)
     raster = render_glyph(
         source,
         char,
@@ -111,11 +118,15 @@ def _compile_glyph(
     quality.update(
         {
             "skeleton_method": selected.method,
+            "candidate_scores": selected.candidate_scores,
+            "candidate_metrics": selected.candidate_metrics,
             "graph_nodes": len(nodes),
             "junctions": sum(node.kind == "junction" for node in nodes),
             "spurs_removed": selected.simplification.spurs_removed,
             "junctions_merged": selected.simplification.junctions_merged,
             "false_junctions_removed": selected.simplification.false_junctions_removed,
+            "duplicate_edges_removed": selected.simplification.duplicate_edges_removed,
+            "micro_loops_removed": selected.simplification.micro_loops_removed,
         }
     )
     if float(quality["retrace_ratio"]) > config.max_retrace_ratio:
@@ -136,6 +147,7 @@ def _compile_glyph(
             edges,
             strokes,
             quality,
+            candidate_skeletons=selected.candidate_skeletons,
         )
     return CenterlineGlyph(
         char,
@@ -146,3 +158,28 @@ def _compile_glyph(
         tuple(warnings + quality_warnings),
         quality,
     )
+
+
+def _config_for_glyph(config: CenterlineConfig, char: str) -> CenterlineConfig:
+    override = config.glyph_overrides.get(char)
+    if not override:
+        return config
+    values: dict[str, object] = {}
+    if "skeleton_method" in override:
+        method = override["skeleton_method"]
+        if method not in {"auto", "skeletonize", "medial_axis"}:
+            raise ValueError(f"Invalid skeleton_method override for {char!r}")
+        values["skeleton_method"] = method
+    for key in (
+        "simplify_tolerance_px",
+        "min_branch_width_factor",
+        "max_retrace_ratio",
+    ):
+        if key in override:
+            value = override[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+                raise ValueError(f"Invalid {key} override for {char!r}")
+            values[key] = float(value)
+    if "max_retrace_ratio" in values and float(values["max_retrace_ratio"]) > 1:
+        raise ValueError(f"Invalid max_retrace_ratio override for {char!r}")
+    return replace(config, **values)

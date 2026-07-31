@@ -41,6 +41,7 @@ class CenterlineConfig:
     cache_enabled: bool
     cache_directory: Path
     debug_enabled: bool
+    glyph_overrides: dict[str, dict[str, object]]
 
     def serializable(self) -> dict[str, Any]:
         data = asdict(self)
@@ -71,7 +72,9 @@ def load_centerline_config(config: Mapping[str, object]) -> CenterlineConfig:
         min_branch_width_factor=_number(skeleton, "min_branch_width_factor", 0),
         max_junction_cluster_px=_integer(skeleton, "max_junction_cluster_px", 1),
         max_micro_loop_width_factor=_number(skeleton, "max_micro_loop_width_factor", 0),
-        routing_strategy=_choice(routing, "strategy", {"edge", "minimum_strokes", "one_stroke_per_component"}),
+        routing_strategy=_choice(
+            routing, "strategy", {"edge", "minimum_strokes", "one_stroke_per_component"}
+        ),
         allow_retrace=_boolean(routing, "allow_retrace"),
         minimize_retrace_length=_boolean(routing, "minimize_retrace_length"),
         max_retrace_ratio=_number(routing, "max_retrace_ratio", 0, 1),
@@ -92,6 +95,7 @@ def load_centerline_config(config: Mapping[str, object]) -> CenterlineConfig:
         cache_enabled=_boolean(cache, "enabled"),
         cache_directory=Path(_string(cache, "directory")),
         debug_enabled=_boolean(debug, "enabled"),
+        glyph_overrides=_glyph_overrides(root.get("glyph_overrides", {})),
     )
     return result
 
@@ -103,19 +107,37 @@ def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
     return value
 
 
-def _integer(values: Mapping[str, object], key: str, minimum: int, maximum: int | None = None) -> int:
+def _integer(
+    values: Mapping[str, object], key: str, minimum: int, maximum: int | None = None
+) -> int:
     value = values.get(key)
-    if isinstance(value, bool) or not isinstance(value, int) or value < minimum or (maximum is not None and value > maximum):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or (maximum is not None and value > maximum)
+    ):
         raise ValueError(f"Invalid centerline integer: {key}")
     return value
 
 
-def _number(values: Mapping[str, object], key: str, minimum: float, maximum: float | None = None, *, exclusive_min: bool = False) -> float:
+def _number(
+    values: Mapping[str, object],
+    key: str,
+    minimum: float,
+    maximum: float | None = None,
+    *,
+    exclusive_min: bool = False,
+) -> float:
     value = values.get(key)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"Invalid centerline number: {key}")
     number = float(value)
-    if number < minimum or (exclusive_min and number == minimum) or (maximum is not None and number > maximum):
+    if (
+        number < minimum
+        or (exclusive_min and number == minimum)
+        or (maximum is not None and number > maximum)
+    ):
         raise ValueError(f"Invalid centerline number: {key}")
     return number
 
@@ -146,3 +168,23 @@ def _string(values: Mapping[str, object], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise TypeError(f"Invalid centerline string: {key}")
     return value
+
+
+def _glyph_overrides(value: object) -> dict[str, dict[str, object]]:
+    if not isinstance(value, Mapping):
+        raise TypeError("centerline.glyph_overrides must be a mapping")
+    allowed = {
+        "skeleton_method",
+        "simplify_tolerance_px",
+        "min_branch_width_factor",
+        "max_retrace_ratio",
+    }
+    result: dict[str, dict[str, object]] = {}
+    for char, override in value.items():
+        if not isinstance(char, str) or len(char) != 1 or not isinstance(override, Mapping):
+            raise TypeError("Each centerline glyph override must map one character to settings")
+        unknown = set(override) - allowed
+        if unknown:
+            raise ValueError(f"Unknown glyph override fields for {char!r}: {sorted(unknown)}")
+        result[char] = dict(override)
+    return result

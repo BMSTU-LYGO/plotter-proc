@@ -92,7 +92,7 @@ class CenterlineGlyph:
     advance_font_units: int
     strokes: tuple[CenterlineStroke, ...]
     warnings: tuple[str, ...] = ()
-    quality: dict[str, float | int | bool] = field(default_factory=dict)
+    quality: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

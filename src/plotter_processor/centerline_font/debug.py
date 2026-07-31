@@ -25,6 +25,7 @@ def export_glyph_debug(
     edges: list[SkeletonEdge],
     strokes: list[CenterlineStroke],
     report: dict[str, object] | None = None,
+    candidate_skeletons: dict[str, np.ndarray] | None = None,
 ) -> None:
     target = directory / f"U+{raster.codepoint:04X}-{_safe(raster.char)}"
     target.mkdir(parents=True, exist_ok=True)
@@ -36,6 +37,8 @@ def export_glyph_debug(
     )
     _save_binary(skeleton, target / "04-skeleton.png")
     _save_binary(pruned, target / "05-pruned.png")
+    for method, candidate in sorted((candidate_skeletons or {}).items()):
+        _save_binary(candidate, target / f"04-candidate-{method}.png")
     (target / "06-graph.svg").write_text(
         _graph_svg(raster.width, raster.height, nodes, edges), encoding="utf-8"
     )

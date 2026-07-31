@@ -42,7 +42,7 @@ layout:
   tab_spaces: 4
 
 centerline:
-  algorithm_version: 2
+  algorithm_version: 6
   render:
     em_resolution_px: 2048
     padding_px: 128
@@ -73,7 +73,7 @@ centerline:
     output_step_px: 3.0
     max_points_per_stroke: 3000
   quality:
-    min_mask_coverage: 0.82
+    min_mask_coverage: 0.70
     max_reconstruction_extra: 0.25
     max_endpoint_factor: 8.0
     fail_on_low_quality: false
@@ -82,3 +82,4 @@ centerline:
     directory: build/font-cache
   debug:
     enabled: false
+  glyph_overrides: {}

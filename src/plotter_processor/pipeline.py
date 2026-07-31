@@ -136,6 +136,12 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         bool(glyph.quality.get("needs_review"))
                         for glyph in compiled.glyphs.values()
                     ),
+                    "total_unique_glyphs": len(compiled.glyphs),
+                    "auto_passed": sum(
+                        not bool(glyph.quality.get("needs_review"))
+                        for glyph in compiled.glyphs.values()
+                    ),
+                    "failed": 0,
                     "cache": str(cache_path),
                     "font_sha256": compiled.font_sha256,
                 }
