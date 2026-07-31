@@ -126,6 +126,10 @@ Quality v3 сравнивает `skeletonize` и `medial_axis` по геомет
 `centerline.glyph_overrides`. Полный отчёт и regression-корпус описаны в
 `docs/centerline-quality-v3.md`.
 
+Флаг `--join-writing` включает безопасные рукописные переходы между
+буквами одного слова. Подробные правила, метрики и debug-preview описаны
+в `docs/word-joining.md`.
+
 ### Один непрерывный маршрут на компонент
 
 Centerline cache version 2 строит topology-aware граф с crossing number и
