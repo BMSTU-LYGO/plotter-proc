@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pymupdf
+import yaml
 from docx import Document
 
 from plotter_processor.pipeline import PipelineOptions, run_pipeline
@@ -90,3 +91,50 @@ def test_error_report_removes_existing_gcode(tmp_path: Path) -> None:
     report = json.loads((output / "report.json").read_text(encoding="utf-8"))
     assert report["status"] == "error"
     assert "Font file does not exist" in report["error"]
+
+
+def test_centerline_pipeline_is_cached_and_safe(tmp_path: Path, test_font: Path) -> None:
+    source = tmp_path / "input.txt"
+    source.write_text("О!", encoding="utf-8")
+    config = yaml.safe_load(Path("configs/layout.yaml").read_text(encoding="utf-8"))
+    config["centerline"]["render"]["em_resolution_px"] = 512
+    config["centerline"]["render"]["padding_px"] = 32
+    config["centerline"]["quality"]["min_mask_coverage"] = 0.0
+    config["centerline"]["cache"]["directory"] = str(tmp_path / "font-cache")
+    config_path = tmp_path / "layout.yaml"
+    config_path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    first_output = tmp_path / "first"
+    options = _options(source, first_output, test_font)
+    options.layout_config_path = config_path
+    options.font_mode = "centerline"
+    first = run_pipeline(options)
+    assert first.status == "ok", first.error
+
+    report = json.loads((first_output / "report.json").read_text(encoding="utf-8"))
+    assert report["pipeline"] == "ttf-centerline"
+    assert report["centerline"]["cache_misses"] == 2
+    for filename in (
+        "font-preview.svg",
+        "centerline-font-preview.svg",
+        "plotter-preview.svg",
+        "paths.json",
+        "output.gcode",
+    ):
+        assert (first_output / filename).is_file()
+    gcode = (first_output / "output.gcode").read_text(encoding="utf-8")
+    assert all(command not in gcode for command in ("M104", "M109", "M140", "M190", "G28"))
+    assert not any(
+        token.startswith("E") and token[1:].replace(".", "", 1).lstrip("-").isdigit()
+        for line in gcode.splitlines()
+        for token in line.split()
+    )
+
+    second_output = tmp_path / "second"
+    second_options = _options(source, second_output, test_font)
+    second_options.layout_config_path = config_path
+    second_options.font_mode = "centerline"
+    second = run_pipeline(second_options)
+    assert second.status == "ok", second.error
+    second_report = json.loads((second_output / "report.json").read_text(encoding="utf-8"))
+    assert second_report["centerline"]["cache_hits"] == 2

@@ -33,14 +33,21 @@ def validate_path_document(document: PathDocument, *, max_points_per_contour: in
     if max_points_per_contour < 2:
         raise ValueError("max_points_per_contour must be at least 2")
     if not document.strokes:
-        raise ValueError("Font outlines produced no drawable paths")
+        raise ValueError("Font processing produced no drawable paths")
+    pipeline = document.metadata.get("pipeline")
+    if pipeline not in {None, "ttf-vector", "ttf-centerline"}:
+        raise ValueError(f"Unsupported path pipeline metadata: {pipeline}")
     for stroke in document.strokes:
         if not isinstance(stroke, PlotterStroke):
             raise TypeError("Vector pipeline received a legacy stroke")
         if len(stroke.points) > max_points_per_contour:
             raise ValueError(f"Stroke {stroke.id} exceeds max_points_per_contour")
-        if len({(point.x, point.y) for point in stroke.points}) < 2:
-            raise ValueError(f"Stroke {stroke.id} has fewer than two unique points")
+        unique_points = len({(point.x, point.y) for point in stroke.points})
+        minimum = 3 if stroke.closed else 2
+        if unique_points < minimum:
+            raise ValueError(
+                f"Stroke {stroke.id} has fewer than {minimum} unique points"
+            )
         length = 0.0
         for index, point in enumerate(stroke.points):
             if not math.isfinite(point.x) or not math.isfinite(point.y):

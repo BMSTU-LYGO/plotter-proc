@@ -4,6 +4,9 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from plotter_processor.centerline_font.compiler import compile_centerline_font
+from plotter_processor.centerline_font.config import load_centerline_config
+from plotter_processor.centerline_font.preview import export_centerline_font_preview
 from plotter_processor.config import load_yaml
 from plotter_processor.document_reader import read_document
 from plotter_processor.font_loader import load_font
@@ -26,6 +29,10 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         machine_config_path=args.machine_config,
         output_dir=args.output_dir,
         optimize_travel=not args.no_optimize_travel,
+        font_mode=args.font_mode,
+        centerline_cache_path=args.centerline_cache,
+        force_centerline_rebuild=args.force_centerline_rebuild,
+        strict_centerline_quality=args.strict_centerline_quality,
     )
 
 
@@ -101,6 +108,36 @@ def _calibrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _compile_centerline(args: argparse.Namespace) -> int:
+    try:
+        config = load_centerline_config(load_yaml(args.layout_config))
+        chars = set(args.chars or "")
+        if args.text_file:
+            chars.update(args.text_file.read_text(encoding="utf-8"))
+        if not chars:
+            with load_font(args.font) as font:
+                chars = {chr(codepoint) for codepoint in font.cmap}
+        compiled, output = compile_centerline_font(
+            args.font,
+            chars,
+            config,
+            cache_path=args.output,
+            force=args.force,
+            strict_quality=args.strict_quality,
+            debug_dir=args.debug_dir,
+        )
+        preview = args.preview or output.with_suffix(".svg")
+        export_centerline_font_preview(compiled, sorted(chars, key=ord), preview)
+    except (FileNotFoundError, OSError, TypeError, UnicodeError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(
+        f"Compiled {len(compiled.glyphs)} glyphs to {output}; "
+        f"cache hits={compiled.cache_hits}, misses={compiled.cache_misses}; preview={preview}"
+    )
+    return 0
+
+
 def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("input", type=Path)
     parser.add_argument("--font", type=Path, required=True)
@@ -110,6 +147,10 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--machine-config", type=Path, default=Path("configs/machine.yaml"))
     parser.add_argument("--output-dir", type=Path, default=Path("build"))
     parser.add_argument("--no-optimize-travel", action="store_true")
+    parser.add_argument("--font-mode", choices=("outline", "centerline"), default="outline")
+    parser.add_argument("--centerline-cache", type=Path)
+    parser.add_argument("--force-centerline-rebuild", action="store_true")
+    parser.add_argument("--strict-centerline-quality", action="store_true")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,6 +175,20 @@ def build_parser() -> argparse.ArgumentParser:
     info_parser = commands.add_parser("font-info", help="Inspect a TTF font.")
     info_parser.add_argument("font", type=Path)
     info_parser.set_defaults(handler=_font_info)
+
+    compile_parser = commands.add_parser(
+        "compile-centerline-font", help="Compile ordinary TTF glyphs into centerline strokes."
+    )
+    compile_parser.add_argument("font", type=Path)
+    compile_parser.add_argument("--chars")
+    compile_parser.add_argument("--text-file", type=Path)
+    compile_parser.add_argument("--output", type=Path)
+    compile_parser.add_argument("--preview", type=Path)
+    compile_parser.add_argument("--debug-dir", type=Path)
+    compile_parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
+    compile_parser.add_argument("--force", action="store_true")
+    compile_parser.add_argument("--strict-quality", action="store_true")
+    compile_parser.set_defaults(handler=_compile_centerline)
 
     gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")
     gcode_parser.add_argument("input", type=Path)

@@ -18,3 +18,15 @@ def test_optimizer_preserves_draw_distance_and_reduces_travel() -> None:
     after = path_statistics(optimize_paths(document))
     assert after["draw_distance_mm"] == before["draw_distance_mm"]
     assert after["travel_distance_mm"] <= before["travel_distance_mm"]
+
+
+def test_optimizer_never_splits_or_reorders_points_inside_euler_route() -> None:
+    route = PlotterStroke(
+        0,
+        [Point(0, 0), Point(2, 0), Point(1, 0), Point(3, 0)],
+        False,
+        0,
+    )
+    optimized = optimize_paths(PathDocument(100, 100, [route], [], {"pipeline": "ttf-centerline"}))
+    assert len(optimized.strokes) == 1
+    assert optimized.strokes[0].points in [route.points, list(reversed(route.points))]

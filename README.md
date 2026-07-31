@@ -5,14 +5,14 @@
 ```text
 TXT / DOCX / PDF + TTF
           ↓
-Unicode NFC → layout в миллиметрах → контуры fontTools
+Unicode NFC → layout в миллиметрах → outline или centerline
           ↓
 font-preview.svg + plotter-preview.svg + paths.json + output.gcode
 ```
 
-В основном pipeline нет рендеринга PNG, бинаризации, skeletonize или обхода пиксельного графа.
-
-> Обычный TTF содержит контуры букв. Плоттер проходит по внешним и внутренним контурам. Это не восстановление центральной линии человеческого штриха.
+Режим `outline` точно повторяет обе границы заполненного TTF. Режим
+`centerline` отдельно рендерит каждый уникальный глиф при 2048 px/em,
+строит medial axis и кеширует сглаженные штрихи в font units.
 
 ## Установка
 
@@ -30,6 +30,7 @@ python3 -m venv .venv
 ```bash
 .venv/bin/python -m plotter_processor run examples/input.txt \
   --font assets/handwriting.ttf \
+  --font-mode outline \
   --page A5 \
   --size normal \
   --layout-config configs/layout.yaml \
@@ -38,6 +39,70 @@ python3 -m venv .venv
 ```
 
 Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
+
+## Однолинейный режим
+
+`draw-your-font` остаётся отдельным неизменённым инструментом. Сначала
+создайте им обычный TTF:
+
+```bash
+npx draw-your-font make page-1.jpg page-2.jpg --name "My Hand"
+```
+
+Затем передайте только полученный TTF:
+
+```bash
+.venv/bin/python -m plotter_processor run examples/input.txt \
+  --font assets/MyHand.ttf \
+  --font-mode centerline \
+  --page A5 \
+  --size normal \
+  --output-dir build/centerline-job
+```
+
+При первом запуске уникальные глифы компилируются в `build/font-cache`.
+Последующие запуски используют частичный кеш. Отдельная предварительная
+компиляция:
+
+```bash
+.venv/bin/python -m plotter_processor compile-centerline-font \
+  assets/MyHand.ttf \
+  --text-file examples/input.txt \
+  --output build/fonts/MyHand.centerline.json \
+  --preview build/fonts/MyHand.centerline.svg \
+  --debug-dir build/fonts/MyHand-debug
+```
+
+Полезные параметры:
+
+- `--centerline-cache PATH` — использовать конкретный JSON-кеш;
+- `--force-centerline-rebuild` — пересобрать кеш;
+- `--strict-centerline-quality` — остановиться на слабом глифе;
+- `--font-mode outline` — сохранить прежнее поведение с двойной обводкой.
+
+Centerline — автоматическое приближение. Сложные пересечения могут требовать
+настройки `configs/layout.yaml`; качество результата ограничено качеством TTF.
+Перед печатью обязательно проверьте `font-preview.svg`,
+`centerline-font-preview.svg`, `plotter-preview.svg` и предупреждения отчёта.
+
+### Один непрерывный маршрут на компонент
+
+Centerline cache version 2 строит topology-aware граф с crossing number и
+автоматически сравнивает `skeletonize` с `medial_axis`. Для каждого связного
+компонента строится Euler path/circuit. Если граф имеет больше двух нечётных
+вершин, минимально повторяются только существующие skeleton-рёбра — новые
+соединительные линии через пустое место не добавляются.
+
+Обычно связная буква (`а`, `ж`, `ф`, `щ`) становится одним движением. Отдельные
+точки и знаки остаются отдельными движениями: `ё` обычно имеет три маршрута,
+`й` — два, `!` — два. В `report.json` доступны `pen_lifts_saved`,
+`retraced_length_mm`, `retrace_ratio`, fallback и худшие глифы. Если повтор
+слишком велик, используется minimum-trails fallback.
+
+Основные параметры находятся в `centerline.skeleton` и `centerline.routing`
+файла `configs/layout.yaml`. Перед физическим запуском проверьте routed preview
+и debug проблемных глифов; повторный проход по линии может визуально утолщать
+чернила.
 
 Полезные команды:
 
@@ -51,6 +116,7 @@ python3 -m venv .venv
 
 - `extracted.txt` — извлечённый нормализованный текст;
 - `font-preview.svg` — точные заполненные кривые TTF;
+- `centerline-font-preview.svg` — таблица центральных линий уникальных глифов;
 - `plotter-preview.svg` — реальные линейные движения ручки;
 - `paths.json` — версионированные траектории в системе page-mm-top-left;
 - `output.gcode` — движения XY/Z без нагрева, extrusion и G28 по умолчанию;

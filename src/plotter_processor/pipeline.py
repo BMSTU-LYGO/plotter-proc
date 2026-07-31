@@ -4,6 +4,10 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from plotter_processor.centerline_font.compiler import compile_centerline_font
+from plotter_processor.centerline_font.config import load_centerline_config
+from plotter_processor.centerline_font.preview import export_centerline_font_preview
+from plotter_processor.centerline_path_builder import build_centerline_paths
 from plotter_processor.config import load_yaml
 from plotter_processor.document_reader import read_document
 from plotter_processor.font_loader import load_font
@@ -28,6 +32,10 @@ class PipelineOptions:
     machine_config_path: Path
     output_dir: Path
     optimize_travel: bool = True
+    font_mode: str = "outline"
+    centerline_cache_path: Path | None = None
+    force_centerline_rebuild: bool = False
+    strict_centerline_quality: bool = False
 
 
 @dataclass(slots=True)
@@ -45,6 +53,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
     warnings: list[str] = []
     try:
         layout_config = load_yaml(options.layout_config_path)
+        if options.font_mode not in {"outline", "centerline"}:
+            raise ValueError(f"Unknown font mode: {options.font_mode}")
         machine_config = load_yaml(options.machine_config_path)
         document = read_document(options.input_path)
         normalized = normalize_document(document)
@@ -90,7 +100,76 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 output_dir / "font-preview.svg",
                 show_page_border=_boolean(preview, "show_page_border"),
             )
-            paths = build_paths(font, layout.glyphs, page, vector)
+            if options.font_mode == "outline":
+                paths = build_paths(font, layout.glyphs, page, vector)
+                warnings.append("Outline mode follows both boundaries of filled TTF strokes")
+                centerline_info = None
+            else:
+                centerline_config = load_centerline_config(layout_config)
+                compiled, cache_path = compile_centerline_font(
+                    options.font_path,
+                    {glyph.char for glyph in layout.glyphs},
+                    centerline_config,
+                    cache_path=options.centerline_cache_path,
+                    force=options.force_centerline_rebuild,
+                    strict_quality=options.strict_centerline_quality,
+                )
+                paths = build_centerline_paths(compiled, layout.glyphs, page)
+                export_centerline_font_preview(
+                    compiled,
+                    sorted({glyph.char for glyph in layout.glyphs}, key=ord),
+                    output_dir / "centerline-font-preview.svg",
+                )
+                centerline_info = {
+                    "routing_strategy": centerline_config.routing_strategy,
+                    "compiled_glyphs": len(compiled.glyphs),
+                    "cache_hits": compiled.cache_hits,
+                    "cache_misses": compiled.cache_misses,
+                    "needs_review": sum(
+                        bool(glyph.quality.get("needs_review"))
+                        for glyph in compiled.glyphs.values()
+                    ),
+                    "cache": str(cache_path),
+                    "font_sha256": compiled.font_sha256,
+                }
+                placed_glyphs = [compiled.glyphs[glyph.char] for glyph in layout.glyphs]
+                graph_edges = sum(
+                    int(glyph.quality.get("graph_edges", 0)) for glyph in placed_glyphs
+                )
+                routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
+                retraced_length_mm = sum(
+                    sum(stroke.retraced_length_font_units for stroke in compiled.glyphs[positioned.char].strokes)
+                    * positioned.scale_mm_per_font_unit
+                    for positioned in layout.glyphs
+                )
+                worst = sorted(
+                    (
+                        {
+                            "char": char,
+                            "retrace_ratio": float(glyph.quality.get("retrace_ratio", 0.0)),
+                            "components": len(glyph.strokes),
+                        }
+                        for char, glyph in compiled.glyphs.items()
+                    ),
+                    key=lambda item: (-item["retrace_ratio"], ord(item["char"])),
+                )[:10]
+                centerline_info.update(
+                    {
+                        "glyph_components": routed_strokes,
+                        "graph_edges_before_routing": graph_edges,
+                        "strokes_after_routing": routed_strokes,
+                        "pen_lifts_before_routing": graph_edges,
+                        "pen_lifts_after_routing": routed_strokes,
+                        "pen_lifts_saved": max(0, graph_edges - routed_strokes),
+                        "retraced_length_mm": round(retraced_length_mm, 3),
+                        "fallback_glyphs": [
+                            char
+                            for char, glyph in compiled.glyphs.items()
+                            if glyph.quality.get("fallback_used")
+                        ],
+                        "worst_glyphs": worst,
+                    }
+                )
 
         warnings.extend(paths.warnings)
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
@@ -108,6 +187,15 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         )
 
         statistics = path_statistics(paths)
+        if centerline_info is not None:
+            retraced = float(centerline_info["retraced_length_mm"])
+            draw_length = float(statistics["draw_distance_mm"])
+            centerline_info["original_draw_length_mm"] = round(
+                max(0.0, draw_length - retraced), 3
+            )
+            centerline_info["retrace_ratio"] = round(
+                retraced / max(draw_length - retraced, 1e-9), 6
+            )
         feedrates = _mapping(machine_config, "feedrate_mm_min")
         statistics.update(
             {
@@ -126,7 +214,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         write_gcode_atomic(gcode, gcode_path)
         report = {
             "status": "ok",
-            "pipeline": "ttf-vector",
+            "pipeline": "ttf-centerline" if options.font_mode == "centerline" else "ttf-vector",
+            "font_mode": options.font_mode,
             "input": str(options.input_path),
             "font": str(options.font_path),
             "page": options.page,
@@ -142,6 +231,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "gcode": str(gcode_path),
             },
         }
+        if centerline_info is not None:
+            report["centerline"] = centerline_info
+            report["outputs"]["centerline_font_preview"] = str(
+                output_dir / "centerline-font-preview.svg"
+            )
         _write_report(report_path, report)
         return PipelineResult("ok", report_path)
     except (FileNotFoundError, KeyError, OSError, TypeError, ValueError) as error:
@@ -150,7 +244,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             report_path,
             {
                 "status": "error",
-                "pipeline": "ttf-vector",
+                "pipeline": (
+                    "ttf-centerline" if options.font_mode == "centerline" else "ttf-vector"
+                ),
+                "font_mode": options.font_mode,
                 "input": str(options.input_path),
                 "font": str(options.font_path),
                 "error": str(error),
