@@ -35,10 +35,12 @@ def export_centerline_font_preview(
                 'stroke-linecap="round" stroke-linejoin="round"/>'
             )
         total_points = sum(len(stroke.points) for stroke in glyph.strokes)
+        retrace = float(glyph.quality.get("retrace_ratio", 0.0)) * 100
         parts.append(
             f'<text x="{ox}" y="{oy + 26}" font-family="sans-serif" font-size="14">'
             f'{html.escape(glyph.char)} · {html.escape(glyph.glyph_name)} · '
-            f'{len(glyph.strokes)} strokes · {total_points} points</text>'
+            f'components={len(glyph.strokes)} strokes={len(glyph.strokes)} '
+            f'retrace={retrace:.1f}% · {total_points} points</text>'
         )
     parts.append("</svg>")
     output_path.parent.mkdir(parents=True, exist_ok=True)

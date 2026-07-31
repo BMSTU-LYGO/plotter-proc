@@ -42,16 +42,28 @@ layout:
   tab_spaces: 4
 
 centerline:
-  algorithm_version: 1
+  algorithm_version: 2
   render:
     em_resolution_px: 2048
     padding_px: 128
     threshold: 160
     closing_radius_px: 1
   skeleton:
-    method: medial_axis
+    method: auto
+    candidate_methods: [skeletonize, medial_axis]
+    use_crossing_number: true
+    suppress_corner_diagonals: true
     min_branch_width_factor: 1.5
     max_junction_cluster_px: 64
+    max_micro_loop_width_factor: 2.0
+  routing:
+    strategy: one_stroke_per_component
+    allow_retrace: true
+    minimize_retrace_length: true
+    max_retrace_ratio: 0.45
+    exact_matching_max_odd_vertices: 20
+    fallback_strategy: minimum_strokes
+    deterministic: true
   strokes:
     tangent_sample_px: 10
     junction_max_angle_deg: 35.0
@@ -59,7 +71,7 @@ centerline:
     simplify_tolerance_px: 1.0
     spline_smoothing_factor: 0.04
     output_step_px: 3.0
-    max_points_per_stroke: 1000
+    max_points_per_stroke: 3000
   quality:
     min_mask_coverage: 0.82
     max_reconstruction_extra: 0.25

@@ -14,8 +14,19 @@ class CenterlineConfig:
     threshold: int
     closing_radius_px: int
     skeleton_method: str
+    candidate_methods: tuple[str, ...]
+    use_crossing_number: bool
+    suppress_corner_diagonals: bool
     min_branch_width_factor: float
     max_junction_cluster_px: int
+    max_micro_loop_width_factor: float
+    routing_strategy: str
+    allow_retrace: bool
+    minimize_retrace_length: bool
+    max_retrace_ratio: float
+    exact_matching_max_odd_vertices: int
+    fallback_strategy: str
+    deterministic: bool
     tangent_sample_px: int
     junction_max_angle_deg: float
     resample_step_px: float
@@ -34,6 +45,7 @@ class CenterlineConfig:
     def serializable(self) -> dict[str, Any]:
         data = asdict(self)
         data["cache_directory"] = str(self.cache_directory)
+        data["candidate_methods"] = list(self.candidate_methods)
         return data
 
 
@@ -41,6 +53,7 @@ def load_centerline_config(config: Mapping[str, object]) -> CenterlineConfig:
     root = _mapping(config, "centerline")
     render = _mapping(root, "render")
     skeleton = _mapping(root, "skeleton")
+    routing = _mapping(root, "routing")
     strokes = _mapping(root, "strokes")
     quality = _mapping(root, "quality")
     cache = _mapping(root, "cache")
@@ -51,9 +64,20 @@ def load_centerline_config(config: Mapping[str, object]) -> CenterlineConfig:
         padding_px=_integer(render, "padding_px", 16),
         threshold=_integer(render, "threshold", 1, 254),
         closing_radius_px=_integer(render, "closing_radius_px", 0),
-        skeleton_method=_choice(skeleton, "method", {"medial_axis", "skeletonize"}),
+        skeleton_method=_choice(skeleton, "method", {"auto", "medial_axis", "skeletonize"}),
+        candidate_methods=_choices(skeleton, "candidate_methods", {"medial_axis", "skeletonize"}),
+        use_crossing_number=_boolean(skeleton, "use_crossing_number"),
+        suppress_corner_diagonals=_boolean(skeleton, "suppress_corner_diagonals"),
         min_branch_width_factor=_number(skeleton, "min_branch_width_factor", 0),
         max_junction_cluster_px=_integer(skeleton, "max_junction_cluster_px", 1),
+        max_micro_loop_width_factor=_number(skeleton, "max_micro_loop_width_factor", 0),
+        routing_strategy=_choice(routing, "strategy", {"edge", "minimum_strokes", "one_stroke_per_component"}),
+        allow_retrace=_boolean(routing, "allow_retrace"),
+        minimize_retrace_length=_boolean(routing, "minimize_retrace_length"),
+        max_retrace_ratio=_number(routing, "max_retrace_ratio", 0, 1),
+        exact_matching_max_odd_vertices=_integer(routing, "exact_matching_max_odd_vertices", 2),
+        fallback_strategy=_choice(routing, "fallback_strategy", {"minimum_strokes", "edge"}),
+        deterministic=_boolean(routing, "deterministic"),
         tangent_sample_px=_integer(strokes, "tangent_sample_px", 1),
         junction_max_angle_deg=_number(strokes, "junction_max_angle_deg", 0, 90),
         resample_step_px=_number(strokes, "resample_step_px", 0, exclusive_min=True),
@@ -101,6 +125,13 @@ def _choice(values: Mapping[str, object], key: str, choices: set[str]) -> str:
     if not isinstance(value, str) or value not in choices:
         raise ValueError(f"Invalid centerline choice: {key}")
     return value
+
+
+def _choices(values: Mapping[str, object], key: str, choices: set[str]) -> tuple[str, ...]:
+    value = values.get(key)
+    if not isinstance(value, list) or not value or any(item not in choices for item in value):
+        raise ValueError(f"Invalid centerline choices: {key}")
+    return tuple(value)
 
 
 def _boolean(values: Mapping[str, object], key: str) -> bool:

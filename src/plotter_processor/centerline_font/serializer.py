@@ -14,7 +14,7 @@ from plotter_processor.centerline_font.models import (
 from plotter_processor.models import Point
 
 FORMAT = "plotter-centerline-font"
-VERSION = 1
+VERSION = 2
 
 
 def to_data(font: CompiledCenterlineFont, *, config: dict[str, object]) -> dict[str, object]:
@@ -38,7 +38,9 @@ def to_data(font: CompiledCenterlineFont, *, config: dict[str, object]) -> dict[
                 "strokes": [
                     {
                         "id": stroke.id,
+                        "component_id": stroke.component_id,
                         "closed": stroke.closed,
+                        "retraced_length_font_units": stroke.retraced_length_font_units,
                         "points": [[point.x, point.y] for point in stroke.points],
                     }
                     for stroke in glyph.strokes
@@ -77,7 +79,15 @@ def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterline
             closed = bool(stroke.get("closed"))
             if len(set(points)) < (3 if closed else 2):
                 raise ValueError("Centerline stroke has too few unique points")
-            strokes.append(CenterlineStroke(int(stroke.get("id", len(strokes))), points, closed))
+            strokes.append(
+                CenterlineStroke(
+                    int(stroke.get("id", len(strokes))),
+                    points,
+                    closed,
+                    int(stroke.get("component_id", 0)),
+                    float(stroke.get("retraced_length_font_units", 0.0)),
+                )
+            )
         glyphs[char] = CenterlineGlyph(
             char,
             int(item["codepoint"]),

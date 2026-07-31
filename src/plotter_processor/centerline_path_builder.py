@@ -52,7 +52,8 @@ def build_centerline_paths(
             "coordinate_system": "page-mm-top-left",
             "pipeline": "ttf-centerline",
             "centerline_format": "plotter-centerline-font",
-            "centerline_version": 1,
+            "centerline_version": 2,
+            "routing_strategy": "one_stroke_per_component",
             "font_sha256": compiled_font.font_sha256,
         },
     )

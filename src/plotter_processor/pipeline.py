@@ -121,6 +121,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     output_dir / "centerline-font-preview.svg",
                 )
                 centerline_info = {
+                    "routing_strategy": centerline_config.routing_strategy,
                     "compiled_glyphs": len(compiled.glyphs),
                     "cache_hits": compiled.cache_hits,
                     "cache_misses": compiled.cache_misses,
@@ -131,6 +132,44 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     "cache": str(cache_path),
                     "font_sha256": compiled.font_sha256,
                 }
+                placed_glyphs = [compiled.glyphs[glyph.char] for glyph in layout.glyphs]
+                graph_edges = sum(
+                    int(glyph.quality.get("graph_edges", 0)) for glyph in placed_glyphs
+                )
+                routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
+                retraced_length_mm = sum(
+                    sum(stroke.retraced_length_font_units for stroke in compiled.glyphs[positioned.char].strokes)
+                    * positioned.scale_mm_per_font_unit
+                    for positioned in layout.glyphs
+                )
+                worst = sorted(
+                    (
+                        {
+                            "char": char,
+                            "retrace_ratio": float(glyph.quality.get("retrace_ratio", 0.0)),
+                            "components": len(glyph.strokes),
+                        }
+                        for char, glyph in compiled.glyphs.items()
+                    ),
+                    key=lambda item: (-item["retrace_ratio"], ord(item["char"])),
+                )[:10]
+                centerline_info.update(
+                    {
+                        "glyph_components": routed_strokes,
+                        "graph_edges_before_routing": graph_edges,
+                        "strokes_after_routing": routed_strokes,
+                        "pen_lifts_before_routing": graph_edges,
+                        "pen_lifts_after_routing": routed_strokes,
+                        "pen_lifts_saved": max(0, graph_edges - routed_strokes),
+                        "retraced_length_mm": round(retraced_length_mm, 3),
+                        "fallback_glyphs": [
+                            char
+                            for char, glyph in compiled.glyphs.items()
+                            if glyph.quality.get("fallback_used")
+                        ],
+                        "worst_glyphs": worst,
+                    }
+                )
 
         warnings.extend(paths.warnings)
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
@@ -148,6 +187,15 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         )
 
         statistics = path_statistics(paths)
+        if centerline_info is not None:
+            retraced = float(centerline_info["retraced_length_mm"])
+            draw_length = float(statistics["draw_distance_mm"])
+            centerline_info["original_draw_length_mm"] = round(
+                max(0.0, draw_length - retraced), 3
+            )
+            centerline_info["retrace_ratio"] = round(
+                retraced / max(draw_length - retraced, 1e-9), 6
+            )
         feedrates = _mapping(machine_config, "feedrate_mm_min")
         statistics.update(
             {
