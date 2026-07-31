@@ -120,6 +120,12 @@ Centerline — автоматическое приближение. Сложны
 Перед печатью обязательно проверьте `font-preview.svg`,
 `centerline-font-preview.svg`, `plotter-preview.svg` и предупреждения отчёта.
 
+Quality v3 сравнивает `skeletonize` и `medial_axis` по геометрии и
+топологии, нормализует junction-кластеры и удаляет spur относительно
+локальной толщины. Отдельный глиф можно настроить через
+`centerline.glyph_overrides`. Полный отчёт и regression-корпус описаны в
+`docs/centerline-quality-v3.md`.
+
 ### Один непрерывный маршрут на компонент
 
 Centerline cache version 2 строит topology-aware граф с crossing number и
