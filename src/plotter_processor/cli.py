@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,8 +14,12 @@ from plotter_processor.font_loader import load_font
 from plotter_processor.gcode_exporter import (
     generate_calibration_gcode,
     generate_gcode,
+    generate_pen_calibration_gcode,
+    generate_speed_calibration_gcode,
     write_gcode_atomic,
 )
+from plotter_processor.job_comparison import compare_jobs
+from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.path_builder import load_path_document
 from plotter_processor.pipeline import PipelineOptions, run_pipeline
 
@@ -33,6 +38,8 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         centerline_cache_path=args.centerline_cache,
         force_centerline_rebuild=args.force_centerline_rebuild,
         strict_centerline_quality=args.strict_centerline_quality,
+        motion_profile=args.motion_profile,
+        join_writing=args.join_writing,
     )
 
 
@@ -108,6 +115,39 @@ def _calibrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _motion_calibrate(args: argparse.Namespace) -> int:
+    try:
+        machine = load_yaml(args.machine_config)
+        profile = resolve_motion_profile(machine, args.motion_profile)
+        resolved = apply_motion_profile(machine, profile)
+        generator = (
+            generate_pen_calibration_gcode
+            if args.command == "calibrate-pen"
+            else generate_speed_calibration_gcode
+        )
+        write_gcode_atomic(generator(resolved), args.output)
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        args.output.unlink(missing_ok=True)
+        print(f"Error: {error}")
+        return 1
+    print(f"Saved {args.command} G-code to {args.output}")
+    return 0
+
+
+def _compare_jobs(args: argparse.Namespace) -> int:
+    try:
+        result = compare_jobs(args.baseline, args.candidate)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"Saved comparison to {args.output}")
+    return 0
+
+
 def _compile_centerline(args: argparse.Namespace) -> int:
     try:
         config = load_centerline_config(load_yaml(args.layout_config))
@@ -151,6 +191,10 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--centerline-cache", type=Path)
     parser.add_argument("--force-centerline-rebuild", action="store_true")
     parser.add_argument("--strict-centerline-quality", action="store_true")
+    parser.add_argument("--motion-profile", choices=("safe", "balanced", "fast"))
+    parser.add_argument(
+        "--join-writing", action="store_true", help="Join eligible centerline letters within words."
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -204,6 +248,24 @@ def build_parser() -> argparse.ArgumentParser:
     calibrate_parser.add_argument("--output", type=Path, default=Path("build/calibration.gcode"))
     calibrate_parser.add_argument("--full-page-frame", action="store_true")
     calibrate_parser.set_defaults(handler=_calibrate)
+    for name, default in (
+        ("calibrate-speed", Path("build/calibration/speed-test.gcode")),
+        ("calibrate-pen", Path("build/calibration/pen-height.gcode")),
+    ):
+        motion_parser = commands.add_parser(name, help=f"Generate safe {name} G-code.")
+        motion_parser.add_argument(
+            "--machine-config", type=Path, default=Path("configs/machine.yaml")
+        )
+        motion_parser.add_argument(
+            "--motion-profile", choices=("safe", "balanced", "fast"), default="safe"
+        )
+        motion_parser.add_argument("--output", type=Path, default=default)
+        motion_parser.set_defaults(handler=_motion_calibrate)
+    compare_parser = commands.add_parser("compare-jobs", help="Compare job reports and geometry.")
+    compare_parser.add_argument("baseline", type=Path)
+    compare_parser.add_argument("candidate", type=Path)
+    compare_parser.add_argument("--output", type=Path, required=True)
+    compare_parser.set_defaults(handler=_compare_jobs)
     return parser
 
 

@@ -36,9 +36,7 @@ def render_glyph(
             round(advance * scale + 2 * padding_px),
             round(baseline_x + bbox[2] + padding_px),
         )
-        height = round(
-            padding_px * 2 + (font.metrics.ascent - font.metrics.descent) * scale
-        )
+        height = round(padding_px * 2 + (font.metrics.ascent - font.metrics.descent) * scale)
         image = Image.new("L", (max(width, 1), max(height, 1)), 255)
         ImageDraw.Draw(image).text(
             (baseline_x, baseline_y), char, font=pil_font, fill=0, anchor="ls"

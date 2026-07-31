@@ -17,7 +17,7 @@ def score_quality(
     min_coverage: float,
     max_extra: float,
     max_endpoint_factor: float,
-) -> tuple[dict[str, float | int | bool], list[str]]:
+) -> tuple[dict[str, object], list[str]]:
     del raster
     radius = max(1, round(float(np.median(ndimage.distance_transform_edt(mask)[skeleton]))))
     reconstructed = ndimage.binary_dilation(skeleton, iterations=radius)
@@ -37,13 +37,20 @@ def score_quality(
         warnings.append("Connected component was lost")
     if endpoints > max_endpoint_factor * max(1, len(strokes)):
         warnings.append("Centerline has an anomalous endpoint count")
-    metrics: dict[str, float | int | bool] = {
+    radii = ndimage.distance_transform_edt(mask)[skeleton]
+    mean_radius = float(np.mean(radii)) if radii.size else 0.0
+    balance = float(np.std(radii) / mean_radius) if mean_radius else 0.0
+    inside_ratio = float((skeleton & mask).sum()) / max(1, int(skeleton.sum()))
+    metrics: dict[str, float | int | bool | str] = {
         "mask_coverage": round(coverage, 6),
+        "centerline_inside_mask_ratio": round(inside_ratio, 6),
+        "distance_to_boundary_balance_cv": round(balance, 6),
         "reconstruction_extra": round(extra, 6),
         "mask_components": int(mask_components),
         "centerline_components": int(skeleton_components),
         "endpoints": endpoints,
         "needs_review": bool(warnings),
+        "quality_status": "needs_review" if warnings else "auto_passed",
     }
     return metrics, warnings
 

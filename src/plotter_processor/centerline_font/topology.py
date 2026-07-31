@@ -28,9 +28,7 @@ def crossing_number(
     pixel: Pixel, skeleton: np.ndarray, *, suppress_corner_diagonals: bool = True
 ) -> int:
     neighbors = set(
-        topology_neighbors(
-            pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals
-        )
+        topology_neighbors(pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals)
     )
     y, x = pixel
     values = [int((y + dy, x + dx) in neighbors) for dy, dx in OFFSETS]
@@ -40,12 +38,8 @@ def crossing_number(
 def classify_skeleton_pixel(
     pixel: Pixel, skeleton: np.ndarray, *, suppress_corner_diagonals: bool = True
 ) -> str:
-    cn = crossing_number(
-        pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals
-    )
-    if not topology_neighbors(
-        pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals
-    ):
+    cn = crossing_number(pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals)
+    if not topology_neighbors(pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals):
         return "isolated"
     if cn == 1:
         return "endpoint"

@@ -7,9 +7,7 @@ from skimage.morphology import closing, disk
 from plotter_processor.centerline_font.models import RasterGlyph
 
 
-def build_ink_mask(
-    raster: RasterGlyph, *, threshold: int, closing_radius_px: int
-) -> np.ndarray:
+def build_ink_mask(raster: RasterGlyph, *, threshold: int, closing_radius_px: int) -> np.ndarray:
     if not 1 <= threshold <= 254:
         raise ValueError("threshold must be between 1 and 254")
     if closing_radius_px < 0:

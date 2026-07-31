@@ -50,7 +50,10 @@ def build_skeleton_graph(
                 float(medoid[0]),
                 tuple(sorted(cluster)),
                 component_id,
-                max(crossing_number(p, mask, suppress_corner_diagonals=suppress_corner_diagonals) for p in cluster),
+                max(
+                    crossing_number(p, mask, suppress_corner_diagonals=suppress_corner_diagonals)
+                    for p in cluster
+                ),
             )
             nodes.append(node)
             pixel_node.update({pixel: node.id for pixel in cluster})
@@ -61,8 +64,13 @@ def build_skeleton_graph(
             if kind not in {"endpoint", "isolated"}:
                 continue
             node = SkeletonNode(
-                len(nodes), kind if kind == "endpoint" else "dot", float(pixel[1]), float(pixel[0]),
-                (pixel,), component_id, crossing_number(pixel, mask, suppress_corner_diagonals=suppress_corner_diagonals),
+                len(nodes),
+                kind if kind == "endpoint" else "dot",
+                float(pixel[1]),
+                float(pixel[0]),
+                (pixel,),
+                component_id,
+                crossing_number(pixel, mask, suppress_corner_diagonals=suppress_corner_diagonals),
             )
             nodes.append(node)
             pixel_node[pixel] = node.id
@@ -84,9 +92,11 @@ def build_skeleton_graph(
                 previous, current = start_pixel, neighbor
                 while current not in pixel_node:
                     choices = [
-                        p for p in topology_neighbors(
+                        p
+                        for p in topology_neighbors(
                             current, mask, suppress_corner_diagonals=suppress_corner_diagonals
-                        ) if p != previous
+                        )
+                        if p != previous
                     ]
                     if len(choices) != 1:
                         raise ValueError(
@@ -106,7 +116,9 @@ def build_skeleton_graph(
         while remaining:
             anchor = min(remaining)
             path = _walk_loop(anchor, mask, suppress_corner_diagonals)
-            node = SkeletonNode(len(nodes), "loop", float(anchor[1]), float(anchor[0]), (anchor,), component_id, 2)
+            node = SkeletonNode(
+                len(nodes), "loop", float(anchor[1]), float(anchor[0]), (anchor,), component_id, 2
+            )
             nodes.append(node)
             edge = _edge(len(edges), node.id, node.id, path, True, component_id)
             edges.append(edge)
@@ -132,20 +144,29 @@ def validate_skeleton_graph(
     for edge in edges:
         if len(edge.pixels) < 2 or edge.length_px <= 0:
             raise ValueError("Skeleton graph contains a zero-length edge")
-        if node_map[edge.start_node_id].component_id != edge.component_id or node_map[edge.end_node_id].component_id != edge.component_id:
+        if (
+            node_map[edge.start_node_id].component_id != edge.component_id
+            or node_map[edge.end_node_id].component_id != edge.component_id
+        ):
             raise ValueError("Skeleton edge crosses connected components")
     links = {
         frozenset((pixel, neighbor))
         for pixel in expected
-        for neighbor in topology_neighbors(pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals)
+        for neighbor in topology_neighbors(
+            pixel, skeleton, suppress_corner_diagonals=suppress_corner_diagonals
+        )
     }
-    return GraphValidation(len(expected), len(links), len({n.component_id for n in nodes}), len(nodes), len(edges))
+    return GraphValidation(
+        len(expected), len(links), len({n.component_id for n in nodes}), len(nodes), len(edges)
+    )
 
 
 validate_graph_coverage = validate_skeleton_graph
 
 
-def _edge(edge_id: int, start: int, end: int, pixels: list[Pixel], closed: bool, component: int) -> SkeletonEdge:
+def _edge(
+    edge_id: int, start: int, end: int, pixels: list[Pixel], closed: bool, component: int
+) -> SkeletonEdge:
     length = sum(math.hypot(b[1] - a[1], b[0] - a[0]) for a, b in pairwise(pixels))
     return SkeletonEdge(edge_id, start, end, tuple(pixels), closed, component, length)
 
@@ -159,7 +180,9 @@ def _components(mask: np.ndarray, suppress: bool) -> list[set[Pixel]]:
         stack = [seed]
         remaining.remove(seed)
         while stack:
-            for neighbor in topology_neighbors(stack.pop(), mask, suppress_corner_diagonals=suppress):
+            for neighbor in topology_neighbors(
+                stack.pop(), mask, suppress_corner_diagonals=suppress
+            ):
                 if neighbor in remaining:
                     remaining.remove(neighbor)
                     component.add(neighbor)
@@ -177,7 +200,9 @@ def _clusters(pixels: set[Pixel], mask: np.ndarray, suppress: bool) -> list[set[
         stack = [seed]
         remaining.remove(seed)
         while stack:
-            for neighbor in topology_neighbors(stack.pop(), mask, suppress_corner_diagonals=suppress):
+            for neighbor in topology_neighbors(
+                stack.pop(), mask, suppress_corner_diagonals=suppress
+            ):
                 if neighbor in remaining:
                     remaining.remove(neighbor)
                     cluster.add(neighbor)
@@ -197,7 +222,11 @@ def _walk_loop(anchor: Pixel, mask: np.ndarray, suppress: bool) -> list[Pixel]:
     previous: Pixel | None = None
     current = anchor
     for _ in range(int(mask.sum()) + 1):
-        choices = [p for p in topology_neighbors(current, mask, suppress_corner_diagonals=suppress) if p != previous]
+        choices = [
+            p
+            for p in topology_neighbors(current, mask, suppress_corner_diagonals=suppress)
+            if p != previous
+        ]
         if not choices:
             break
         nxt = min(choices)

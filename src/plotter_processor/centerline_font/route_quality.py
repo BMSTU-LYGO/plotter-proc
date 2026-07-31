@@ -3,7 +3,9 @@ from __future__ import annotations
 from plotter_processor.centerline_font.models import ComponentRoute, SkeletonEdge
 
 
-def routing_metrics(edges: list[SkeletonEdge], routes: list[ComponentRoute]) -> dict[str, float | int | bool]:
+def routing_metrics(
+    edges: list[SkeletonEdge], routes: list[ComponentRoute]
+) -> dict[str, float | int | bool]:
     retraced = sum(route.retraced_length_px for route in routes)
     original = sum(edge.length_px for edge in edges)
     degree: dict[int, int] = {}

@@ -99,18 +99,15 @@ def _occurrence_circuit(
     circuit.reverse()
     if len(circuit) != len(occurrences):
         raise ValueError("Corrupted Euler traversal")
-    return [
-        (occurrences[occurrence_id], reversed_step)
-        for occurrence_id, reversed_step in circuit
-    ]
+    return [(occurrences[occurrence_id], reversed_step) for occurrence_id, reversed_step in circuit]
 
 
-def _minimum_trail_routes(
-    component_id: int, edges: list[SkeletonEdge]
-) -> list[ComponentRoute]:
+def _minimum_trail_routes(component_id: int, edges: list[SkeletonEdge]) -> list[ComponentRoute]:
     degree: dict[int, int] = {}
     occurrences = [
-        RoutedEdgeOccurrence(index, edge.id, edge.start_node_id, edge.end_node_id, False, edge.length_px)
+        RoutedEdgeOccurrence(
+            index, edge.id, edge.start_node_id, edge.end_node_id, False, edge.length_px
+        )
         for index, edge in enumerate(edges)
     ]
     for edge in edges:
@@ -120,12 +117,21 @@ def _minimum_trail_routes(
     if len(odd) <= 2:
         eulerized = eulerize_component(component_id, edges)
         steps = _hierholzer(eulerized)
-        return [ComponentRoute(component_id, tuple(steps), eulerized.start_node_id, eulerized.end_node_id, eulerized.start_node_id == eulerized.end_node_id, eulerized.original_length_px, 0.0, 0.0)]
+        return [
+            ComponentRoute(
+                component_id,
+                tuple(steps),
+                eulerized.start_node_id,
+                eulerized.end_node_id,
+                eulerized.start_node_id == eulerized.end_node_id,
+                eulerized.original_length_px,
+                0.0,
+                0.0,
+            )
+        ]
     virtual = min(degree) - 1
     for node in odd:
-        occurrences.append(
-            RoutedEdgeOccurrence(len(occurrences), -1, virtual, node, False, 0.0)
-        )
+        occurrences.append(RoutedEdgeOccurrence(len(occurrences), -1, virtual, node, False, 0.0))
     circuit = _occurrence_circuit(tuple(occurrences), virtual)
     trails: list[list[tuple[RoutedEdgeOccurrence, bool]]] = []
     current: list[tuple[RoutedEdgeOccurrence, bool]] = []
@@ -149,12 +155,23 @@ def _minimum_trail_routes(
             RouteEdgeStep(occ.source_edge_id, reversed_step, False, occ.occurrence_id)
             for occ, reversed_step in trail
         )
-        result.append(ComponentRoute(component_id, steps, start, end, False, original_length, 0.0, 0.0))
+        result.append(
+            ComponentRoute(component_id, steps, start, end, False, original_length, 0.0, 0.0)
+        )
     return result
 
 
 def _edge_routes(component_id: int, edges: list[SkeletonEdge]) -> list[ComponentRoute]:
     return [
-        ComponentRoute(component_id, (RouteEdgeStep(edge.id, False, False, 0),), edge.start_node_id, edge.end_node_id, edge.closed, edge.length_px, 0.0, 0.0)
+        ComponentRoute(
+            component_id,
+            (RouteEdgeStep(edge.id, False, False, 0),),
+            edge.start_node_id,
+            edge.end_node_id,
+            edge.closed,
+            edge.length_px,
+            0.0,
+            0.0,
+        )
         for edge in edges
     ]

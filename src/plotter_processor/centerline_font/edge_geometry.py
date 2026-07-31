@@ -43,8 +43,13 @@ def build_smoothed_edge_geometry(
         fixed[0], fixed[-1] = points[0], points[-1]
         length = sum(math.hypot(b.x - a.x, b.y - a.y) for a, b in pairwise(fixed))
         result[edge.id] = SmoothedEdge(
-            edge.id, edge.start_node_id, edge.end_node_id, edge.component_id,
-            tuple(fixed), length, edge.closed,
+            edge.id,
+            edge.start_node_id,
+            edge.end_node_id,
+            edge.component_id,
+            tuple(fixed),
+            length,
+            edge.closed,
         )
     return result, warnings
 
