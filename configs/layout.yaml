@@ -83,3 +83,20 @@ centerline:
   debug:
     enabled: false
   glyph_overrides: {}
+
+handwriting:
+  joining:
+    enabled: false
+    max_join_gap_mm: 3.0
+    max_join_angle_deg: 105.0
+    connector_step_mm: 0.20
+    do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]
+    do_not_join_after: ["(", "«", "-"]
+    lift_between_words: true
+  variation:
+    enabled: false
+    seed: 1
+    baseline_jitter_mm: 0.15
+    rotation_deg: 1.0
+    scale_percent: 2.0
+    spacing_jitter_mm: 0.15

@@ -39,6 +39,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         force_centerline_rebuild=args.force_centerline_rebuild,
         strict_centerline_quality=args.strict_centerline_quality,
         motion_profile=args.motion_profile,
+        join_writing=args.join_writing,
     )
 
 
@@ -191,6 +192,9 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--force-centerline-rebuild", action="store_true")
     parser.add_argument("--strict-centerline-quality", action="store_true")
     parser.add_argument("--motion-profile", choices=("safe", "balanced", "fast"))
+    parser.add_argument(
+        "--join-writing", action="store_true", help="Join eligible centerline letters within words."
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

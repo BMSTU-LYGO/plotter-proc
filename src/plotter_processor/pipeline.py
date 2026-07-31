@@ -14,6 +14,13 @@ from plotter_processor.font_loader import load_font
 from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
 from plotter_processor.glyph_outline import extract_exact_outlines
+from plotter_processor.handwriting import (
+    apply_variation,
+    export_handwriting_debug,
+    load_joining_config,
+    load_variation_config,
+    route_words,
+)
 from plotter_processor.models import PageSpec
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.motion_statistics import calculate_motion_statistics
@@ -41,6 +48,7 @@ class PipelineOptions:
     force_centerline_rebuild: bool = False
     strict_centerline_quality: bool = False
     motion_profile: str | None = None
+    join_writing: bool = False
 
 
 @dataclass(slots=True)
@@ -151,7 +159,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 )
                 routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
                 retraced_length_mm = sum(
-                    sum(stroke.retraced_length_font_units for stroke in compiled.glyphs[positioned.char].strokes)
+                    sum(
+                        stroke.retraced_length_font_units
+                        for stroke in compiled.glyphs[positioned.char].strokes
+                    )
                     * positioned.scale_mm_per_font_unit
                     for positioned in layout.glyphs
                 )
@@ -187,18 +198,21 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         warnings.extend(paths.warnings)
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
             paths = optimize_paths(paths)
+        handwriting: dict[str, object] = {"enabled": False}
+        if options.font_mode == "centerline":
+            paths = apply_variation(paths, layout.glyphs, load_variation_config(layout_config))
+            joining_config = load_joining_config(layout_config, enabled=options.join_writing)
+            paths, handwriting = route_words(paths, layout.glyphs, joining_config)
+            if options.join_writing:
+                export_handwriting_debug(paths, output_dir / "handwriting-debug.svg")
         simplification_config = machine_config.get("path_simplification", {})
         simplification: dict[str, object] = {"enabled": False}
         if isinstance(simplification_config, dict) and simplification_config.get("enabled", False):
             deviations = _mapping(simplification_config, "max_deviation_mm")
             paths, simplification = simplify_path_document(
                 paths,
-                duplicate_epsilon_mm=_non_negative(
-                    simplification_config, "duplicate_epsilon_mm"
-                ),
-                min_segment_length_mm=_non_negative(
-                    simplification_config, "min_segment_length_mm"
-                ),
+                duplicate_epsilon_mm=_non_negative(simplification_config, "duplicate_epsilon_mm"),
+                min_segment_length_mm=_non_negative(simplification_config, "min_segment_length_mm"),
                 max_deviation_mm=_non_negative(deviations, options.font_mode),
             )
         paths.warnings = list(dict.fromkeys(warnings))
@@ -217,9 +231,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         if centerline_info is not None:
             retraced = float(centerline_info["retraced_length_mm"])
             draw_length = float(statistics["draw_distance_mm"])
-            centerline_info["original_draw_length_mm"] = round(
-                max(0.0, draw_length - retraced), 3
-            )
+            centerline_info["original_draw_length_mm"] = round(max(0.0, draw_length - retraced), 3)
             centerline_info["retrace_ratio"] = round(
                 retraced / max(draw_length - retraced, 1e-9), 6
             )
@@ -258,6 +270,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "statistics": statistics,
             "motion": motion,
             "simplification": simplification,
+            "handwriting": handwriting,
             "warnings": paths.warnings,
             "outputs": {
                 "extracted": str(extracted_path),
@@ -272,6 +285,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             report["outputs"]["centerline_font_preview"] = str(
                 output_dir / "centerline-font-preview.svg"
             )
+            if options.join_writing:
+                report["outputs"]["handwriting_debug"] = str(output_dir / "handwriting-debug.svg")
         if options.input_path.name == "benchmark_50_words.txt":
             report["benchmark_id"] = "benchmark_50_words_v1"
         _write_report(report_path, report)
