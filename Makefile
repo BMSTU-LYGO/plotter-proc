@@ -5,7 +5,9 @@ PAGE ?= A5
 SIZE ?= normal
 BUILD ?= build
 
-.PHONY: install test lint run demo extract calibrate clean
+PROFILE ?= safe
+
+.PHONY: install test lint run demo extract calibrate benchmark clean
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -36,6 +38,11 @@ calibrate:
 		--machine-config configs/machine.yaml \
 		--page "$(PAGE)" \
 		--output "$(BUILD)/calibration.gcode"
+
+benchmark:
+	$(PYTHON) -m plotter_processor run examples/benchmark_50_words.txt \
+		--font "$(FONT)" --font-mode centerline --page A5 --size normal \
+		--motion-profile "$(PROFILE)" --output-dir "$(BUILD)/benchmark-$(PROFILE)"
 
 clean:
 	rm -rf "$(BUILD)"
