@@ -23,7 +23,9 @@ def export_centerline_font_preview(
     for index, glyph in enumerate(selected):
         ox = (index % columns) * cell_w + 20
         oy = (index // columns) * cell_h + 210
-        parts.append(f'<line x1="{ox}" y1="{oy}" x2="{ox + glyph.advance_font_units * scale}" y2="{oy}" stroke="#aac"/>')
+        parts.append(
+            f'<line x1="{ox}" y1="{oy}" x2="{ox + glyph.advance_font_units * scale}" y2="{oy}" stroke="#aac"/>'
+        )
         color = "#c22" if glyph.quality.get("needs_review") else "#111"
         for stroke in glyph.strokes:
             points = " ".join(
@@ -38,9 +40,9 @@ def export_centerline_font_preview(
         retrace = float(glyph.quality.get("retrace_ratio", 0.0)) * 100
         parts.append(
             f'<text x="{ox}" y="{oy + 26}" font-family="sans-serif" font-size="14">'
-            f'{html.escape(glyph.char)} · {html.escape(glyph.glyph_name)} · '
-            f'components={len(glyph.strokes)} strokes={len(glyph.strokes)} '
-            f'retrace={retrace:.1f}% · {total_points} points</text>'
+            f"{html.escape(glyph.char)} · {html.escape(glyph.glyph_name)} · "
+            f"components={len(glyph.strokes)} strokes={len(glyph.strokes)} "
+            f"retrace={retrace:.1f}% · {total_points} points</text>"
         )
     parts.append("</svg>")
     output_path.parent.mkdir(parents=True, exist_ok=True)

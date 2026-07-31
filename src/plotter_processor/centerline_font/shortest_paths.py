@@ -18,8 +18,12 @@ class ShortestPath:
 def shortest_path(edges: list[SkeletonEdge], start: int, end: int) -> ShortestPath:
     adjacency: dict[int, list[tuple[int, int, float]]] = {}
     for edge in edges:
-        adjacency.setdefault(edge.start_node_id, []).append((edge.end_node_id, edge.id, edge.length_px))
-        adjacency.setdefault(edge.end_node_id, []).append((edge.start_node_id, edge.id, edge.length_px))
+        adjacency.setdefault(edge.start_node_id, []).append(
+            (edge.end_node_id, edge.id, edge.length_px)
+        )
+        adjacency.setdefault(edge.end_node_id, []).append(
+            (edge.start_node_id, edge.id, edge.length_px)
+        )
     queue: list[tuple[float, tuple[int, ...], int, tuple[int, ...]]] = [(0.0, (), start, (start,))]
     best: dict[int, tuple[float, tuple[int, ...]]] = {}
     while queue:
@@ -31,7 +35,9 @@ def shortest_path(edges: list[SkeletonEdge], start: int, end: int) -> ShortestPa
         if node == end:
             return ShortestPath(start, end, edge_ids, node_ids, length)
         for neighbor, edge_id, weight in sorted(adjacency.get(node, []), key=lambda item: item[1]):
-            heapq.heappush(queue, (length + weight, edge_ids + (edge_id,), neighbor, node_ids + (neighbor,)))
+            heapq.heappush(
+                queue, (length + weight, edge_ids + (edge_id,), neighbor, node_ids + (neighbor,))
+            )
     raise ValueError(f"No graph path between nodes {start} and {end}")
 
 

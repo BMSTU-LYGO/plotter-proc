@@ -18,9 +18,7 @@ class EulerizedComponent:
     duplicated_length_px: float
 
 
-def eulerize_component(
-    component_id: int, edges: list[SkeletonEdge]
-) -> EulerizedComponent:
+def eulerize_component(component_id: int, edges: list[SkeletonEdge]) -> EulerizedComponent:
     if not edges:
         raise ValueError("Cannot eulerize an empty component")
     degrees: dict[int, int] = {}
@@ -40,7 +38,9 @@ def eulerize_component(
         choices = []
         for index, start_candidate in enumerate(odd):
             for end_candidate in odd[index + 1 :]:
-                remaining = tuple(node for node in odd if node not in {start_candidate, end_candidate})
+                remaining = tuple(
+                    node for node in odd if node not in {start_candidate, end_candidate}
+                )
                 matching = minimum_odd_node_matching(remaining, paths)
                 choices.append((matching.total_length_px, start_candidate, end_candidate, matching))
         _, start, end, matching = min(
@@ -49,13 +49,22 @@ def eulerize_component(
         duplicate_edges = [edge_id for path in matching.paths for edge_id in path.edge_ids]
     by_id = {edge.id: edge for edge in edges}
     occurrences = [
-        RoutedEdgeOccurrence(index, edge.id, edge.start_node_id, edge.end_node_id, False, edge.length_px)
+        RoutedEdgeOccurrence(
+            index, edge.id, edge.start_node_id, edge.end_node_id, False, edge.length_px
+        )
         for index, edge in enumerate(sorted(edges, key=lambda item: item.id))
     ]
     for edge_id in duplicate_edges:
         edge = by_id[edge_id]
         occurrences.append(
-            RoutedEdgeOccurrence(len(occurrences), edge.id, edge.start_node_id, edge.end_node_id, True, edge.length_px)
+            RoutedEdgeOccurrence(
+                len(occurrences),
+                edge.id,
+                edge.start_node_id,
+                edge.end_node_id,
+                True,
+                edge.length_px,
+            )
         )
     return EulerizedComponent(
         component_id,

@@ -62,8 +62,7 @@ def _rdp(points: list[Point], epsilon: float) -> list[Point]:
     distances = [
         math.hypot(p.x - start.x, p.y - start.y)
         if denominator == 0
-        else abs(dy * p.x - dx * p.y + end.x * start.y - end.y * start.x)
-        / denominator
+        else abs(dy * p.x - dx * p.y + end.x * start.y - end.y * start.x) / denominator
         for p in points[1:-1]
     ]
     if not distances or max(distances) <= epsilon:
