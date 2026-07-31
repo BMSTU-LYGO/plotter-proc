@@ -11,11 +11,15 @@ from plotter_processor.centerline_path_builder import build_centerline_paths
 from plotter_processor.config import load_yaml
 from plotter_processor.document_reader import read_document
 from plotter_processor.font_loader import load_font
+from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
 from plotter_processor.glyph_outline import extract_exact_outlines
 from plotter_processor.models import PageSpec
+from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
+from plotter_processor.motion_statistics import calculate_motion_statistics
 from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
 from plotter_processor.path_optimizer import optimize_paths
+from plotter_processor.path_simplifier import simplify_path_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.text_normalizer import normalize_document
 from plotter_processor.validator import validate_page_spec, validate_path_document
@@ -36,6 +40,7 @@ class PipelineOptions:
     centerline_cache_path: Path | None = None
     force_centerline_rebuild: bool = False
     strict_centerline_quality: bool = False
+    motion_profile: str | None = None
 
 
 @dataclass(slots=True)
@@ -56,6 +61,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         if options.font_mode not in {"outline", "centerline"}:
             raise ValueError(f"Unknown font mode: {options.font_mode}")
         machine_config = load_yaml(options.machine_config_path)
+        motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
+        machine_config = apply_motion_profile(machine_config, motion_profile)
         document = read_document(options.input_path)
         normalized = normalize_document(document)
         text = "\n".join(normalized.paragraphs)
@@ -174,6 +181,20 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         warnings.extend(paths.warnings)
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
             paths = optimize_paths(paths)
+        simplification_config = machine_config.get("path_simplification", {})
+        simplification: dict[str, object] = {"enabled": False}
+        if isinstance(simplification_config, dict) and simplification_config.get("enabled", False):
+            deviations = _mapping(simplification_config, "max_deviation_mm")
+            paths, simplification = simplify_path_document(
+                paths,
+                duplicate_epsilon_mm=_non_negative(
+                    simplification_config, "duplicate_epsilon_mm"
+                ),
+                min_segment_length_mm=_non_negative(
+                    simplification_config, "min_segment_length_mm"
+                ),
+                max_deviation_mm=_non_negative(deviations, options.font_mode),
+            )
         paths.warnings = list(dict.fromkeys(warnings))
         validate_path_document(
             paths, max_points_per_contour=_positive_int(vector, "max_points_per_contour")
@@ -196,21 +217,28 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             centerline_info["retrace_ratio"] = round(
                 retraced / max(draw_length - retraced, 1e-9), 6
             )
-        feedrates = _mapping(machine_config, "feedrate_mm_min")
+        analysis_config = machine_config.get("motion_analysis", {})
+        if not isinstance(analysis_config, dict):
+            raise TypeError("motion_analysis must be a mapping")
+        motion = calculate_motion_statistics(
+            paths,
+            motion_profile,
+            short_segment_mm=float(analysis_config.get("short_segment_mm", 0.2)),
+            very_short_segment_mm=float(analysis_config.get("very_short_segment_mm", 0.08)),
+        )
         statistics.update(
             {
                 "characters": layout.character_count,
                 "glyphs": len(layout.glyphs),
                 "lines": layout.line_count,
-                "estimated_time_minutes": round(
-                    float(statistics["draw_distance_mm"]) / _positive(feedrates, "draw")
-                    + float(statistics["travel_distance_mm"]) / _positive(feedrates, "travel"),
-                    3,
-                ),
+                "estimated_time_minutes": motion["ideal_total_time_minutes"],
             }
         )
-        gcode = generate_gcode(paths, machine_config)
+        gcode = generate_gcode(paths, machine_config, motion_profile=motion_profile, motion=motion)
         _assert_safe_gcode(gcode)
+        analyzed = analyze_gcode(gcode)
+        motion["gcode_command_count"] = analyzed["gcode_command_count"]
+        motion["gcode_analysis"] = analyzed
         write_gcode_atomic(gcode, gcode_path)
         report = {
             "status": "ok",
@@ -222,6 +250,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "size": options.size,
             "shaping": "basic-cmap-hmtx",
             "statistics": statistics,
+            "motion": motion,
+            "simplification": simplification,
             "warnings": paths.warnings,
             "outputs": {
                 "extracted": str(extracted_path),
@@ -236,6 +266,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             report["outputs"]["centerline_font_preview"] = str(
                 output_dir / "centerline-font-preview.svg"
             )
+        if options.input_path.name == "benchmark_50_words.txt":
+            report["benchmark_id"] = "benchmark_50_words_v1"
         _write_report(report_path, report)
         return PipelineResult("ok", report_path)
     except (FileNotFoundError, KeyError, OSError, TypeError, ValueError) as error:
@@ -299,3 +331,10 @@ def _boolean(config: dict[str, object], key: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"Missing or invalid boolean field: {key}")
     return value
+
+
+def _non_negative(config: dict[str, object], key: str) -> float:
+    value = config.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"Missing or invalid non-negative field: {key}")
+    return float(value)
