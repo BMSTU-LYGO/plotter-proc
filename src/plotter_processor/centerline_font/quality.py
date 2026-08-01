@@ -5,6 +5,7 @@ import math
 import numpy as np
 from scipy import ndimage
 
+from plotter_processor.centerline_font.counter_analysis import analyze_counters
 from plotter_processor.centerline_font.models import CenterlineStroke, RasterGlyph
 
 
@@ -21,6 +22,7 @@ def score_quality(
     del raster
     radius = max(1, round(float(np.median(ndimage.distance_transform_edt(mask)[skeleton]))))
     reconstructed = ndimage.binary_dilation(skeleton, iterations=radius)
+    counters = analyze_counters(mask, reconstructed)
     overlap = int((reconstructed & mask).sum())
     coverage = overlap / max(1, int(mask.sum()))
     extra = int((reconstructed & ~mask).sum()) / max(1, int(reconstructed.sum()))
@@ -37,6 +39,8 @@ def score_quality(
         warnings.append("Connected component was lost")
     if endpoints > max_endpoint_factor * max(1, len(strokes)):
         warnings.append("Centerline has an anomalous endpoint count")
+    if counters.preservation_ratio < 1.0:
+        warnings.append("Significant glyph counter is not represented by centerline geometry")
     radii = ndimage.distance_transform_edt(mask)[skeleton]
     mean_radius = float(np.mean(radii)) if radii.size else 0.0
     balance = float(np.std(radii) / mean_radius) if mean_radius else 0.0
@@ -49,6 +53,8 @@ def score_quality(
         "mask_components": int(mask_components),
         "centerline_components": int(skeleton_components),
         "endpoints": endpoints,
+        "counter_count": counters.significant_count,
+        "counter_preservation_ratio": counters.preservation_ratio,
         "needs_review": bool(warnings),
         "quality_status": "needs_review" if warnings else "auto_passed",
     }

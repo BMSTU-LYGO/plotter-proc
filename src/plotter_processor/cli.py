@@ -7,7 +7,9 @@ from pathlib import Path
 
 from plotter_processor.centerline_font.compiler import compile_centerline_font
 from plotter_processor.centerline_font.config import load_centerline_config
+from plotter_processor.centerline_font.glyph_tuner import tune_glyphs
 from plotter_processor.centerline_font.preview import export_centerline_font_preview
+from plotter_processor.composition_pipeline import compose_manifest
 from plotter_processor.config import load_yaml
 from plotter_processor.document_reader import read_document
 from plotter_processor.font_loader import load_font
@@ -22,6 +24,7 @@ from plotter_processor.job_comparison import compare_jobs
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.path_builder import load_path_document
 from plotter_processor.pipeline import PipelineOptions, run_pipeline
+from plotter_processor.unicode_coverage import inspect_coverage
 
 
 def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
@@ -40,6 +43,8 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         strict_centerline_quality=args.strict_centerline_quality,
         motion_profile=args.motion_profile,
         join_writing=args.join_writing,
+        layout_engine=args.layout_engine,
+        connections=args.connections,
     )
 
 
@@ -82,6 +87,20 @@ def _font_info(args: argparse.Namespace) -> int:
             print(f"Glyph count: {len(font.glyph_set.keys())}")
             print(f"cmap count: {len(font.cmap)}")
             print(f"Cyrillic coverage: {cyrillic}/256")
+            if args.coverage:
+                coverage = inspect_coverage(font.cmap, args.coverage)
+                print(
+                    f"{args.coverage} symbols supported: "
+                    f'{coverage["supported"]}/{coverage["total"]}'
+                )
+                missing = ", ".join(item["char"] for item in coverage["missing"])
+                print(f"Missing common symbols: {missing or 'none'}")
+                if args.json_output:
+                    args.json_output.parent.mkdir(parents=True, exist_ok=True)
+                    args.json_output.write_text(
+                        json.dumps(coverage, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
     except (FileNotFoundError, OSError, TypeError, ValueError) as error:
         print(f"Error: {error}")
         return 1
@@ -178,6 +197,40 @@ def _compile_centerline(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tune_centerline(args: argparse.Namespace) -> int:
+    try:
+        config = load_centerline_config(load_yaml(args.layout_config))
+        summary = tune_glyphs(
+            args.font,
+            args.chars,
+            config,
+            args.output_dir,
+            max_candidates=args.max_candidates,
+            top_n=args.top_n,
+        )
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"Saved centerline tuning summary to {summary}")
+    return 0
+
+
+def _compose(args: argparse.Namespace) -> int:
+    result = compose_manifest(
+        args.manifest,
+        args.output_dir,
+        layout_config_path=args.layout_config,
+        machine_config_path=args.machine_config,
+        connections=args.connections,
+        motion_profile=args.motion_profile,
+    )
+    if result.status == "error":
+        print(f"Error: {result.error}\nReport: {result.report_path}")
+        return 1
+    print(f"Composition completed successfully. Report: {result.report_path}")
+    return 0
+
+
 def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("input", type=Path)
     parser.add_argument("--font", type=Path, required=True)
@@ -195,6 +248,8 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--join-writing", action="store_true", help="Join eligible centerline letters within words."
     )
+    parser.add_argument("--layout-engine", choices=("legacy", "harfbuzz"))
+    parser.add_argument("--connections", choices=("off", "safe", "aggressive"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,6 +273,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     info_parser = commands.add_parser("font-info", help="Inspect a TTF font.")
     info_parser.add_argument("font", type=Path)
+    info_parser.add_argument("--coverage")
+    info_parser.add_argument("--json", dest="json_output", type=Path)
     info_parser.set_defaults(handler=_font_info)
 
     compile_parser = commands.add_parser(
@@ -233,6 +290,30 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--force", action="store_true")
     compile_parser.add_argument("--strict-quality", action="store_true")
     compile_parser.set_defaults(handler=_compile_centerline)
+
+    tune_parser = commands.add_parser(
+        "tune-centerline-glyphs", help="Search a bounded centerline parameter grid."
+    )
+    tune_parser.add_argument("font", type=Path)
+    tune_parser.add_argument("--chars", required=True)
+    tune_parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
+    tune_parser.add_argument("--output-dir", type=Path, required=True)
+    tune_parser.add_argument("--max-candidates", type=int, default=24)
+    tune_parser.add_argument("--top-n", type=int, default=3)
+    tune_parser.set_defaults(handler=_tune_centerline)
+
+    compose_parser = commands.add_parser("compose", help="Compose text and safe SVG line-art.")
+    compose_parser.add_argument("manifest", type=Path)
+    compose_parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
+    compose_parser.add_argument("--machine-config", type=Path, default=Path("configs/machine.yaml"))
+    compose_parser.add_argument("--output-dir", type=Path, required=True)
+    compose_parser.add_argument(
+        "--connections", choices=("off", "safe", "aggressive"), default="off"
+    )
+    compose_parser.add_argument(
+        "--motion-profile", choices=("safe", "balanced", "fast"), default="safe"
+    )
+    compose_parser.set_defaults(handler=_compose)
 
     gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")
     gcode_parser.add_argument("input", type=Path)

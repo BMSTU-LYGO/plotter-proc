@@ -49,6 +49,8 @@ class PipelineOptions:
     strict_centerline_quality: bool = False
     motion_profile: str | None = None
     join_writing: bool = False
+    layout_engine: str | None = None
+    connections: str | None = None
 
 
 @dataclass(slots=True)
@@ -105,6 +107,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 margins,
                 size_options,
                 tab_spaces=tab_spaces,
+                engine=options.layout_engine or str(layout_options.get("engine", "legacy")),
+                language=str(layout_options.get("language", "ru")),
+                script=str(layout_options.get("script", "Cyrl")),
+                direction=str(layout_options.get("direction", "ltr")),
+                features=tuple(layout_options.get("features", [])),
             )
             warnings.extend(layout.warnings)
             outlines = extract_exact_outlines(font, layout.glyphs)
@@ -201,10 +208,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         handwriting: dict[str, object] = {"enabled": False}
         if options.font_mode == "centerline":
             paths = apply_variation(paths, layout.glyphs, load_variation_config(layout_config))
-            joining_config = load_joining_config(layout_config, enabled=options.join_writing)
+            joining_config = load_joining_config(
+                layout_config,
+                enabled=options.join_writing or options.connections not in {None, "off"},
+                mode=options.connections,
+            )
             paths, handwriting = route_words(paths, layout.glyphs, joining_config)
-            if options.join_writing:
-                export_handwriting_debug(paths, output_dir / "handwriting-debug.svg")
+            if joining_config.enabled:
+                export_handwriting_debug(paths, output_dir / "connection-debug.svg")
         simplification_config = machine_config.get("path_simplification", {})
         simplification: dict[str, object] = {"enabled": False}
         if isinstance(simplification_config, dict) and simplification_config.get("enabled", False):
@@ -266,7 +277,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "font": str(options.font_path),
             "page": options.page,
             "size": options.size,
-            "shaping": "basic-cmap-hmtx",
+            "shaping": options.layout_engine or str(layout_options.get("engine", "legacy")),
             "statistics": statistics,
             "motion": motion,
             "simplification": simplification,
@@ -285,8 +296,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             report["outputs"]["centerline_font_preview"] = str(
                 output_dir / "centerline-font-preview.svg"
             )
-            if options.join_writing:
-                report["outputs"]["handwriting_debug"] = str(output_dir / "handwriting-debug.svg")
+            if joining_config.enabled:
+                report["outputs"]["connection_debug"] = str(output_dir / "connection-debug.svg")
         if options.input_path.name == "benchmark_50_words.txt":
             report["benchmark_id"] = "benchmark_50_words_v1"
         _write_report(report_path, report)

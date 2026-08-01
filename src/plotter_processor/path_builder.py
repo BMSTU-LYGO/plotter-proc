@@ -81,6 +81,16 @@ def save_path_document(document: PathDocument, output_path: str | Path) -> None:
                 "char": stroke.char,
                 "contour_index": stroke.contour_index,
                 "closed": stroke.closed,
+                "source_glyph_indices": list(stroke.source_glyph_indices),
+                "source_chars": stroke.source_chars,
+                "segment_types": list(stroke.segment_types),
+                "word_index": stroke.word_index,
+                "connection_ids": list(stroke.connection_ids),
+                "element_id": stroke.element_id,
+                "element_type": stroke.element_type,
+                "font_role": stroke.font_role,
+                "font_sha256": stroke.font_sha256,
+                "source_path": stroke.source_path,
                 "points": [[point.x, point.y] for point in stroke.points],
             }
             for stroke in document.strokes
@@ -108,6 +118,16 @@ def load_path_document(input_path: str | Path) -> PathDocument:
                 contour_index=item.get("contour_index"),
                 closed=bool(item["closed"]),
                 points=[Point(float(point[0]), float(point[1])) for point in item["points"]],
+                source_glyph_indices=tuple(item.get("source_glyph_indices", ())),
+                source_chars=str(item.get("source_chars", "")),
+                segment_types=tuple(item.get("segment_types", ())),
+                word_index=item.get("word_index"),
+                connection_ids=tuple(item.get("connection_ids", ())),
+                element_id=item.get("element_id"),
+                element_type=item.get("element_type"),
+                font_role=item.get("font_role"),
+                font_sha256=item.get("font_sha256"),
+                source_path=item.get("source_path"),
             )
             for item in payload["strokes"]
         ]

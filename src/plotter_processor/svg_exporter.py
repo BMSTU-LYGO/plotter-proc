@@ -64,6 +64,12 @@ def export_plotter_preview(
             attributes["data-char"] = stroke.char
         if stroke.glyph_index is not None:
             attributes["data-glyph-index"] = str(stroke.glyph_index)
+        if stroke.element_id is not None:
+            attributes["data-element-id"] = stroke.element_id
+        if stroke.element_type is not None:
+            attributes["data-element-type"] = stroke.element_type
+        if stroke.font_role is not None:
+            attributes["data-font-role"] = stroke.font_role
         ElementTree.SubElement(root, _tag("path"), attributes)
     _write_svg(root, output_path)
 

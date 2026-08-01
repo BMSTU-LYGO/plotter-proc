@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from itertools import pairwise
 from pathlib import Path
 
+from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
 
 
@@ -19,6 +20,9 @@ class JoiningConfig:
     do_not_join_before: frozenset[str]
     do_not_join_after: frozenset[str]
     lift_between_words: bool
+    mode: str = "safe"
+    max_vertical_offset_mm: float = 1.2
+    connect_letters_only: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,19 +118,34 @@ def export_handwriting_debug(document: PathDocument, output: Path) -> None:
 
 
 def load_joining_config(
-    root: Mapping[str, object], *, enabled: bool | None = None
+    root: Mapping[str, object], *, enabled: bool | None = None, mode: str | None = None
 ) -> JoiningConfig:
-    handwriting = _mapping(root, "handwriting")
-    values = _mapping(handwriting, "joining")
+    values = root.get("connections")
+    if not isinstance(values, Mapping):
+        handwriting = _mapping(root, "handwriting")
+        values = _mapping(handwriting, "joining")
     configured = _boolean(values, "enabled")
+    selected_mode = mode or str(values.get("mode", "safe"))
+    if selected_mode not in {"off", "safe", "aggressive"}:
+        raise ValueError("connections.mode must be off, safe or aggressive")
+    distance = float(values.get("max_distance_mm", values.get("max_join_gap_mm", 1.5)))
+    angle = float(values.get("max_tangent_mismatch_deg", values.get("max_join_angle_deg", 55)))
+    vertical = float(values.get("max_vertical_offset_mm", 1.2))
+    if selected_mode == "aggressive":
+        distance *= 1.5
+        angle = max(angle, 85.0)
+        vertical *= 1.5
     return JoiningConfig(
-        configured if enabled is None else enabled,
-        _positive(values, "max_join_gap_mm"),
-        _positive(values, "max_join_angle_deg"),
+        (configured if enabled is None else enabled) and selected_mode != "off",
+        distance,
+        angle,
         _positive(values, "connector_step_mm"),
-        frozenset(_strings(values, "do_not_join_before")),
-        frozenset(_strings(values, "do_not_join_after")),
-        _boolean(values, "lift_between_words"),
+        frozenset(values.get("do_not_join_before", [".", ",", "!", "?", ":", ";", ")"])),
+        frozenset(values.get("do_not_join_after", ["(", "«", "-"])),
+        bool(values.get("lift_between_words", True)),
+        selected_mode,
+        vertical,
+        bool(values.get("connect_letters_only", True)),
     )
 
 
@@ -137,7 +156,18 @@ def route_words(
 ) -> tuple[PathDocument, dict[str, object]]:
     before = len(document.strokes)
     if not config.enabled:
-        return document, _metrics(0, 0, 0, before, before, 0.0, [])
+        words = _words(glyphs)
+        pairs = sum(max(0, len(word) - 1) for word in words)
+        metrics = _metrics(len(words), pairs, 0, before, before, 0.0, [], pairs)
+        metrics.update(
+            {
+                "enabled": False,
+                "mode": "off",
+                "eligible_pairs": 0,
+                "rejections_by_reason": {"mode_off": pairs},
+            }
+        )
+        return document, metrics
     positioned = {glyph.glyph_index: glyph for glyph in glyphs}
     by_glyph: dict[int, list[PlotterStroke]] = {}
     for stroke in document.strokes:
@@ -148,13 +178,18 @@ def route_words(
     candidates = created = rejected = 0
     connector_length = 0.0
     gaps: list[float] = []
+    rejection_reasons: dict[str, int] = {}
+    connection_id = 0
+    per_word: list[dict[str, object]] = []
     for word in words:
+        word_created = 0
+        word_rejected: list[str] = []
         mains: list[PlotterStroke] = []
         secondary: list[PlotterStroke] = []
         for glyph in word:
             strokes = by_glyph.get(glyph.glyph_index, [])
-            open_strokes = [stroke for stroke in strokes if not stroke.closed]
-            main = max(open_strokes, key=_stroke_length, default=None)
+            classified = classify_strokes(strokes, glyph.baseline_y_mm)
+            main = classified.main if classified.confidence >= 0.35 else None
             if main is not None:
                 mains.append(replace(main, points=list(main.points)))
             secondary.extend(stroke for stroke in strokes if stroke is not main)
@@ -171,31 +206,58 @@ def route_words(
                 right_glyph = (
                     positioned.get(right.glyph_index) if right.glyph_index is not None else None
                 )
-                connector = _connector(
+                connector, reason = _connector(
                     combined.points, right.points, config, left_glyph, right_glyph
                 )
                 if connector is None:
                     output.append(combined)
                     combined = replace(right, points=list(right.points))
                     rejected += 1
+                    rejection_reasons[reason or "unknown"] = (
+                        rejection_reasons.get(reason or "unknown", 0) + 1
+                    )
+                    word_rejected.append(reason or "unknown")
                     continue
                 gap = _distance(combined.points[-1], right.points[0])
                 combined.points.extend(connector[1:])
                 combined.points.extend(right.points[1:])
                 combined.char = f"{combined.char or ''}{right.char or ''}"
+                combined.source_glyph_indices = (
+                    combined.source_glyph_indices + right.source_glyph_indices
+                )
+                combined.source_chars += right.source_chars or right.char or ""
+                combined.segment_types += ("connector",) + right.segment_types
+                combined.connection_ids += (connection_id,)
+                connection_id += 1
                 connector_length += sum(_distance(a, b) for a, b in pairwise(connector))
                 gaps.append(gap)
                 created += 1
+                word_created += 1
             output.append(combined)
         output.extend(secondary)
+        per_word.append(
+            {
+                "text": "".join(glyph.char for glyph in word),
+                "line_index": word[0].line_index if word else 0,
+                "glyph_count": len(word),
+                "connections": word_created,
+                "remaining_internal_lifts": max(0, len(word) - 1 - word_created),
+                "secondary_strokes": len(secondary),
+                "rejected_pairs": word_rejected,
+            }
+        )
     output.extend(stroke for stroke in document.strokes if stroke.glyph_index is None)
     for index, stroke in enumerate(output):
         stroke.id = index
     result = replace(document, strokes=output, metadata=dict(document.metadata))
     result.metadata["word_joining"] = True
-    return result, _metrics(
-        len(words), candidates, created, before, len(output), connector_length, gaps, rejected
+    metrics = _metrics(
+        len(words), candidates, created, before, len(output), connector_length, gaps, rejected,
+        rejection_reasons,
+        per_word,
     )
+    metrics["mode"] = config.mode
+    return result, metrics
 
 
 def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
@@ -205,7 +267,15 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     for glyph in glyphs:
         boundary = previous is not None and (
             glyph.line_index != previous.line_index
-            or glyph.x_mm - (previous.x_mm + previous.advance_mm) > 1e-6
+            or (
+                glyph.word_index >= 0
+                and previous.word_index >= 0
+                and glyph.word_index != previous.word_index
+            )
+            or (
+                (glyph.word_index < 0 or previous.word_index < 0)
+                and glyph.x_mm - (previous.x_mm + previous.advance_mm) > 1e-6
+            )
         )
         if boundary and current:
             words.append(current)
@@ -218,30 +288,9 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
 
 
 def _orient_word(strokes: list[PlotterStroke]) -> list[PlotterStroke]:
-    if not strokes:
-        return []
-    costs = [(0.0, 0.0)]
-    parents: list[tuple[int, int]] = []
-    for index in range(1, len(strokes)):
-        row = []
-        parent = []
-        for direction in (0, 1):
-            start = strokes[index].points[-1 if direction else 0]
-            options = [
-                costs[-1][prior] + _distance(strokes[index - 1].points[0 if prior else -1], start)
-                for prior in (0, 1)
-            ]
-            chosen = min(range(2), key=lambda prior: (options[prior], prior))
-            row.append(options[chosen])
-            parent.append(chosen)
-        costs.append((row[0], row[1]))
-        parents.append((parent[0], parent[1]))
-    direction = min(range(2), key=lambda item: (costs[-1][item], item))
-    directions = [direction]
-    for parent in reversed(parents):
-        direction = parent[direction]
-        directions.append(direction)
-    directions.reverse()
+    # Cursive LTR writing needs a stable left entry and right exit. A global
+    # nearest-neighbour orientation can reduce travel while reversing a letter.
+    directions = [int(stroke.points[0].x > stroke.points[-1].x) for stroke in strokes]
     return [
         replace(stroke, points=list(reversed(stroke.points)) if direction else list(stroke.points))
         for stroke, direction in zip(strokes, directions)
@@ -254,27 +303,38 @@ def _connector(
     config: JoiningConfig,
     left_glyph: PositionedGlyph | None,
     right_glyph: PositionedGlyph | None,
-) -> list[Point] | None:
+) -> tuple[list[Point] | None, str | None]:
     if not left_glyph or not right_glyph or left_glyph.line_index != right_glyph.line_index:
-        return None
+        return None, "different_line"
     if left_glyph.char in config.do_not_join_after or right_glyph.char in config.do_not_join_before:
-        return None
+        return None, "punctuation_rule"
+    if config.connect_letters_only and not (
+        left_glyph.char.isalpha() and right_glyph.char.isalpha()
+    ):
+        return None, "not_letters"
     start, end = left[-1], right[0]
     gap = _distance(start, end)
     if gap > config.max_join_gap_mm:
-        return None
+        return None, "distance"
+    if abs(end.y - start.y) > config.max_vertical_offset_mm:
+        return None, "vertical_offset"
+    if end.x + 1e-9 < start.x:
+        return None, "backward_motion"
     left_angle = math.atan2(start.y - left[-2].y, start.x - left[-2].x)
     right_angle = math.atan2(right[1].y - end.y, right[1].x - end.x)
     target = math.atan2(end.y - start.y, end.x - start.x)
     if max(_angle_diff(left_angle, target), _angle_diff(target, right_angle)) > math.radians(
         config.max_join_angle_deg
     ):
-        return None
+        return None, "tangent_mismatch"
     handle = gap / 3
     c1 = Point(start.x + math.cos(left_angle) * handle, start.y + math.sin(left_angle) * handle)
     c2 = Point(end.x - math.cos(right_angle) * handle, end.y - math.sin(right_angle) * handle)
     count = max(2, math.ceil(gap / config.connector_step_mm))
-    return [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
+    points = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
+    if any(b.x < a.x - 0.35 for a, b in pairwise(points)):
+        return None, "connector_backtracking"
+    return points, None
 
 
 def _bezier(a: Point, b: Point, c: Point, d: Point, t: float) -> Point:
@@ -294,18 +354,30 @@ def _metrics(
     length: float,
     gaps: list[float],
     rejected: int = 0,
+    rejection_reasons: dict[str, int] | None = None,
+    per_word: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     return {
         "enabled": bool(words),
+        "mode": "safe" if words else "off",
         "words": words,
+        "letter_pairs_total": candidates,
+        "eligible_pairs": candidates,
+        "connected_pairs": created,
+        "rejected_pairs": rejected,
         "join_candidates": candidates,
         "joins_created": created,
         "joins_rejected": rejected,
         "pen_lifts_before_word_routing": before,
         "pen_lifts_after_word_routing": after,
         "pen_lifts_saved_between_glyphs": before - after,
+        "pen_lifts_inside_words_before": candidates,
+        "pen_lifts_inside_words_after": max(0, candidates - created),
+        "pen_lifts_saved": created,
         "connector_draw_length_mm": round(length, 6),
         "average_join_gap_mm": round(sum(gaps) / len(gaps), 6) if gaps else 0.0,
+        "rejections_by_reason": rejection_reasons or {},
+        "per_word": per_word or [],
     }
 
 

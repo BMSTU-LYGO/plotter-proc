@@ -1,0 +1,104 @@
+version: 1
+page: A5
+fonts:
+  primary: ../assets/1.ttf
+  fallbacks:
+    - role: math
+      path: /usr/share/fonts/truetype/noto/NotoSansMath-Regular.ttf
+elements:
+  - id: line_01
+    type: text
+    text: "Квадратичная функция показывает как значение растёт быстрее"
+    x_mm: 10
+    y_mm: 10
+    width_mm: 128
+    size: small
+    font_mode: centerline
+  - id: line_02
+    type: text
+    text: "при удалении аргумента от нуля. Её график называется параболой"
+    x_mm: 10
+    y_mm: 20
+    width_mm: 128
+    size: small
+    font_mode: centerline
+  - id: wrap_01
+    type: text
+    text: "и симметричен относительно"
+    x_mm: 10
+    y_mm: 42
+    width_mm: 58
+    size: small
+    font_mode: centerline
+  - id: wrap_02
+    type: text
+    text: "вертикальной оси. Вершина"
+    x_mm: 10
+    y_mm: 52
+    width_mm: 58
+    size: small
+    font_mode: centerline
+  - id: wrap_03
+    type: text
+    text: "находится в начале координат,"
+    x_mm: 10
+    y_mm: 62
+    width_mm: 58
+    size: small
+    font_mode: centerline
+  - id: wrap_04
+    type: text
+    text: "а ветви направлены вверх."
+    x_mm: 10
+    y_mm: 72
+    width_mm: 58
+    size: small
+    font_mode: centerline
+  - id: formula
+    type: text
+    text: "y = x²"
+    x_mm: 25
+    y_mm: 91
+    width_mm: 35
+    size: large
+    font_mode: centerline
+  - id: graph
+    type: svg
+    path: assets/parabola-x2.svg
+    x_mm: 73
+    y_mm: 38
+    width_mm: 65
+    height_mm: 65
+    fit: contain
+  - id: graph_caption
+    type: text
+    text: "График функции y = x²"
+    x_mm: 78
+    y_mm: 106
+    width_mm: 58
+    size: small
+    font_mode: centerline
+  - id: line_03
+    type: text
+    text: "Формула помогает вычислять высоту каждой точки."
+    x_mm: 10
+    y_mm: 125
+    width_mm: 128
+    size: small
+    font_mode: centerline
+  - id: line_04
+    type: text
+    text: "Такой график встречается в физике, инженерных расчётах,"
+    x_mm: 10
+    y_mm: 138
+    width_mm: 128
+    size: small
+    font_mode: centerline
+  - id: line_05
+    type: text
+    text: "анализе движения и задачах оптимизации каждый день."
+    x_mm: 10
+    y_mm: 151
+    width_mm: 128
+    size: small
+    font_mode: centerline
