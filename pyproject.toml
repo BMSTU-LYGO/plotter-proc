@@ -16,6 +16,7 @@ dependencies = [
     "numpy>=2.0",
     "scipy>=1.13",
     "scikit-image>=0.24",
+    "uharfbuzz>=0.48",
 ]
 
 [project.optional-dependencies]

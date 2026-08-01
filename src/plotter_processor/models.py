@@ -31,6 +31,43 @@ class FontMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class FontIdentity:
+    id: str
+    path: Path
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ShapedGlyph:
+    source_characters: str
+    glyph_id: int
+    glyph_name: str
+    font: FontIdentity
+    cluster_index: int
+    x_advance_font_units: float
+    y_advance_font_units: float
+    x_offset_font_units: float
+    y_offset_font_units: float
+
+
+@dataclass(frozen=True, slots=True)
+class ShapedRun:
+    text: str
+    glyphs: tuple[ShapedGlyph, ...]
+    direction: str
+    script: str
+    language: str
+
+
+@dataclass(frozen=True, slots=True)
+class TextRun:
+    text: str
+    direction: str = "ltr"
+    script: str = "Cyrl"
+    language: str = "ru"
+
+
+@dataclass(frozen=True, slots=True)
 class PositionedGlyph:
     char: str
     codepoint: int
@@ -41,6 +78,12 @@ class PositionedGlyph:
     scale_mm_per_font_unit: float
     line_index: int
     glyph_index: int
+    word_index: int = -1
+    cluster_index: int = 0
+    font_id: str | None = None
+    font_sha256: str | None = None
+    x_offset_font_units: float = 0.0
+    y_offset_font_units: float = 0.0
 
 
 @dataclass(slots=True)
@@ -61,6 +104,16 @@ class PlotterStroke:
     glyph_index: int | None = None
     char: str | None = None
     contour_index: int | None = None
+    source_glyph_indices: tuple[int, ...] = ()
+    source_chars: str = ""
+    segment_types: tuple[str, ...] = ()
+    word_index: int | None = None
+    connection_ids: tuple[int, ...] = ()
+    element_id: str | None = None
+    element_type: str | None = None
+    font_role: str | None = None
+    font_sha256: str | None = None
+    source_path: str | None = None
 
 
 @dataclass(slots=True)

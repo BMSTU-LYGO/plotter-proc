@@ -39,6 +39,10 @@ def build_centerline_paths(
                     glyph_index=positioned.glyph_index,
                     char=positioned.char,
                     contour_index=centerline.id,
+                    source_glyph_indices=(positioned.glyph_index,),
+                    source_chars=positioned.char,
+                    segment_types=("glyph",),
+                    word_index=positioned.word_index,
                 )
             )
     if not strokes:

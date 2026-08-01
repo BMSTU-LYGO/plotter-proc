@@ -1,0 +1,40 @@
+version: 1
+page: A5
+fonts:
+  primary: ../assets/1.ttf
+  fallbacks:
+    - role: math
+      path: /usr/share/fonts/truetype/noto/NotoSansMath-Regular.ttf
+elements:
+  - id: greek
+    type: text
+    text: "α + β = γ"
+    x_mm: 10
+    y_mm: 15
+    width_mm: 128
+    size: normal
+    font_mode: centerline
+  - id: pythagoras
+    type: text
+    text: "x² + y² = z²"
+    x_mm: 10
+    y_mm: 25
+    width_mm: 128
+    size: normal
+    font_mode: centerline
+  - id: radical
+    type: text
+    text: "√16 = 4   x ≤ y   ∫ f(x) dx"
+    x_mm: 10
+    y_mm: 35
+    width_mm: 128
+    size: normal
+    font_mode: centerline
+  - id: plot
+    type: svg
+    path: assets/axis-plot.svg
+    x_mm: 24
+    y_mm: 55
+    width_mm: 100
+    height_mm: 80
+    fit: contain

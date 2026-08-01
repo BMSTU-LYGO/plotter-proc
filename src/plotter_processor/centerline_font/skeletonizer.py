@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 from scipy import ndimage
@@ -36,6 +37,9 @@ def prune_short_spurs(
     distance: np.ndarray,
     *,
     min_branch_width_factor: float,
+    ink_mask: np.ndarray | None = None,
+    max_coverage_loss: float = 0.01,
+    preserve_connector_terminals: bool = True,
 ) -> np.ndarray:
     result = np.asarray(skeleton, dtype=bool).copy()
     if min_branch_width_factor <= 0:
@@ -56,15 +60,57 @@ def prune_short_spurs(
                 branch.append(current)
                 if _degrees_at(result, current) >= 3:
                     widths = [2 * distance[p] for p in branch]
-                    limit = float(np.median(widths)) * min_branch_width_factor
-                    if len(branch) - 1 < limit and result.sum() > len(branch):
+                    local_width = float(np.median(widths))
+                    length = _branch_length(branch)
+                    ratio = length / max(local_width, 1e-9)
+                    # Thin terminals are likely cursive entry/exit tails and are kept in safe mode.
+                    terminal_width = float(widths[0]) if widths else 0.0
+                    connector_like = terminal_width < local_width * 0.65
+                    if (
+                        ratio < min_branch_width_factor
+                        and result.sum() > len(branch)
+                        and not (preserve_connector_terminals and connector_like)
+                    ):
+                        candidate = result.copy()
                         for pixel in branch[:-1]:
-                            result[pixel] = False
-                        removed = True
+                            candidate[pixel] = False
+                        if _coverage_loss(result, candidate, distance, ink_mask) <= max_coverage_loss:
+                            result = candidate
+                            removed = True
                     break
         if not removed:
             break
     return result
+
+
+def _branch_length(branch: list[tuple[int, int]]) -> float:
+    return sum(
+        float(np.hypot(right[0] - left[0], right[1] - left[1]))
+        for left, right in pairwise(branch)
+    )
+
+
+def _coverage_loss(
+    before: np.ndarray,
+    after: np.ndarray,
+    distance: np.ndarray,
+    ink_mask: np.ndarray | None,
+) -> float:
+    if ink_mask is None:
+        return 0.0
+    old = _reconstruct_with_local_radius(before, distance) & ink_mask
+    new = _reconstruct_with_local_radius(after, distance) & ink_mask
+    return max(0.0, float(old.sum() - new.sum()) / max(1, int(ink_mask.sum())))
+
+
+def _reconstruct_with_local_radius(skeleton: np.ndarray, radius_map: np.ndarray) -> np.ndarray:
+    if not skeleton.any():
+        return np.zeros_like(skeleton)
+    nearest_distance, indices = ndimage.distance_transform_edt(
+        ~skeleton, return_distances=True, return_indices=True
+    )
+    nearest_radius = radius_map[tuple(indices)]
+    return nearest_distance <= nearest_radius
 
 
 def _degrees(mask: np.ndarray) -> np.ndarray:

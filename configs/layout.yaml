@@ -40,6 +40,11 @@ preview:
 layout:
   missing_glyph_policy: error
   tab_spaces: 4
+  engine: legacy
+  language: ru
+  script: Cyrl
+  direction: ltr
+  features: []
 
 centerline:
   algorithm_version: 6
@@ -56,6 +61,11 @@ centerline:
     min_branch_width_factor: 1.5
     max_junction_cluster_px: 64
     max_micro_loop_width_factor: 2.0
+    spur_pruning:
+      enabled: true
+      max_coverage_loss: 0.01
+      preserve_connector_terminals: true
+      preserve_counter_edges: true
   routing:
     strategy: one_stroke_per_component
     allow_retrace: true
@@ -83,6 +93,31 @@ centerline:
   debug:
     enabled: false
   glyph_overrides: {}
+  font_overrides:
+    4dac9db3fa9ca072f7861fd916bf04bdceac6069d0f3a886f5e523d922e918f1:
+      glyphs:
+        "ъ":
+          threshold: 160
+          closing_radius_px: 0
+          skeleton_method: medial_axis
+          min_branch_width_factor: 1.0
+          simplify_tolerance_px: 0.7
+          spline_smoothing_factor: 0.02
+        "ь":
+          threshold: 160
+          closing_radius_px: 0
+          skeleton_method: medial_axis
+          min_branch_width_factor: 1.0
+          simplify_tolerance_px: 0.7
+          spline_smoothing_factor: 0.02
+        "ы":
+          threshold: 160
+          closing_radius_px: 0
+          skeleton_method: medial_axis
+          min_branch_width_factor: 1.0
+          simplify_tolerance_px: 0.7
+          spline_smoothing_factor: 0.02
+  glyph_patch_file:
 
 handwriting:
   joining:
@@ -100,3 +135,19 @@ handwriting:
     rotation_deg: 1.0
     scale_percent: 2.0
     spacing_jitter_mm: 0.15
+
+connections:
+  enabled: false
+  mode: safe
+  max_distance_mm: 3.0
+  max_vertical_offset_mm: 3.0
+  max_tangent_mismatch_deg: 170.0
+  connector_step_mm: 0.20
+  min_corridor_inside_ratio: 0.55
+  allow_connector_outside_ink: true
+  outside_ink_margin_mm: 0.35
+  connect_letters_only: true
+  connect_across_punctuation: false
+  do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]
+  do_not_join_after: ["(", "«", "-"]
+  lift_between_words: true

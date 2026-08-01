@@ -5,7 +5,9 @@ from dataclasses import dataclass, replace
 import numpy as np
 from scipy import ndimage
 
+from plotter_processor.centerline_font.candidate_score import score_candidate
 from plotter_processor.centerline_font.config import CenterlineConfig
+from plotter_processor.centerline_font.counter_analysis import analyze_counters
 from plotter_processor.centerline_font.graph_simplifier import (
     GraphSimplificationReport,
     simplify_skeleton_graph,
@@ -28,6 +30,7 @@ class SelectedSkeleton:
     simplification: GraphSimplificationReport
     candidate_scores: dict[str, float]
     candidate_metrics: dict[str, dict[str, float | int]]
+    candidate_score_components: dict[str, dict[str, float]]
     candidate_skeletons: dict[str, np.ndarray]
 
 
@@ -40,10 +43,17 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
     for method in methods:
         try:
             result = build_skeleton(mask, method=method)
-            pruned = prune_short_spurs(
-                result.mask,
-                result.distance,
-                min_branch_width_factor=config.min_branch_width_factor,
+            pruned = (
+                prune_short_spurs(
+                    result.mask,
+                    result.distance,
+                    min_branch_width_factor=config.min_branch_width_factor,
+                    ink_mask=mask,
+                    max_coverage_loss=config.spur_max_coverage_loss,
+                    preserve_connector_terminals=config.preserve_connector_terminals,
+                )
+                if config.spur_pruning_enabled
+                else result.mask.copy()
             )
             nodes, edges = build_skeleton_graph(
                 pruned,
@@ -57,7 +67,8 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
             metrics["estimated_retrace_ratio"] = float(
                 routing_metrics(edges, plan_glyph_routes(nodes, edges, config))["retrace_ratio"]
             )
-            score = _candidate_score(metrics)
+            score_details = score_candidate(metrics, config.candidate_scoring)
+            score = score_details.total
             candidates.append(
                 (
                     score,
@@ -69,6 +80,7 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
                     edges,
                     report,
                     metrics,
+                    score_details,
                 )
             )
         except ValueError as error:
@@ -76,7 +88,7 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
     if not candidates:
         raise ValueError("All skeleton candidates failed: " + "; ".join(failures))
     selected = min(candidates, key=lambda item: (item[0], item[1]))
-    score, _, method, result, pruned, nodes, edges, report, _ = selected
+    score, _, method, result, pruned, nodes, edges, report, _, _ = selected
     return SelectedSkeleton(
         method,
         pruned,
@@ -87,6 +99,7 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
         report,
         {candidate[2]: candidate[0] for candidate in candidates},
         {candidate[2]: candidate[8] for candidate in candidates},
+        {candidate[2]: candidate[9].serializable() for candidate in candidates},
         {candidate[2]: candidate[4] for candidate in candidates},
     )
 
@@ -119,6 +132,14 @@ def _candidate_metrics(
     loops = sum(edge.closed or edge.start_node_id == edge.end_node_id for edge in edges)
     short_edges = sum(edge.length_px < max(2.0, 2 * mean_radius) for edge in edges)
     components = len({node.component_id for node in nodes})
+    false_negative = float((mask & ~reconstructed).sum()) / max(1, int(mask.sum()))
+    false_positive = float((reconstructed & ~mask).sum()) / max(1, int(reconstructed.sum()))
+    mask_boundary = mask & ~ndimage.binary_erosion(mask)
+    boundary_distance = ndimage.distance_transform_edt(~mask_boundary)
+    endpoint_nodes = [node for node in nodes if node.kind == "endpoint"]
+    endpoint_penalty = sum(boundary_distance[round(node.y), round(node.x)] for node in endpoint_nodes)
+    endpoint_penalty /= max(1, len(endpoint_nodes) * max(mask.shape))
+    counters = analyze_counters(mask, reconstructed)
     return {
         "mask_coverage": round(coverage, 6),
         "reconstruction_extra": round(extra, 6),
@@ -130,26 +151,10 @@ def _candidate_metrics(
         "component_count": components,
         "odd_vertex_count": _odd_count(edges),
         "edge_count": len(edges),
+        "shape_false_negative_ratio": round(false_negative, 6),
+        "shape_false_positive_ratio": round(false_positive, 6),
+        "endpoint_boundary_penalty": round(float(endpoint_penalty), 6),
+        "counter_count": counters.significant_count,
+        "counter_preservation_ratio": counters.preservation_ratio,
+        "curvature_penalty": 0.0,
     }
-
-
-def _candidate_score(metrics: dict[str, float | int]) -> float:
-    """Lower is better; combine geometry and topology instead of edge count alone."""
-    topology = (
-        int(metrics["edge_count"])
-        + int(metrics["junction_count"]) * 2
-        + int(metrics["odd_vertex_count"]) * 0.5
-    )
-    geometry_tiebreaker = (
-        float(metrics["estimated_retrace_ratio"]) * 100
-        + int(metrics["micro_loop_count"]) * 3
-        + int(metrics["short_edge_count"]) * 0.1
-        + int(metrics["component_count"]) * 0.1
-        + (1 - float(metrics["mask_coverage"])) * 2
-        + float(metrics["reconstruction_extra"]) * 2
-        + float(metrics["distance_balance_cv"]) * 0.1
-    )
-    return round(
-        topology + min(0.000099, geometry_tiebreaker * 0.000001),
-        6,
-    )

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.models import LayoutResult, PageSpec, PositionedGlyph
+from plotter_processor.text_shaper import shape_text_run
 
 OVERFLOW_ERROR = "Text does not fit on one page"
 
@@ -16,6 +17,11 @@ def layout_text(
     size_options: Mapping[str, object],
     *,
     tab_spaces: int = 4,
+    engine: str = "legacy",
+    language: str = "ru",
+    script: str = "Cyrl",
+    direction: str = "ltr",
+    features: tuple[str, ...] = (),
 ) -> LayoutResult:
     left = _nonnegative(margins, "left")
     right_margin = _nonnegative(margins, "right")
@@ -43,6 +49,7 @@ def layout_text(
     glyph_index = 0
     line_index = 0
     max_used_x = left
+    word_index = 0
     character_count = sum(len(paragraph) for paragraph in paragraphs)
 
     def new_line(extra: float = 0.0) -> None:
@@ -58,7 +65,25 @@ def layout_text(
         if paragraph:
             tokens = _tokens(paragraph)
             for token, breakable_space in tokens:
-                token_width = _text_advance(token, font, scale)
+                shaped = (
+                    shape_text_run(
+                        token,
+                        font,
+                        direction=direction,
+                        script=script,
+                        language=language,
+                        features=features,
+                    )
+                    if engine == "harfbuzz" and not breakable_space
+                    else None
+                )
+                if engine not in {"legacy", "harfbuzz"}:
+                    raise ValueError(f"Unknown layout engine: {engine}")
+                token_width = (
+                    sum(glyph.x_advance_font_units for glyph in shaped.glyphs) * scale
+                    if shaped is not None
+                    else _text_advance(token, font, scale)
+                )
                 if breakable_space:
                     if x > left and x + token_width <= left + usable_width:
                         x += token_width
@@ -66,9 +91,17 @@ def layout_text(
                 if x > left and x + token_width > left + usable_width:
                     new_line()
                     x = left
-                for char in token:
-                    glyph_name = font.glyph_name_for_char(char)
-                    advance = font.advance_for_glyph(glyph_name) * scale
+                items = shaped.glyphs if shaped is not None else token
+                for item in items:
+                    char = item.source_characters if shaped is not None else item
+                    glyph_name = (
+                        item.glyph_name if shaped is not None else font.glyph_name_for_char(char)
+                    )
+                    advance = (
+                        item.x_advance_font_units * scale
+                        if shaped is not None
+                        else font.advance_for_glyph(glyph_name) * scale
+                    )
                     if x > left and x + advance > left + usable_width:
                         new_line()
                         x = left
@@ -77,19 +110,31 @@ def layout_text(
                     glyphs.append(
                         PositionedGlyph(
                             char=char,
-                            codepoint=ord(char),
+                            codepoint=ord(char[0]),
                             glyph_name=glyph_name,
-                            x_mm=x,
-                            baseline_y_mm=baseline,
+                            x_mm=x + (item.x_offset_font_units * scale if shaped is not None else 0),
+                            baseline_y_mm=baseline
+                            - (item.y_offset_font_units * scale if shaped is not None else 0),
                             advance_mm=advance,
                             scale_mm_per_font_unit=scale,
                             line_index=line_index,
                             glyph_index=glyph_index,
+                            word_index=word_index,
+                            cluster_index=item.cluster_index if shaped is not None else glyph_index,
+                            font_id=item.font.id if shaped is not None else None,
+                            font_sha256=item.font.sha256 if shaped is not None else None,
+                            x_offset_font_units=(
+                                item.x_offset_font_units if shaped is not None else 0.0
+                            ),
+                            y_offset_font_units=(
+                                item.y_offset_font_units if shaped is not None else 0.0
+                            ),
                         )
                     )
                     glyph_index += 1
                     x += advance
                     max_used_x = max(max_used_x, x)
+                word_index += 1
         if paragraph_index < len(paragraphs) - 1:
             new_line(paragraph_spacing if paragraph else 0.0)
 

@@ -49,3 +49,40 @@ def test_invalid_override_field_is_rejected() -> None:
     raw["centerline"]["glyph_overrides"] = {"ж": {"unknown": 1}}  # type: ignore[index]
     with pytest.raises(ValueError, match="Unknown glyph override"):
         load_centerline_config(raw)
+
+
+def test_font_sha_override_has_priority() -> None:
+    base = _config()
+    digest = "a" * 64
+    configured = replace(
+        base,
+        glyph_overrides={"ъ": {"threshold": 145, "skeleton_method": "skeletonize"}},
+        font_overrides={
+            digest: {"ъ": {"threshold": 150, "skeleton_method": "medial_axis"}}
+        },
+    )
+    effective = _config_for_glyph(configured, "ъ", digest)
+    assert effective.threshold == 150
+    assert effective.skeleton_method == "medial_axis"
+
+
+def test_extended_override_validation() -> None:
+    base = _config()
+    effective = _config_for_glyph(
+        replace(
+            base,
+            glyph_overrides={
+                "ы": {
+                    "threshold": 148,
+                    "closing_radius_px": 0,
+                    "candidate_methods": ["medial_axis"],
+                    "output_step_px": 2.5,
+                }
+            },
+        ),
+        "ы",
+    )
+    assert effective.threshold == 148
+    assert effective.candidate_methods == ("medial_axis",)
+    with pytest.raises(ValueError, match="threshold"):
+        _config_for_glyph(replace(base, glyph_overrides={"ы": {"threshold": 999}}), "ы")
