@@ -191,14 +191,15 @@ def save_document_structure(
         "pages": [
             {
                 "source_page_index": page.source_page_index,
-                "width_pt": page.width_pt,
-                "height_pt": page.height_pt,
+                "width_mm": page.width_mm,
+                "height_mm": page.height_mm,
+                "coordinate_unit": "mm",
                 "elements": [
                     {
                         "id": element.id,
                         "source_order": element.source_order,
                         "type": _element_type(element),
-                        "bbox": _bbox_payload(element.bbox),
+                        "source_bbox_mm": _bbox_payload(element.bbox),
                         **(
                             {"paragraphs": list(element.paragraphs)}
                             if isinstance(element, SourceTextElement)
@@ -228,6 +229,18 @@ def save_document_structure(
                                 "height_px": element.height_px,
                                 "displayed_width": element.displayed_width,
                                 "displayed_height": element.displayed_height,
+                                "anchor_type": element.anchor_type,
+                                "wrap_mode": element.wrap_mode,
+                                "wrap_side": element.wrap_side,
+                                "distance_left_mm": element.distance_left_mm,
+                                "distance_right_mm": element.distance_right_mm,
+                                "distance_top_mm": element.distance_top_mm,
+                                "distance_bottom_mm": element.distance_bottom_mm,
+                                "relative_to_h": element.relative_to_h,
+                                "relative_to_v": element.relative_to_v,
+                                "behind_text": element.behind_text,
+                                "z_order": element.z_order,
+                                "rotation_deg": element.rotation_deg,
                             }
                             if isinstance(element, SourceRasterImageElement)
                             else {}
@@ -279,4 +292,9 @@ def _element_type(element: object) -> str:
 def _bbox_payload(bbox: object) -> dict[str, float] | None:
     if bbox is None:
         return None
-    return {"x0": bbox.x0, "y0": bbox.y0, "x1": bbox.x1, "y1": bbox.y1}
+    return {
+        "x0_mm": bbox.x0,
+        "y0_mm": bbox.y0,
+        "x1_mm": bbox.x1,
+        "y1_mm": bbox.y1,
+    }

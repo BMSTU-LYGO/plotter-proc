@@ -62,7 +62,9 @@ class PipelineOptions:
     connections: str | None = None
     images: str = "auto"
     image_debug: bool = False
-    pdf_layout: str = "reflow"
+    pdf_layout: str | None = None
+    document_layout: str | None = None
+    layout_debug: bool = False
     paginate: bool | None = None
     page_numbers: bool | None = None
     page_pause_seconds: float | None = None
@@ -100,6 +102,21 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown LaTeX stroke mode: {options.latex_stroke_mode}")
         if options.pdf_math not in {"auto", "visual", "off"}:
             raise ValueError(f"Unknown PDF math mode: {options.pdf_math}")
+        document_layout_options = _mapping(layout_config, "document_layout")
+        configured_layout = str(document_layout_options.get("mode", "reflow"))
+        if configured_layout not in {"reflow", "hybrid", "preserve"}:
+            raise ValueError(f"Unknown configured document layout: {configured_layout}")
+        if (
+            options.document_layout is not None
+            and options.pdf_layout is not None
+            and options.document_layout != options.pdf_layout
+        ):
+            raise ValueError(
+                "--document-layout and --pdf-layout select different layout modes"
+            )
+        document_layout_mode = (
+            options.document_layout or options.pdf_layout or configured_layout
+        )
         machine_config = load_yaml(options.machine_config_path)
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
@@ -185,6 +202,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 ),
                 latex_stroke_mode=options.latex_stroke_mode,
                 strict_latex_quality=options.strict_latex_quality,
+                document_layout_mode=document_layout_mode,
+                document_layout_options=document_layout_options,
+                layout_debug_dir=(
+                    output_dir / "layout-debug" if options.layout_debug else None
+                ),
                 preserve_source_page_breaks=bool(
                     pagination_options.get("preserve_source_page_breaks", True)
                 ),
@@ -202,7 +224,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             page_count = len(paginated.pages)
             save_document_structure(
                 document, output_dir / "document-structure.json",
-                details=paginated.element_details, layout_mode=options.pdf_layout,
+                details=paginated.element_details, layout_mode=document_layout_mode,
             )
             number_indices = {
                 (page_layout.page_index, index)
@@ -416,7 +438,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "page": options.page, "size": options.size, "shaping": engine,
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
-            "document_import": {**paginated.import_statistics, "layout_mode": options.pdf_layout},
+            "document_import": {
+                **paginated.import_statistics,
+                "layout_mode": document_layout_mode,
+            },
+            "document_layout": paginated.layout_statistics,
             "latex": {
                 **paginated.latex_statistics,
                 "requested_mode": options.latex,

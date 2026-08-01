@@ -54,6 +54,8 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         images=args.images,
         image_debug=args.image_debug,
         pdf_layout=args.pdf_layout,
+        document_layout=args.document_layout,
+        layout_debug=args.layout_debug,
         paginate=args.paginate,
         page_numbers=args.page_numbers,
         page_pause_seconds=args.page_pause_seconds,
@@ -269,7 +271,9 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--connections", choices=("off", "safe", "aggressive"))
     parser.add_argument("--images", choices=("auto", "outline", "centerline", "off"), default="auto")
     parser.add_argument("--image-debug", action="store_true")
-    parser.add_argument("--pdf-layout", choices=("reflow", "preserve"), default="reflow")
+    parser.add_argument("--pdf-layout", choices=("reflow", "preserve"))
+    parser.add_argument("--document-layout", choices=("reflow", "hybrid", "preserve"))
+    parser.add_argument("--layout-debug", action="store_true")
     parser.add_argument("--paginate", dest="paginate", action="store_true")
     parser.add_argument("--no-paginate", dest="paginate", action="store_false")
     parser.add_argument("--page-numbers", dest="page_numbers", action="store_true")

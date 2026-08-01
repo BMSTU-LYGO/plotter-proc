@@ -106,7 +106,12 @@ def read_pdf_document(
                     region.text,
                     True,
                     "pdf-visual",
-                    SourceBBox(clip.x0, clip.y0, clip.x1, clip.y1),
+                    SourceBBox(
+                        clip.x0 * PT_TO_MM,
+                        clip.y0 * PT_TO_MM,
+                        clip.x1 * PT_TO_MM,
+                        clip.y1 * PT_TO_MM,
+                    ),
                     asset,
                     render_ppmm,
                     absorbed,
@@ -192,9 +197,11 @@ def read_pdf_document(
                             asset,
                             width_px,
                             height_px,
-                            bbox.width * PT_TO_MM if bbox else None,
-                            bbox.height * PT_TO_MM if bbox else None,
+                            bbox.width if bbox else None,
+                            bbox.height if bbox else None,
                             bbox,
+                            "absolute",
+                            "none",
                         )
                     )
                     order += 1
@@ -227,9 +234,11 @@ def read_pdf_document(
                             blob_paths[digest],
                             pixmap.width,
                             pixmap.height,
-                            bbox.width * PT_TO_MM if bbox else None,
-                            bbox.height * PT_TO_MM if bbox else None,
+                            bbox.width if bbox else None,
+                            bbox.height if bbox else None,
                             bbox,
+                            "absolute",
+                            "none",
                         )
                     )
                     warnings.append(
@@ -251,8 +260,12 @@ def read_pdf_document(
                 round(item.bbox.x0, 3) if item.bbox else math.inf,
                 item.source_order,
             ))
-            elements = [_with_order(element, index) for index, element in enumerate(elements)]
-            pages.append(SourcePage(page_index, page.rect.width, page.rect.height, tuple(elements)))
+            pages.append(SourcePage(
+                page_index,
+                page.rect.width * PT_TO_MM,
+                page.rect.height * PT_TO_MM,
+                tuple(elements),
+            ))
     finally:
         document.close()
     return SourceDocument(path, tuple(pages), tuple(dict.fromkeys(warnings)))
@@ -317,7 +330,7 @@ def _bbox(value: object) -> SourceBBox | None:
         x0, y0, x1, y1 = (float(part) for part in value)
     except (TypeError, ValueError):
         x0, y0, x1, y1 = float(value.x0), float(value.y0), float(value.x1), float(value.y1)
-    return SourceBBox(x0, y0, x1, y1)
+    return SourceBBox(x0 * PT_TO_MM, y0 * PT_TO_MM, x1 * PT_TO_MM, y1 * PT_TO_MM)
 
 
 def _point(value: object) -> Point:
@@ -379,9 +392,3 @@ def _coverage(frame: SourceBBox, content: SourceBBox) -> float:
     intersection_height = max(0.0, min(frame.y1, content.y1) - max(frame.y0, content.y0))
     content_area = content.width * content.height
     return intersection_width * intersection_height / content_area if content_area else 0.0
-
-
-def _with_order(element: object, order: int):
-    from dataclasses import replace
-
-    return replace(element, source_order=order)

@@ -51,4 +51,7 @@ def test_docx_anchor_is_not_ignored(tmp_path: Path) -> None:
     result = read_structured_document(source, assets_dir=tmp_path / "assets")
 
     assert any(isinstance(item, SourceRasterImageElement) for item in result.elements)
-    assert "floating_image_reflowed" in result.warnings
+    image = next(item for item in result.elements if isinstance(item, SourceRasterImageElement))
+    assert image.anchor_type == "anchored"
+    assert image.wrap_mode == "square"
+    assert "floating_image_reflowed" not in result.warnings

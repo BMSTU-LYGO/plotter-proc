@@ -22,6 +22,10 @@ class SourceBBox:
     def height(self) -> float:
         return max(0.0, self.y1 - self.y0)
 
+    @property
+    def coordinate_unit(self) -> str:
+        return "mm"
+
 
 @dataclass(frozen=True, slots=True)
 class SourceTextElement:
@@ -43,6 +47,18 @@ class SourceRasterImageElement:
     displayed_width: float | None
     displayed_height: float | None
     bbox: SourceBBox | None = None
+    anchor_type: str = "flow"
+    wrap_mode: str = "inline"
+    wrap_side: str = "both"
+    distance_left_mm: float = 0.0
+    distance_right_mm: float = 0.0
+    distance_top_mm: float = 0.0
+    distance_bottom_mm: float = 0.0
+    relative_to_h: str | None = None
+    relative_to_v: str | None = None
+    behind_text: bool = False
+    z_order: int = 0
+    rotation_deg: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +68,10 @@ class SourceVectorElement:
     source_page_index: int
     strokes: tuple[PlotterStroke, ...]
     bbox: SourceBBox | None = None
+    anchor_type: str = "absolute"
+    wrap_mode: str = "none"
+    wrap_side: str = "both"
+    z_order: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +100,14 @@ class SourcePage:
     width_pt: float | None
     height_pt: float | None
     elements: tuple[SourceElement, ...]
+
+    @property
+    def width_mm(self) -> float | None:
+        return self.width_pt
+
+    @property
+    def height_mm(self) -> float | None:
+        return self.height_pt
 
 
 @dataclass(frozen=True, slots=True)

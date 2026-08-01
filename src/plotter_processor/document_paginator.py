@@ -17,6 +17,17 @@ from plotter_processor.image_vectorizer import vectorize_image
 from plotter_processor.latex_layout import FormulaInfo, layout_latex_paragraph, layout_math_element
 from plotter_processor.latex_parser import contains_latex
 from plotter_processor.latex_renderer import math_renderer_from_options, render_visual_math_image
+from plotter_processor.layout_debug import export_layout_debug
+from plotter_processor.layout_models import (
+    ExclusionZone,
+    RectMM,
+    available_intervals,
+    center_displacement,
+    choose_widest_interval,
+    intersection_area,
+    map_source_rect,
+    rect_payload,
+)
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
@@ -39,6 +50,7 @@ class PaginatedLayout:
     import_statistics: dict[str, object]
     element_details: dict[str, dict[str, object]]
     latex_statistics: dict[str, object] = field(default_factory=dict)
+    layout_statistics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -51,6 +63,9 @@ class _PageState:
     text_fragments: list[str] = field(default_factory=list)
     line_count: int = 0
     formulas: list[FormulaInfo] = field(default_factory=list)
+    exclusion_zones: list[ExclusionZone] = field(default_factory=list)
+    line_boxes: list[RectMM] = field(default_factory=list)
+    placements: list[dict[str, object]] = field(default_factory=list)
 
     @property
     def has_content(self) -> bool:
@@ -74,6 +89,9 @@ def paginate_document(
     latex_debug_dir: Path | None = None,
     latex_stroke_mode: str | None = None,
     strict_latex_quality: bool | None = None,
+    document_layout_mode: str = "reflow",
+    document_layout_options: Mapping[str, object] | None = None,
+    layout_debug_dir: Path | None = None,
     preserve_source_page_breaks: bool = True,
     tab_spaces: int = 4,
     engine: str = "legacy",
@@ -82,6 +100,8 @@ def paginate_document(
     direction: str = "ltr",
     features: tuple[str, ...] = (),
 ) -> PaginatedLayout:
+    if document_layout_mode not in {"reflow", "hybrid", "preserve"}:
+        raise ValueError(f"Unknown document layout mode: {document_layout_mode}")
     left = _number(margins, "left")
     right = _number(margins, "right")
     top = _number(margins, "top")
@@ -90,6 +110,7 @@ def paginate_document(
     footer = _mapping(pagination_options, "footer")
     footer_reserved = _number(footer, "reserved_height_mm") if footer.get("enabled", True) else 0.0
     content_bottom = page.height_mm - bottom_margin - footer_reserved
+    content_rect = RectMM(left, top, usable_width, content_bottom - top)
     if content_bottom <= top:
         raise ValueError("Pagination footer leaves no usable page height")
     em_size = _number(size_options, "em_size_mm")
@@ -108,6 +129,11 @@ def paginate_document(
     image_found = image_vectorized = image_strokes = image_points = vector_count = 0
     formula_index = 0
     rendered_formulas: list[FormulaInfo] = []
+    placement_records: list[dict[str, object]] = []
+    all_line_boxes: list[dict[str, object]] = []
+    layout_config = dict(document_layout_options or {})
+    preserve_config = dict(_optional_mapping(layout_config, "preserve"))
+    hybrid_config = dict(_optional_mapping(layout_config, "hybrid"))
     latex_config = dict(latex_options or {})
     renderer = (
         math_renderer_from_options(
@@ -140,14 +166,21 @@ def paginate_document(
             max(0.0, used_width),
             max(0.0, state.cursor_y - top),
         )
+        output_page_index = len(pages)
         pages.append(PageLayout(
-            len(pages), layout, state.graphics, tuple(state.source_ids),
+            output_page_index, layout, state.graphics, tuple(state.source_ids),
             list(dict.fromkeys(state.warnings)),
             {
                 "text": "".join(state.text_fragments),
                 "formulas": [asdict(formula) for formula in state.formulas],
+                "placements": list(state.placements),
+                "line_boxes": [rect_payload(box) for box in state.line_boxes],
             },
         ))
+        all_line_boxes.extend(
+            {"page_index": output_page_index, "bbox": rect_payload(box)}
+            for box in state.line_boxes
+        )
         warnings.extend(state.warnings)
         state = _PageState(top)
 
@@ -163,6 +196,88 @@ def paginate_document(
     for source_page_position, source_page in enumerate(document.pages):
         if source_page_position and preserve_source_page_breaks and state.has_content:
             finish_page()
+        preplacements: dict[str, tuple[RectMM, RectMM | None, str, list[str]]] = {}
+        if document_layout_mode != "reflow":
+            provisional: list[dict[str, object]] = []
+            for candidate in source_page.elements:
+                if isinstance(candidate, SourceRasterImageElement):
+                    if candidate.wrap_mode == "inline" or candidate.anchor_type == "flow":
+                        continue
+                    if (
+                        document_layout_mode == "hybrid"
+                        and candidate.relative_to_v not in {"page", "margin"}
+                    ):
+                        continue
+                    candidate_width, candidate_height = _image_size(
+                        candidate,
+                        usable_width,
+                        content_bottom - top,
+                        default_width_ratio,
+                        max_height_ratio,
+                    )
+                    candidate_mapped = _mapped_element_rect(
+                        candidate.bbox,
+                        source_page.width_mm,
+                        source_page.height_mm,
+                        content_rect,
+                        float(preserve_config.get("max_upscale", 1.10)),
+                    )
+                    candidate_rect, candidate_wrap, candidate_warnings = _place_raster(
+                        candidate,
+                        document_layout_mode,
+                        candidate_mapped,
+                        candidate_width,
+                        candidate_height,
+                        top,
+                        content_rect,
+                        provisional,
+                        hybrid_config,
+                        spacing_before,
+                    )
+                elif isinstance(candidate, SourceVectorElement):
+                    candidate_width, candidate_height = _vector_size(
+                        candidate, usable_width, content_bottom - top
+                    )
+                    candidate_mapped = _mapped_element_rect(
+                        candidate.bbox,
+                        source_page.width_mm,
+                        source_page.height_mm,
+                        content_rect,
+                        float(preserve_config.get("max_upscale", 1.10)),
+                    )
+                    candidate_rect, candidate_wrap, candidate_warnings = _place_vector(
+                        candidate,
+                        document_layout_mode,
+                        candidate_mapped,
+                        candidate_width,
+                        candidate_height,
+                        top,
+                        content_rect,
+                        provisional,
+                        hybrid_config,
+                        spacing_before,
+                    )
+                else:
+                    continue
+                preplacements[candidate.id] = (
+                    candidate_rect,
+                    candidate_mapped,
+                    candidate_wrap,
+                    candidate_warnings,
+                )
+                provisional.append({"output_bbox_mm": rect_payload(candidate_rect)})
+                zone_wrap = candidate_wrap
+                if document_layout_mode == "preserve" and zone_wrap == "none":
+                    zone_wrap = "square"
+                if zone_wrap in {"square", "top_bottom"}:
+                    padding = float(hybrid_config.get("image_padding_mm", 2.0))
+                    state.exclusion_zones.append(ExclusionZone(
+                        candidate_rect,
+                        getattr(candidate, "wrap_side", "both"),
+                        candidate.id,
+                        padding_left_mm=padding,
+                        padding_right_mm=padding,
+                    ))
         for element in source_page.elements:
             if isinstance(element, SourceTextElement):
                 normalized_paragraphs: list[str] = []
@@ -179,6 +294,10 @@ def paginate_document(
                         add_source_id(element.id)
                         continue
                     if renderer is not None and contains_latex(paragraph):
+                        if document_layout_mode != "reflow" and state.exclusion_zones:
+                            state.cursor_y = _clear_blocking_zones(
+                                state.cursor_y, line_advance, state.exclusion_zones
+                            )
                         try:
                             rich_lines, formula_index = layout_latex_paragraph(
                                 paragraph,
@@ -251,6 +370,33 @@ def paginate_document(
                         if state.cursor_y + paragraph_spacing <= content_bottom + 1e-9:
                             state.cursor_y += paragraph_spacing
                         continue
+                    if document_layout_mode != "reflow" and state.exclusion_zones:
+                        _layout_text_around_zones(
+                            paragraph,
+                            state,
+                            font,
+                            page,
+                            margins,
+                            size_options,
+                            content_bottom,
+                            glyph_height,
+                            line_advance,
+                            scale,
+                            add_source_id,
+                            element.id,
+                            tab_spaces=tab_spaces,
+                            engine=engine,
+                            language=language,
+                            script=script,
+                            direction=direction,
+                            features=features,
+                        )
+                        state.text_fragments.append(paragraph)
+                        if paragraph_index < len(normalized_paragraphs) - 1:
+                            state.text_fragments.append("\n")
+                        if state.cursor_y + paragraph_spacing <= content_bottom + 1e-9:
+                            state.cursor_y += paragraph_spacing
+                        continue
                     tall_page = PageSpec("flow", page.width_mm, 1_000_000.0)
                     tall_margins = dict(margins)
                     tall_margins["top"] = 0.0
@@ -292,6 +438,17 @@ def paginate_document(
                             ))
                         state.cursor_y += line_advance
                         state.line_count += 1
+                        if source_line:
+                            line_left = min(glyph.x_mm for glyph in source_line)
+                            line_right = max(
+                                glyph.x_mm + glyph.advance_mm for glyph in source_line
+                            )
+                            state.line_boxes.append(RectMM(
+                                line_left,
+                                state.cursor_y - line_advance,
+                                line_right - line_left,
+                                line_advance,
+                            ))
                         add_source_id(element.id)
                     if any(
                         _text_width(token, font, scale) > usable_width
@@ -322,6 +479,10 @@ def paginate_document(
                     details[element.id] = {"type": "math", "skipped": True, "warning": warning}
                     continue
                 formula_index += 1
+                if document_layout_mode != "reflow" and state.exclusion_zones:
+                    state.cursor_y = _clear_blocking_zones(
+                        state.cursor_y, line_advance, state.exclusion_zones
+                    )
                 try:
                     rendered_visual = (
                         render_visual_math_image(
@@ -410,62 +571,221 @@ def paginate_document(
                     element, usable_width, content_bottom - top,
                     default_width_ratio, max_height_ratio,
                 )
-                ensure_height(required_before + height)
-                state.cursor_y += required_before
+                mapped = _mapped_element_rect(
+                    element.bbox,
+                    source_page.width_mm,
+                    source_page.height_mm,
+                    content_rect,
+                    float(preserve_config.get("max_upscale", 1.10)),
+                )
+                if (
+                    document_layout_mode == "hybrid"
+                    and mapped is not None
+                    and element.relative_to_v not in {"page", "margin"}
+                ):
+                    mapped = RectMM(
+                        mapped.x,
+                        state.cursor_y + required_before,
+                        width,
+                        height,
+                    )
+                was_preplaced = element.id in preplacements
+                if was_preplaced:
+                    output_rect, mapped, effective_wrap, placement_warnings = preplacements[
+                        element.id
+                    ]
+                else:
+                    output_rect, effective_wrap, placement_warnings = _place_raster(
+                        element,
+                        document_layout_mode,
+                        mapped,
+                        width,
+                        height,
+                        state.cursor_y,
+                        content_rect,
+                        state.placements,
+                        hybrid_config,
+                        spacing_before,
+                    )
+                state.warnings.extend(
+                    f"{warning}: {element.id}" for warning in placement_warnings
+                )
+                if document_layout_mode == "reflow" or element.wrap_mode == "inline":
+                    ensure_height(required_before + output_rect.height)
+                    state.cursor_y += required_before
+                    output_rect = RectMM(
+                        output_rect.x,
+                        state.cursor_y,
+                        output_rect.width,
+                        output_rect.height,
+                    )
+                elif output_rect.bottom > content_bottom + 1e-9:
+                    if not enabled:
+                        raise ValueError(OVERFLOW_ERROR)
+                    finish_page()
+                    output_rect = RectMM(
+                        output_rect.x,
+                        top,
+                        output_rect.width,
+                        output_rect.height,
+                    )
                 debug_path = image_debug_dir / f"{element.id}.png" if image_debug_dir else None
                 prepared = preprocess_image(element.image_path, image_options, debug_path=debug_path)
                 vectorized = vectorize_image(
-                    prepared, image_options, mode=image_mode, width_mm=width, height_mm=height,
+                    prepared,
+                    image_options,
+                    mode=image_mode,
+                    width_mm=output_rect.width,
+                    height_mm=output_rect.height,
                     element_id=element.id, source_path=str(element.image_path),
                 )
-                x = left + (usable_width - width) / 2
                 for stroke in vectorized.strokes:
                     state.graphics.append(replace(
                         stroke, id=len(state.graphics),
-                        points=[Point(point.x + x, point.y + state.cursor_y) for point in stroke.points],
+                        points=[
+                            Point(point.x + output_rect.x, point.y + output_rect.y)
+                            for point in stroke.points
+                        ],
                     ))
-                state.cursor_y += height + spacing_after
+                if document_layout_mode == "reflow" or element.wrap_mode == "inline":
+                    state.cursor_y += output_rect.height + spacing_after
+                elif effective_wrap == "top_bottom":
+                    state.cursor_y = max(state.cursor_y, output_rect.bottom + spacing_after)
+                elif effective_wrap == "square" and not was_preplaced:
+                    state.exclusion_zones.append(ExclusionZone(
+                        output_rect,
+                        element.wrap_side,
+                        element.id,
+                        element.distance_left_mm
+                        or float(hybrid_config.get("image_padding_mm", 2.0)),
+                        element.distance_right_mm
+                        or float(hybrid_config.get("image_padding_mm", 2.0)),
+                        element.distance_top_mm,
+                        element.distance_bottom_mm,
+                    ))
                 add_source_id(element.id)
                 image_vectorized += int(bool(vectorized.strokes))
                 image_strokes += len(vectorized.strokes)
                 image_points += vectorized.point_count
                 state.warnings.extend(f"{warning}: {element.id}" for warning in vectorized.warnings)
+                placement = _placement_record(
+                    element.id,
+                    element.source_page_index,
+                    element.bbox,
+                    mapped,
+                    output_rect,
+                    element.anchor_type,
+                    effective_wrap,
+                    element.wrap_side,
+                    element.displayed_width,
+                    placement_warnings,
+                    "raster-image",
+                )
+                state.placements.append(placement)
+                placement_records.append(placement)
                 details[element.id] = {
                     "type": "raster-image", "mode": vectorized.mode,
-                    "width_mm": round(width, 4), "height_mm": round(height, 4),
+                    "width_mm": round(output_rect.width, 4),
+                    "height_mm": round(output_rect.height, 4),
                     "strokes": len(vectorized.strokes), "points": vectorized.point_count,
+                    **placement,
                 }
                 continue
 
             if isinstance(element, SourceVectorElement):
                 vector_count += 1
                 width, height = _vector_size(element, usable_width, content_bottom - top)
-                ensure_height(required_before + height)
-                state.cursor_y += required_before
+                mapped = _mapped_element_rect(
+                    element.bbox,
+                    source_page.width_mm,
+                    source_page.height_mm,
+                    content_rect,
+                    float(preserve_config.get("max_upscale", 1.10)),
+                )
+                was_preplaced = element.id in preplacements
+                if was_preplaced:
+                    output_rect, mapped, effective_wrap, placement_warnings = preplacements[
+                        element.id
+                    ]
+                else:
+                    output_rect, effective_wrap, placement_warnings = _place_vector(
+                        element,
+                        document_layout_mode,
+                        mapped,
+                        width,
+                        height,
+                        state.cursor_y,
+                        content_rect,
+                        state.placements,
+                        hybrid_config,
+                        spacing_before,
+                    )
+                if document_layout_mode == "reflow":
+                    ensure_height(required_before + output_rect.height)
+                    state.cursor_y += required_before
+                    output_rect = RectMM(
+                        output_rect.x,
+                        state.cursor_y,
+                        output_rect.width,
+                        output_rect.height,
+                    )
+                state.warnings.extend(
+                    f"{warning}: {element.id}" for warning in placement_warnings
+                )
                 source_points = [point for stroke in element.strokes for point in stroke.points]
                 min_x = min(point.x for point in source_points)
                 min_y = min(point.y for point in source_points)
                 source_width = max(point.x for point in source_points) - min_x
                 source_height = max(point.y for point in source_points) - min_y
                 vector_scale = min(
-                    width / max(source_width, 1e-9), height / max(source_height, 1e-9)
+                    output_rect.width / max(source_width, 1e-9),
+                    output_rect.height / max(source_height, 1e-9),
                 )
-                x = left + (usable_width - source_width * vector_scale) / 2
                 for stroke in element.strokes:
                     state.graphics.append(replace(
                         stroke, id=len(state.graphics), element_id=element.id,
                         element_type="pdf-vector",
                         points=[
                             Point(
-                                x + (point.x - min_x) * vector_scale,
-                                state.cursor_y + (point.y - min_y) * vector_scale,
+                                output_rect.x + (point.x - min_x) * vector_scale,
+                                output_rect.y + (point.y - min_y) * vector_scale,
                             )
                             for point in stroke.points
                         ],
                     ))
-                state.cursor_y += source_height * vector_scale + spacing_after
+                if document_layout_mode == "reflow":
+                    state.cursor_y += output_rect.height + spacing_after
+                elif effective_wrap == "top_bottom":
+                    state.cursor_y = max(state.cursor_y, output_rect.bottom + spacing_after)
+                elif effective_wrap == "square" and not was_preplaced:
+                    state.exclusion_zones.append(ExclusionZone(
+                        output_rect,
+                        element.wrap_side,
+                        element.id,
+                        padding_left_mm=float(hybrid_config.get("image_padding_mm", 2.0)),
+                        padding_right_mm=float(hybrid_config.get("image_padding_mm", 2.0)),
+                    ))
                 add_source_id(element.id)
-                details[element.id] = {"type": "pdf-vector", "strokes": len(element.strokes)}
+                placement = _placement_record(
+                    element.id,
+                    element.source_page_index,
+                    element.bbox,
+                    mapped,
+                    output_rect,
+                    element.anchor_type,
+                    effective_wrap,
+                    element.wrap_side,
+                    width,
+                    placement_warnings,
+                    "pdf-vector",
+                )
+                state.placements.append(placement)
+                placement_records.append(placement)
+                details[element.id] = {
+                    "type": "pdf-vector",
+                    "strokes": len(element.strokes),
+                    **placement,
+                }
 
     finish_page()
     if not pages:
@@ -518,8 +838,25 @@ def paginate_document(
             "LaTeX reconstruction from PDF",
         ],
     }
+    layout_stats = _layout_statistics(
+        document_layout_mode,
+        placement_records,
+        all_line_boxes,
+    )
+    if layout_debug_dir is not None:
+        export_layout_debug(
+            layout_debug_dir,
+            page,
+            placement_records,
+            all_line_boxes,
+        )
     return PaginatedLayout(
-        pages, list(dict.fromkeys(warnings)), stats, details, latex_stats
+        pages,
+        list(dict.fromkeys(warnings)),
+        stats,
+        details,
+        latex_stats,
+        layout_stats,
     )
 
 
@@ -671,3 +1008,390 @@ def _number(values: Mapping[str, object], key: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         raise ValueError(f"Missing or invalid non-negative field: {key}")
     return float(value)
+
+
+def _optional_mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
+    value = values.get(key, {})
+    if not isinstance(value, Mapping):
+        raise TypeError(f"document_layout.{key} must be a mapping")
+    return value
+
+
+def _mapped_element_rect(
+    bbox: object,
+    source_width: float | None,
+    source_height: float | None,
+    content_rect: RectMM,
+    max_upscale: float,
+) -> RectMM | None:
+    if bbox is None or source_width is None or source_height is None:
+        return None
+    source_rect = RectMM(bbox.x0, bbox.y0, bbox.width, bbox.height)
+    return map_source_rect(
+        source_rect,
+        (source_width, source_height),
+        content_rect,
+        max_upscale=max_upscale,
+    )
+
+
+def _place_raster(
+    element: SourceRasterImageElement,
+    mode: str,
+    mapped: RectMM | None,
+    width: float,
+    height: float,
+    cursor_y: float,
+    content: RectMM,
+    previous: list[dict[str, object]],
+    options: Mapping[str, object],
+    spacing_before: float,
+) -> tuple[RectMM, str, list[str]]:
+    inline = element.wrap_mode == "inline" or element.anchor_type == "flow"
+    return _place_graphic(
+        mode,
+        mapped,
+        width,
+        height,
+        cursor_y,
+        content,
+        previous,
+        options,
+        spacing_before,
+        element.wrap_mode,
+        inline=inline,
+        source_position_available=element.bbox is not None,
+        relative_to_v=element.relative_to_v,
+    )
+
+
+def _place_vector(
+    element: SourceVectorElement,
+    mode: str,
+    mapped: RectMM | None,
+    width: float,
+    height: float,
+    cursor_y: float,
+    content: RectMM,
+    previous: list[dict[str, object]],
+    options: Mapping[str, object],
+    spacing_before: float,
+) -> tuple[RectMM, str, list[str]]:
+    return _place_graphic(
+        mode,
+        mapped,
+        width,
+        height,
+        cursor_y,
+        content,
+        previous,
+        options,
+        spacing_before,
+        element.wrap_mode,
+        inline=False,
+        source_position_available=element.bbox is not None,
+        relative_to_v="page",
+    )
+
+
+def _place_graphic(
+    mode: str,
+    mapped: RectMM | None,
+    width: float,
+    height: float,
+    cursor_y: float,
+    content: RectMM,
+    previous: list[dict[str, object]],
+    options: Mapping[str, object],
+    spacing_before: float,
+    wrap_mode: str,
+    *,
+    inline: bool,
+    source_position_available: bool,
+    relative_to_v: str | None,
+) -> tuple[RectMM, str, list[str]]:
+    warnings: list[str] = []
+    if mode == "reflow" or inline:
+        return (
+            RectMM(
+                content.x + (content.width - width) / 2,
+                cursor_y + spacing_before,
+                width,
+                height,
+            ),
+            "inline" if inline else "top_bottom",
+            warnings,
+        )
+    if mapped is None:
+        warnings.append("image_source_position_unavailable")
+        rect = RectMM(content.x, cursor_y + spacing_before, width, height)
+    elif mode == "preserve":
+        rect = mapped
+    else:
+        x = min(max(mapped.x, content.x), content.right - width)
+        y = mapped.y if relative_to_v in {"page", "margin"} else cursor_y + spacing_before
+        y = min(max(y, content.y), content.bottom - height)
+        rect = RectMM(x, y, width, height)
+    effective_wrap = wrap_mode
+    if mode == "hybrid" and effective_wrap == "none":
+        effective_wrap = "square"
+        warnings.append("image_wrap_none_approximated_as_square")
+    if mode == "hybrid":
+        max_shift = float(options.get("max_vertical_shift_mm", 25.0))
+        attempts = max(1, int(options.get("max_placement_attempts", 20)))
+        initial_y = rect.y
+        for _attempt in range(attempts):
+            conflicts = [
+                existing
+                for item in previous
+                if (existing := _payload_rect(item.get("output_bbox_mm"))) is not None
+                and intersection_area(rect, existing) > 1e-9
+            ]
+            if not conflicts:
+                break
+            next_y = max(conflict.bottom for conflict in conflicts) + float(
+                options.get("image_padding_mm", 2.0)
+            )
+            if next_y - initial_y > max_shift or next_y + rect.height > content.bottom:
+                effective_wrap = "top_bottom"
+                warnings.append("image_wrap_fallback_top_bottom")
+                rect = RectMM(rect.x, max(cursor_y + spacing_before, initial_y), rect.width, rect.height)
+                break
+            rect = RectMM(rect.x, next_y, rect.width, rect.height)
+            warnings.append("image_overlap_avoided")
+    clamped = RectMM(
+        min(max(rect.x, content.x), content.right - rect.width),
+        min(max(rect.y, content.y), content.bottom - rect.height),
+        min(rect.width, content.width),
+        min(rect.height, content.height),
+    )
+    if center_displacement(rect, clamped) > 1e-6:
+        warnings.append("image_position_shifted")
+    if not source_position_available and "image_source_position_unavailable" not in warnings:
+        warnings.append("image_source_position_unavailable")
+    return clamped, effective_wrap, list(dict.fromkeys(warnings))
+
+
+def _placement_record(
+    element_id: str,
+    source_page_index: int,
+    source_bbox: object,
+    mapped: RectMM | None,
+    output: RectMM,
+    anchor: str,
+    wrap_mode: str,
+    wrap_side: str,
+    original_width: float | None,
+    warnings: list[str],
+    element_type: str,
+) -> dict[str, object]:
+    source_rect = (
+        RectMM(source_bbox.x0, source_bbox.y0, source_bbox.width, source_bbox.height)
+        if source_bbox is not None
+        else None
+    )
+    displacement = center_displacement(mapped, output) if mapped is not None else None
+    scale = output.width / original_width if original_width and original_width > 0 else 1.0
+    return {
+        "id": element_id,
+        "element_type": element_type,
+        "source_page_index": source_page_index,
+        "source_bbox_mm": rect_payload(source_rect),
+        "mapped_bbox_mm": rect_payload(mapped),
+        "output_bbox_mm": rect_payload(output),
+        "target_page_index": source_page_index,
+        "anchor": anchor,
+        "wrap_mode": wrap_mode,
+        "wrap_side": wrap_side,
+        "scale": round(scale, 6),
+        "center_displacement_mm": round(displacement, 6) if displacement is not None else None,
+        "overlap_area_mm2": 0.0,
+        "page_overflow_area_mm2": 0.0,
+        "fallbacks": list(dict.fromkeys(warnings)),
+    }
+
+
+def _payload_rect(value: object) -> RectMM | None:
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return RectMM(
+            float(value["x"]),
+            float(value["y"]),
+            float(value["width"]),
+            float(value["height"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _clear_blocking_zones(
+    cursor_y: float,
+    height: float,
+    zones: list[ExclusionZone],
+) -> float:
+    current = cursor_y
+    while True:
+        blockers = [
+            zone.padded_bbox
+            for zone in zones
+            if not (current + height <= zone.padded_bbox.y or current >= zone.padded_bbox.bottom)
+        ]
+        if not blockers:
+            return current
+        current = max(box.bottom for box in blockers)
+
+
+def _layout_text_around_zones(
+    paragraph: str,
+    state: _PageState,
+    font: LoadedFont,
+    page: PageSpec,
+    margins: Mapping[str, object],
+    size_options: Mapping[str, object],
+    content_bottom: float,
+    glyph_height: float,
+    line_advance: float,
+    scale: float,
+    add_source_id,
+    element_id: str,
+    *,
+    tab_spaces: int,
+    engine: str,
+    language: str,
+    script: str,
+    direction: str,
+    features: tuple[str, ...],
+) -> None:
+    remaining = paragraph.strip()
+    left = _number(margins, "left")
+    right = page.width_mm - _number(margins, "right")
+    while remaining:
+        if state.cursor_y + glyph_height > content_bottom + 1e-9:
+            raise ValueError(OVERFLOW_ERROR)
+        intervals = available_intervals(
+            left,
+            right,
+            state.cursor_y,
+            state.cursor_y + line_advance,
+            state.exclusion_zones,
+        )
+        interval = choose_widest_interval(intervals)
+        if interval is None:
+            state.cursor_y = _clear_blocking_zones(
+                state.cursor_y, line_advance, state.exclusion_zones
+            )
+            continue
+        line, remaining = _take_text_line(
+            remaining, interval[1] - interval[0], font, scale
+        )
+        local_margins = dict(margins)
+        local_margins.update({
+            "left": interval[0],
+            "right": page.width_mm - interval[1],
+            "top": 0.0,
+            "bottom": 0.0,
+        })
+        flowed = layout_text(
+            [line],
+            font,
+            PageSpec("flow-line", page.width_mm, 1_000_000.0),
+            local_margins,
+            size_options,
+            tab_spaces=tab_spaces,
+            engine=engine,
+            language=language,
+            script=script,
+            direction=direction,
+            features=features,
+        )
+        baseline = state.cursor_y + font.metrics.ascent * scale
+        global_line = state.line_count
+        for glyph in flowed.glyphs:
+            state.glyphs.append(replace(
+                glyph,
+                baseline_y_mm=baseline,
+                line_index=global_line,
+                glyph_index=len(state.glyphs),
+            ))
+        used_width = sum(glyph.advance_mm for glyph in flowed.glyphs)
+        state.line_boxes.append(RectMM(
+            interval[0], state.cursor_y, min(used_width, interval[1] - interval[0]), line_advance
+        ))
+        state.cursor_y += line_advance
+        state.line_count += 1
+        add_source_id(element_id)
+
+
+def _take_text_line(
+    text: str, max_width: float, font: LoadedFont, scale: float
+) -> tuple[str, str]:
+    words = text.split()
+    if not words:
+        return "", ""
+    current = words[0]
+    if _text_width(current, font, scale) > max_width:
+        split = 1
+        while split < len(current) and _text_width(current[: split + 1], font, scale) <= max_width:
+            split += 1
+        return current[:split], " ".join([current[split:], *words[1:]]).strip()
+    consumed = 1
+    while consumed < len(words):
+        candidate = f"{current} {words[consumed]}"
+        if _text_width(candidate, font, scale) > max_width:
+            break
+        current = candidate
+        consumed += 1
+    return current, " ".join(words[consumed:])
+
+
+def _layout_statistics(
+    mode: str,
+    placements: list[dict[str, object]],
+    line_boxes: list[dict[str, object]],
+) -> dict[str, object]:
+    displacements = [
+        float(value)
+        for item in placements
+        if (value := item.get("center_displacement_mm")) is not None
+    ]
+    scales = [float(item.get("scale", 1.0)) for item in placements]
+    overlaps = 0.0
+    for item in placements:
+        image = _payload_rect(item.get("output_bbox_mm"))
+        if image is None:
+            continue
+        for line in line_boxes:
+            if int(line.get("page_index", -1)) != int(item.get("target_page_index", -2)):
+                continue
+            text = _payload_rect(line.get("bbox"))
+            if text is not None:
+                overlaps += intersection_area(image, text)
+    threshold = 1.0 if mode == "preserve" else 10.0
+    return {
+        "mode": mode,
+        "images": len(placements),
+        "images_with_source_bbox": sum(
+            item.get("source_bbox_mm") is not None for item in placements
+        ),
+        "images_wrapped": sum(item.get("wrap_mode") == "square" for item in placements),
+        "images_top_bottom": sum(
+            item.get("wrap_mode") == "top_bottom" for item in placements
+        ),
+        "position_preserved": sum(
+            item.get("center_displacement_mm") is not None
+            and float(item["center_displacement_mm"]) <= threshold
+            for item in placements
+        ),
+        "position_fallbacks": sum(bool(item.get("fallbacks")) for item in placements),
+        "mean_center_displacement_mm": round(
+            sum(displacements) / len(displacements), 6
+        ) if displacements else None,
+        "max_center_displacement_mm": round(max(displacements), 6) if displacements else None,
+        "mean_scale_factor": round(sum(scales) / len(scales), 6) if scales else None,
+        "overlaps_remaining": round(overlaps, 6),
+        "page_overflow_area_mm2": round(
+            sum(float(item.get("page_overflow_area_mm2", 0.0)) for item in placements), 6
+        ),
+        "elements": placements,
+    }

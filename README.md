@@ -77,6 +77,18 @@ includes, внешний `latex` и shell execution. Поддерживаетс�
 centerline reconstruction: исходная строка `.tex` не восстанавливается,
 low-confidence регионы остаются обычным текстом/вектором.
 
+## Размещение изображений
+
+Для DOCX и PDF доступны три режима `--document-layout reflow|hybrid|preserve`.
+`reflow` сохраняет прежний последовательный поток, `hybrid` удерживает сторону
+anchored-рисунка и обтекает его текстом, а `preserve` отображает исходные bbox
+на целевую страницу единым contain-scale. Старый `--pdf-layout reflow|preserve`
+остаётся alias; конфликт двух флагов завершается понятной ошибкой.
+
+`--layout-debug` создаёт `layout-debug/source-layout.svg`,
+`target-layout.svg`, `placement-overlay.svg` и `placement.json`. В отчёте раздел
+`document_layout` содержит displacement, scale, wrapping, overlap и overflow.
+
 ## Профили скорости
 
 `safe` повторяет прежние Z и скорости и остаётся профилем по умолчанию.

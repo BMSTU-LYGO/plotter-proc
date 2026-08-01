@@ -32,6 +32,11 @@ def main() -> int:
     parser.add_argument(
         "--examples-output", type=Path, default=Path("examples/update_7/block_1")
     )
+    parser.add_argument(
+        "--block-2-examples-output",
+        type=Path,
+        default=Path("examples/update_7/block_2"),
+    )
     args = parser.parse_args()
     root = args.output
     latex = root / "latex"
@@ -71,6 +76,16 @@ def main() -> int:
     examples.mkdir(parents=True, exist_ok=True)
     _write_block_1_example_docx(examples / "semantic-omml.docx")
     _write_block_1_example_pdf(examples / "pdf-visual-math.pdf")
+
+    block_2_examples = args.block_2_examples_output
+    block_2_examples.mkdir(parents=True, exist_ok=True)
+    _write_image_docx(
+        block_2_examples / "image-left-square-wrap.docx", png, "left", "square"
+    )
+    _write_image_docx(
+        block_2_examples / "image-right-square-wrap.docx", png, "right", "square"
+    )
+    _write_image_pdf(block_2_examples / "pdf-image-right.pdf", png, "right")
     return 0
 
 

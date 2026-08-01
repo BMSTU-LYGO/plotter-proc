@@ -41,6 +41,20 @@ document_import:
   pdf_layout: reflow
   preserve_source_page_breaks: true
 
+document_layout:
+  mode: reflow
+  preserve:
+    fit: contain
+    max_upscale: 1.10
+    clip_to_page: false
+  hybrid:
+    image_padding_mm: 2.0
+    max_vertical_shift_mm: 25.0
+    max_horizontal_shift_mm: 20.0
+    allow_side_switch: false
+    fallback: top_bottom
+    max_placement_attempts: 20
+
 pagination:
   enabled: true
   preserve_source_page_breaks: true
