@@ -10,7 +10,9 @@ def optimize_paths(document: PathDocument) -> PathDocument:
     source = [stroke for stroke in document.strokes if isinstance(stroke, PlotterStroke)]
     optimized: list[PlotterStroke] = []
     previous: Point | None = None
-    for _, group_iterator in groupby(source, key=lambda stroke: stroke.glyph_index):
+    for _, group_iterator in groupby(
+        source, key=lambda stroke: stroke.element_id or f"glyph:{stroke.glyph_index}"
+    ):
         remaining = [_copy_stroke(stroke) for stroke in group_iterator]
         while remaining:
             selected_index, selected = _nearest_variant(remaining, previous)
@@ -65,6 +67,16 @@ def _copy_stroke(stroke: PlotterStroke) -> PlotterStroke:
         glyph_index=stroke.glyph_index,
         char=stroke.char,
         contour_index=stroke.contour_index,
+        source_glyph_indices=stroke.source_glyph_indices,
+        source_chars=stroke.source_chars,
+        segment_types=stroke.segment_types,
+        word_index=stroke.word_index,
+        connection_ids=stroke.connection_ids,
+        element_id=stroke.element_id,
+        element_type=stroke.element_type,
+        font_role=stroke.font_role,
+        font_sha256=stroke.font_sha256,
+        source_path=stroke.source_path,
     )
 
 

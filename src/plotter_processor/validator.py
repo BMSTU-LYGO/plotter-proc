@@ -35,7 +35,7 @@ def validate_path_document(document: PathDocument, *, max_points_per_contour: in
     if not document.strokes:
         raise ValueError("Font processing produced no drawable paths")
     pipeline = document.metadata.get("pipeline")
-    if pipeline not in {None, "ttf-vector", "ttf-centerline"}:
+    if pipeline not in {None, "ttf-vector", "ttf-centerline", "document-mixed"}:
         raise ValueError(f"Unsupported path pipeline metadata: {pipeline}")
     for stroke in document.strokes:
         if not isinstance(stroke, PlotterStroke):

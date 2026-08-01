@@ -9,7 +9,11 @@ from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.preview import export_centerline_font_preview
 from plotter_processor.centerline_path_builder import build_centerline_paths
 from plotter_processor.config import load_yaml
-from plotter_processor.document_reader import read_document
+from plotter_processor.document_image_layout import (
+    layout_structured_document,
+    save_document_structure,
+)
+from plotter_processor.document_models import SourceTextElement
 from plotter_processor.font_loader import load_font
 from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
@@ -21,16 +25,15 @@ from plotter_processor.handwriting import (
     load_variation_config,
     route_words,
 )
-from plotter_processor.models import PageSpec
+from plotter_processor.models import PageSpec, PathDocument
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.motion_statistics import calculate_motion_statistics
 from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import simplify_path_document
+from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
-from plotter_processor.text_normalizer import normalize_document
 from plotter_processor.validator import validate_page_spec, validate_path_document
-from plotter_processor.vector_layout import layout_text
 
 
 @dataclass(slots=True)
@@ -51,6 +54,9 @@ class PipelineOptions:
     join_writing: bool = False
     layout_engine: str | None = None
     connections: str | None = None
+    images: str = "auto"
+    image_debug: bool = False
+    pdf_layout: str = "reflow"
 
 
 @dataclass(slots=True)
@@ -73,14 +79,24 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         machine_config = load_yaml(options.machine_config_path)
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
-        document = read_document(options.input_path)
-        normalized = normalize_document(document)
-        text = "\n".join(normalized.paragraphs)
-        if not text.strip():
-            raise ValueError("Document contains no usable text")
+        if options.images not in {"auto", "outline", "centerline", "off"}:
+            raise ValueError(f"Unknown image mode: {options.images}")
+        if options.pdf_layout not in {"reflow", "preserve"}:
+            raise ValueError(f"Unknown PDF layout mode: {options.pdf_layout}")
+        if options.pdf_layout == "preserve":
+            warnings.append("pdf_preserve_layout_approximated_as_reflow")
+        document = read_structured_document(
+            options.input_path, assets_dir=output_dir / "extracted-assets"
+        )
+        text = "\n".join(
+            paragraph
+            for element in document.elements
+            if isinstance(element, SourceTextElement)
+            for paragraph in element.paragraphs
+        )
         extracted_path = output_dir / "extracted.txt"
         extracted_path.write_text(text, encoding="utf-8")
-        warnings.extend(normalized.warnings)
+        warnings.extend(document.warnings)
 
         pages = _mapping(layout_config, "pages")
         page_values = _mapping(pages, options.page)
@@ -96,16 +112,16 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         vector = _mapping(layout_config, "vector")
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
+        image_options = _mapping(layout_config, "images")
         tab_spaces = _positive_int(layout_options, "tab_spaces")
 
         with load_font(options.font_path) as font:
-            font.validate_text(text)
-            layout = layout_text(
-                normalized.paragraphs,
-                font,
-                page,
-                margins,
-                size_options,
+            if text:
+                font.validate_text(text)
+            structured_layout = layout_structured_document(
+                document, font, page, margins, size_options, image_options,
+                image_mode=options.images,
+                image_debug_dir=output_dir / "image-debug" if options.image_debug else None,
                 tab_spaces=tab_spaces,
                 engine=options.layout_engine or str(layout_options.get("engine", "legacy")),
                 language=str(layout_options.get("language", "ru")),
@@ -113,6 +129,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 direction=str(layout_options.get("direction", "ltr")),
                 features=tuple(layout_options.get("features", [])),
             )
+            layout = structured_layout.layout
             warnings.extend(layout.warnings)
             outlines = extract_exact_outlines(font, layout.glyphs)
             export_font_preview(
@@ -128,85 +145,103 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 centerline_info = None
             else:
                 centerline_config = load_centerline_config(layout_config)
-                compiled, cache_path = compile_centerline_font(
-                    options.font_path,
-                    {glyph.char for glyph in layout.glyphs},
-                    centerline_config,
-                    cache_path=options.centerline_cache_path,
-                    force=options.force_centerline_rebuild,
-                    strict_quality=options.strict_centerline_quality,
-                )
-                paths = build_centerline_paths(compiled, layout.glyphs, page)
-                export_centerline_font_preview(
-                    compiled,
-                    sorted({glyph.char for glyph in layout.glyphs}, key=ord),
-                    output_dir / "centerline-font-preview.svg",
-                )
-                centerline_info = {
-                    "routing_strategy": centerline_config.routing_strategy,
-                    "compiled_glyphs": len(compiled.glyphs),
-                    "cache_hits": compiled.cache_hits,
-                    "cache_misses": compiled.cache_misses,
-                    "needs_review": sum(
-                        bool(glyph.quality.get("needs_review"))
-                        for glyph in compiled.glyphs.values()
-                    ),
-                    "total_unique_glyphs": len(compiled.glyphs),
-                    "auto_passed": sum(
-                        not bool(glyph.quality.get("needs_review"))
-                        for glyph in compiled.glyphs.values()
-                    ),
-                    "failed": 0,
-                    "cache": str(cache_path),
-                    "font_sha256": compiled.font_sha256,
-                }
-                placed_glyphs = [compiled.glyphs[glyph.char] for glyph in layout.glyphs]
-                graph_edges = sum(
-                    int(glyph.quality.get("graph_edges", 0)) for glyph in placed_glyphs
-                )
-                routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
-                retraced_length_mm = sum(
-                    sum(
-                        stroke.retraced_length_font_units
-                        for stroke in compiled.glyphs[positioned.char].strokes
+                if layout.glyphs:
+                    compiled, cache_path = compile_centerline_font(
+                        options.font_path,
+                        {glyph.char for glyph in layout.glyphs},
+                        centerline_config,
+                        cache_path=options.centerline_cache_path,
+                        force=options.force_centerline_rebuild,
+                        strict_quality=options.strict_centerline_quality,
                     )
-                    * positioned.scale_mm_per_font_unit
-                    for positioned in layout.glyphs
-                )
-                worst = sorted(
-                    (
-                        {
-                            "char": char,
-                            "retrace_ratio": float(glyph.quality.get("retrace_ratio", 0.0)),
-                            "components": len(glyph.strokes),
-                        }
-                        for char, glyph in compiled.glyphs.items()
-                    ),
-                    key=lambda item: (-item["retrace_ratio"], ord(item["char"])),
-                )[:10]
-                centerline_info.update(
-                    {
-                        "glyph_components": routed_strokes,
-                        "graph_edges_before_routing": graph_edges,
-                        "strokes_after_routing": routed_strokes,
-                        "pen_lifts_before_routing": graph_edges,
-                        "pen_lifts_after_routing": routed_strokes,
-                        "pen_lifts_saved": max(0, graph_edges - routed_strokes),
-                        "retraced_length_mm": round(retraced_length_mm, 3),
-                        "fallback_glyphs": [
-                            char
-                            for char, glyph in compiled.glyphs.items()
-                            if glyph.quality.get("fallback_used")
-                        ],
-                        "worst_glyphs": worst,
+                    paths = build_centerline_paths(compiled, layout.glyphs, page)
+                    export_centerline_font_preview(
+                        compiled,
+                        sorted({glyph.char for glyph in layout.glyphs}, key=ord),
+                        output_dir / "centerline-font-preview.svg",
+                    )
+                    centerline_info = {
+                        "routing_strategy": centerline_config.routing_strategy,
+                        "compiled_glyphs": len(compiled.glyphs),
+                        "cache_hits": compiled.cache_hits,
+                        "cache_misses": compiled.cache_misses,
+                        "needs_review": sum(
+                            bool(glyph.quality.get("needs_review"))
+                            for glyph in compiled.glyphs.values()
+                        ),
+                        "total_unique_glyphs": len(compiled.glyphs),
+                        "auto_passed": sum(
+                            not bool(glyph.quality.get("needs_review"))
+                            for glyph in compiled.glyphs.values()
+                        ),
+                        "failed": 0,
+                        "cache": str(cache_path),
+                        "font_sha256": compiled.font_sha256,
                     }
-                )
+                    placed_glyphs = [compiled.glyphs[glyph.char] for glyph in layout.glyphs]
+                    graph_edges = sum(
+                        int(glyph.quality.get("graph_edges", 0)) for glyph in placed_glyphs
+                    )
+                    routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
+                    retraced_length_mm = sum(
+                        sum(
+                            stroke.retraced_length_font_units
+                            for stroke in compiled.glyphs[positioned.char].strokes
+                        )
+                        * positioned.scale_mm_per_font_unit
+                        for positioned in layout.glyphs
+                    )
+                    worst = sorted(
+                        (
+                            {
+                                "char": char,
+                                "retrace_ratio": float(
+                                    glyph.quality.get("retrace_ratio", 0.0)
+                                ),
+                                "components": len(glyph.strokes),
+                            }
+                            for char, glyph in compiled.glyphs.items()
+                        ),
+                        key=lambda item: (-item["retrace_ratio"], ord(item["char"])),
+                    )[:10]
+                    centerline_info.update(
+                        {
+                            "glyph_components": routed_strokes,
+                            "graph_edges_before_routing": graph_edges,
+                            "strokes_after_routing": routed_strokes,
+                            "pen_lifts_before_routing": graph_edges,
+                            "pen_lifts_after_routing": routed_strokes,
+                            "pen_lifts_saved": max(0, graph_edges - routed_strokes),
+                            "retraced_length_mm": round(retraced_length_mm, 3),
+                            "fallback_glyphs": [
+                                char
+                                for char, glyph in compiled.glyphs.items()
+                                if glyph.quality.get("fallback_used")
+                            ],
+                            "worst_glyphs": worst,
+                        }
+                    )
+                else:
+                    paths = PathDocument(page.width_mm, page.height_mm, [], [], {})
+                    centerline_info = None
+
+        for stroke in structured_layout.graphic_strokes:
+            stroke.id = len(paths.strokes)
+            paths.strokes.append(stroke)
+        if structured_layout.graphic_strokes:
+            paths.metadata["pipeline"] = "document-mixed"
+        save_document_structure(
+            document,
+            output_dir / "document-structure.json",
+            details=structured_layout.element_details,
+            layout_mode=options.pdf_layout,
+        )
 
         warnings.extend(paths.warnings)
         if options.optimize_travel and _boolean(vector, "optimize_travel"):
             paths = optimize_paths(paths)
         handwriting: dict[str, object] = {"enabled": False}
-        if options.font_mode == "centerline":
+        if options.font_mode == "centerline" and layout.glyphs:
             paths = apply_variation(paths, layout.glyphs, load_variation_config(layout_config))
             joining_config = load_joining_config(
                 layout_config,
@@ -264,7 +299,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             }
         )
         gcode = generate_gcode(paths, machine_config, motion_profile=motion_profile, motion=motion)
-        _assert_safe_gcode(gcode)
+        gcode_settings = _mapping(machine_config, "gcode")
+        _assert_safe_gcode(gcode, allow_home=bool(gcode_settings.get("home", False)))
         analyzed = analyze_gcode(gcode)
         motion["gcode_command_count"] = analyzed["gcode_command_count"]
         motion["gcode_analysis"] = analyzed
@@ -282,6 +318,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "motion": motion,
             "simplification": simplification,
             "handwriting": handwriting,
+            "document_import": {
+                **structured_layout.import_statistics,
+                "layout_mode": options.pdf_layout,
+            },
             "warnings": paths.warnings,
             "outputs": {
                 "extracted": str(extracted_path),
@@ -289,6 +329,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "plotter_preview": str(output_dir / "plotter-preview.svg"),
                 "paths": str(output_dir / "paths.json"),
                 "gcode": str(gcode_path),
+                "document_structure": str(output_dir / "document-structure.json"),
             },
         }
         if centerline_info is not None:
@@ -321,7 +362,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         return PipelineResult("error", report_path, str(error))
 
 
-def _assert_safe_gcode(gcode: str) -> None:
+def _assert_safe_gcode(gcode: str, *, allow_home: bool = False) -> None:
     for command in ("M104", "M109", "M140", "M190"):
         if command in gcode:
             raise ValueError(f"Unsafe heating command generated: {command}")
@@ -331,6 +372,8 @@ def _assert_safe_gcode(gcode: str) -> None:
         for token in line.split()
     ):
         raise ValueError("Unsafe extrusion command generated")
+    if not allow_home and any(line.strip().startswith("G28") for line in gcode.splitlines()):
+        raise ValueError("Unsafe homing command generated while gcode.home is disabled")
 
 
 def _write_report(path: Path, report: dict[str, object]) -> None:
