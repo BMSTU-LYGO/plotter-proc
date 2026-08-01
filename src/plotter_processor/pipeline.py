@@ -9,7 +9,13 @@ from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.preview import export_centerline_font_preview
 from plotter_processor.centerline_path_builder import build_centerline_paths
 from plotter_processor.config import load_yaml
-from plotter_processor.document_reader import read_document
+from plotter_processor.document_image_layout import save_document_structure
+from plotter_processor.document_models import (
+    SourceRasterImageElement,
+    SourceTextElement,
+    SourceVectorElement,
+)
+from plotter_processor.document_paginator import add_page_numbers, paginate_document
 from plotter_processor.font_loader import load_font
 from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
@@ -21,16 +27,19 @@ from plotter_processor.handwriting import (
     load_variation_config,
     route_words,
 )
-from plotter_processor.models import PageSpec
+from plotter_processor.job_exporter import save_job_manifest
+from plotter_processor.job_models import PageJob, PlotterJob
+from plotter_processor.latex_parser import contains_latex
+from plotter_processor.models import PageSpec, PathDocument
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.motion_statistics import calculate_motion_statistics
+from plotter_processor.multipage_gcode_exporter import generate_job_gcode
 from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import simplify_path_document
+from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
-from plotter_processor.text_normalizer import normalize_document
 from plotter_processor.validator import validate_page_spec, validate_path_document
-from plotter_processor.vector_layout import layout_text
 
 
 @dataclass(slots=True)
@@ -51,6 +60,15 @@ class PipelineOptions:
     join_writing: bool = False
     layout_engine: str | None = None
     connections: str | None = None
+    images: str = "auto"
+    image_debug: bool = False
+    pdf_layout: str = "reflow"
+    paginate: bool | None = None
+    page_numbers: bool | None = None
+    page_pause_seconds: float | None = None
+    park_corner: str | None = None
+    latex: str = "auto"
+    latex_debug: bool = False
 
 
 @dataclass(slots=True)
@@ -70,240 +88,380 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         layout_config = load_yaml(options.layout_config_path)
         if options.font_mode not in {"outline", "centerline"}:
             raise ValueError(f"Unknown font mode: {options.font_mode}")
+        if options.images not in {"auto", "outline", "centerline", "off"}:
+            raise ValueError(f"Unknown image mode: {options.images}")
+        if options.latex not in {"auto", "mathtext", "off"}:
+            raise ValueError(f"Unknown LaTeX mode: {options.latex}")
         machine_config = load_yaml(options.machine_config_path)
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
-        document = read_document(options.input_path)
-        normalized = normalize_document(document)
-        text = "\n".join(normalized.paragraphs)
-        if not text.strip():
-            raise ValueError("Document contains no usable text")
+        _apply_page_change_overrides(machine_config, options)
+        document = read_structured_document(
+            options.input_path, assets_dir=output_dir / "extracted-assets"
+        )
+        text = "\n".join(
+            paragraph
+            for element in document.elements
+            if isinstance(element, SourceTextElement)
+            for paragraph in element.paragraphs
+        )
         extracted_path = output_dir / "extracted.txt"
         extracted_path.write_text(text, encoding="utf-8")
-        warnings.extend(normalized.warnings)
+        warnings.extend(document.warnings)
 
-        pages = _mapping(layout_config, "pages")
-        page_values = _mapping(pages, options.page)
+        page_values = _mapping(_mapping(layout_config, "pages"), options.page)
         page = PageSpec(
-            options.page,
-            _positive(page_values, "width_mm"),
-            _positive(page_values, "height_mm"),
+            options.page, _positive(page_values, "width_mm"), _positive(page_values, "height_mm")
         )
         sizes = _mapping(layout_config, "sizes")
         size_options = _mapping(sizes, options.size)
         margins = _mapping(layout_config, "margins_mm")
-        validate_page_spec(page, margins)
         vector = _mapping(layout_config, "vector")
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
-        tab_spaces = _positive_int(layout_options, "tab_spaces")
+        image_options = _mapping(layout_config, "images")
+        latex_options = _mapping(layout_config, "latex")
+        pagination_options = dict(_mapping(layout_config, "pagination"))
+        footer_options = dict(_mapping(pagination_options, "footer"))
+        pagination_enabled = (
+            bool(pagination_options.get("enabled", True))
+            if options.paginate is None
+            else options.paginate
+        )
+        page_numbers_enabled = (
+            bool(footer_options.get("enabled", True))
+            if options.page_numbers is None
+            else options.page_numbers
+        )
+        if not page_numbers_enabled:
+            footer_options["enabled"] = False
+        pagination_options["footer"] = footer_options
+        latex_mode = options.latex
+        if latex_mode == "auto":
+            latex_mode = "mathtext" if bool(latex_options.get("enabled", True)) else "off"
+        if options.input_path.suffix.lower() == ".pdf":
+            latex_mode = "off"
+        if latex_mode == "off" and any(
+            contains_latex(paragraph)
+            for element in document.elements
+            if isinstance(element, SourceTextElement)
+            for paragraph in element.paragraphs
+        ):
+            warnings.append("latex_disabled_delimiters_left_literal")
+        validate_page_spec(page, margins)
+        engine = options.layout_engine or str(layout_options.get("engine", "legacy"))
+        language = str(layout_options.get("language", "ru"))
+        script = str(layout_options.get("script", "Cyrl"))
+        direction = str(layout_options.get("direction", "ltr"))
+        features = tuple(layout_options.get("features", []))
 
         with load_font(options.font_path) as font:
-            font.validate_text(text)
-            layout = layout_text(
-                normalized.paragraphs,
-                font,
-                page,
-                margins,
-                size_options,
-                tab_spaces=tab_spaces,
-                engine=options.layout_engine or str(layout_options.get("engine", "legacy")),
-                language=str(layout_options.get("language", "ru")),
-                script=str(layout_options.get("script", "Cyrl")),
-                direction=str(layout_options.get("direction", "ltr")),
-                features=tuple(layout_options.get("features", [])),
+            paginated = paginate_document(
+                document, font, page, margins, size_options, image_options, pagination_options,
+                enabled=pagination_enabled, image_mode=options.images,
+                image_debug_dir=output_dir / "image-debug" if options.image_debug else None,
+                latex_mode=latex_mode,
+                latex_options=latex_options,
+                latex_debug_dir=output_dir / "latex-debug" if options.latex_debug else None,
+                preserve_source_page_breaks=bool(
+                    pagination_options.get("preserve_source_page_breaks", True)
+                ),
+                tab_spaces=_positive_int(layout_options, "tab_spaces"), engine=engine,
+                language=language, script=script, direction=direction, features=features,
             )
-            warnings.extend(layout.warnings)
-            outlines = extract_exact_outlines(font, layout.glyphs)
-            export_font_preview(
-                outlines,
-                page.width_mm,
-                page.height_mm,
-                output_dir / "font-preview.svg",
-                show_page_border=_boolean(preview, "show_page_border"),
+            warnings.extend(paginated.warnings)
+            if page_numbers_enabled:
+                number_size = str(footer_options.get("size", "small"))
+                add_page_numbers(
+                    paginated, font, page, margins, footer_options,
+                    _mapping(sizes, number_size), engine=engine, language=language,
+                    script=script, direction=direction, features=features,
+                )
+            page_count = len(paginated.pages)
+            save_document_structure(
+                document, output_dir / "document-structure.json",
+                details=paginated.element_details, layout_mode=options.pdf_layout,
             )
-            if options.font_mode == "outline":
-                paths = build_paths(font, layout.glyphs, page, vector)
-                warnings.append("Outline mode follows both boundaries of filled TTF strokes")
-                centerline_info = None
-            else:
-                centerline_config = load_centerline_config(layout_config)
+            number_indices = {
+                (page_layout.page_index, index)
+                for page_layout in paginated.pages
+                for index in page_layout.metadata.get("page_number_glyph_indices", [])
+            }
+            body_glyphs = [
+                glyph
+                for page_layout in paginated.pages
+                for glyph in page_layout.layout.glyphs
+                if (page_layout.page_index, glyph.glyph_index) not in number_indices
+            ]
+            number_glyphs = [
+                glyph
+                for page_layout in paginated.pages
+                for glyph in page_layout.layout.glyphs
+                if (page_layout.page_index, glyph.glyph_index) in number_indices
+            ]
+            centerline_config = load_centerline_config(layout_config)
+            compiled = None
+            compiled_numbers = None
+            centerline_info = None
+            cache_path = options.centerline_cache_path
+            if options.font_mode == "centerline" and body_glyphs:
                 compiled, cache_path = compile_centerline_font(
-                    options.font_path,
-                    {glyph.char for glyph in layout.glyphs},
-                    centerline_config,
-                    cache_path=options.centerline_cache_path,
-                    force=options.force_centerline_rebuild,
+                    options.font_path, {glyph.char for glyph in body_glyphs}, centerline_config,
+                    cache_path=cache_path, force=options.force_centerline_rebuild,
                     strict_quality=options.strict_centerline_quality,
                 )
-                paths = build_centerline_paths(compiled, layout.glyphs, page)
-                export_centerline_font_preview(
-                    compiled,
-                    sorted({glyph.char for glyph in layout.glyphs}, key=ord),
-                    output_dir / "centerline-font-preview.svg",
+                centerline_info = _centerline_report(compiled, cache_path)
+            if number_glyphs:
+                compiled_numbers, _ = compile_centerline_font(
+                    options.font_path, {glyph.char for glyph in number_glyphs}, centerline_config,
+                    cache_path=cache_path, force=False, strict_quality=False,
                 )
-                centerline_info = {
-                    "routing_strategy": centerline_config.routing_strategy,
-                    "compiled_glyphs": len(compiled.glyphs),
-                    "cache_hits": compiled.cache_hits,
-                    "cache_misses": compiled.cache_misses,
-                    "needs_review": sum(
-                        bool(glyph.quality.get("needs_review"))
-                        for glyph in compiled.glyphs.values()
-                    ),
-                    "total_unique_glyphs": len(compiled.glyphs),
-                    "auto_passed": sum(
-                        not bool(glyph.quality.get("needs_review"))
-                        for glyph in compiled.glyphs.values()
-                    ),
-                    "failed": 0,
-                    "cache": str(cache_path),
-                    "font_sha256": compiled.font_sha256,
-                }
-                placed_glyphs = [compiled.glyphs[glyph.char] for glyph in layout.glyphs]
-                graph_edges = sum(
-                    int(glyph.quality.get("graph_edges", 0)) for glyph in placed_glyphs
+
+            raw_pages: list[tuple[object, PathDocument, Path, list[object]]] = []
+            for page_layout in paginated.pages:
+                page_dir = (
+                    output_dir if page_count == 1
+                    else output_dir / "pages" / f"page-{page_layout.page_index + 1:03d}"
                 )
-                routed_strokes = sum(len(glyph.strokes) for glyph in placed_glyphs)
-                retraced_length_mm = sum(
-                    sum(
-                        stroke.retraced_length_font_units
-                        for stroke in compiled.glyphs[positioned.char].strokes
+                page_dir.mkdir(parents=True, exist_ok=True)
+                page_number_set = set(page_layout.metadata.get("page_number_glyph_indices", []))
+                body = [g for g in page_layout.layout.glyphs if g.glyph_index not in page_number_set]
+                numbers = [g for g in page_layout.layout.glyphs if g.glyph_index in page_number_set]
+                export_font_preview(
+                    extract_exact_outlines(font, page_layout.layout.glyphs),
+                    page.width_mm, page.height_mm, page_dir / "font-preview.svg",
+                    show_page_border=_boolean(preview, "show_page_border"),
+                )
+                if options.font_mode == "outline":
+                    paths = build_paths(font, body, page, vector)
+                    warnings.append("Outline mode follows both boundaries of filled TTF strokes")
+                elif body and compiled is not None:
+                    paths = build_centerline_paths(compiled, body, page)
+                else:
+                    paths = PathDocument(page.width_mm, page.height_mm, [], [], {})
+                if numbers and compiled_numbers is not None:
+                    number_paths = build_centerline_paths(compiled_numbers, numbers, page)
+                    for stroke in number_paths.strokes:
+                        stroke.id = len(paths.strokes)
+                        stroke.element_id = f"page-{page_layout.page_index + 1:03d}-number"
+                        stroke.element_type = "page-number"
+                        stroke.font_role = "page-number"
+                        stroke.glyph_index = None
+                        paths.strokes.append(stroke)
+                for stroke in page_layout.graphic_strokes:
+                    stroke.id = len(paths.strokes)
+                    paths.strokes.append(stroke)
+                if page_layout.graphic_strokes:
+                    paths.metadata["pipeline"] = "document-mixed"
+                if options.font_mode == "centerline" and compiled is not None:
+                    export_centerline_font_preview(
+                        compiled, sorted({glyph.char for glyph in body}, key=ord),
+                        page_dir / "centerline-font-preview.svg",
                     )
-                    * positioned.scale_mm_per_font_unit
-                    for positioned in layout.glyphs
-                )
-                worst = sorted(
-                    (
-                        {
-                            "char": char,
-                            "retrace_ratio": float(glyph.quality.get("retrace_ratio", 0.0)),
-                            "components": len(glyph.strokes),
-                        }
-                        for char, glyph in compiled.glyphs.items()
-                    ),
-                    key=lambda item: (-item["retrace_ratio"], ord(item["char"])),
-                )[:10]
-                centerline_info.update(
-                    {
-                        "glyph_components": routed_strokes,
-                        "graph_edges_before_routing": graph_edges,
-                        "strokes_after_routing": routed_strokes,
-                        "pen_lifts_before_routing": graph_edges,
-                        "pen_lifts_after_routing": routed_strokes,
-                        "pen_lifts_saved": max(0, graph_edges - routed_strokes),
-                        "retraced_length_mm": round(retraced_length_mm, 3),
-                        "fallback_glyphs": [
-                            char
-                            for char, glyph in compiled.glyphs.items()
-                            if glyph.quality.get("fallback_used")
-                        ],
-                        "worst_glyphs": worst,
-                    }
-                )
+                raw_pages.append((page_layout, paths, page_dir, body))
 
-        warnings.extend(paths.warnings)
-        if options.optimize_travel and _boolean(vector, "optimize_travel"):
-            paths = optimize_paths(paths)
-        handwriting: dict[str, object] = {"enabled": False}
-        if options.font_mode == "centerline":
-            paths = apply_variation(paths, layout.glyphs, load_variation_config(layout_config))
-            joining_config = load_joining_config(
-                layout_config,
-                enabled=options.join_writing or options.connections not in {None, "off"},
-                mode=options.connections,
-            )
-            paths, handwriting = route_words(paths, layout.glyphs, joining_config)
-            if joining_config.enabled:
-                export_handwriting_debug(paths, output_dir / "connection-debug.svg")
+        analysis_config = _mapping(machine_config, "motion_analysis")
         simplification_config = machine_config.get("path_simplification", {})
-        simplification: dict[str, object] = {"enabled": False}
-        if isinstance(simplification_config, dict) and simplification_config.get("enabled", False):
-            deviations = _mapping(simplification_config, "max_deviation_mm")
-            paths, simplification = simplify_path_document(
-                paths,
-                duplicate_epsilon_mm=_non_negative(simplification_config, "duplicate_epsilon_mm"),
-                min_segment_length_mm=_non_negative(simplification_config, "min_segment_length_mm"),
-                max_deviation_mm=_non_negative(deviations, options.font_mode),
+        joining_config = load_joining_config(
+            layout_config,
+            enabled=options.join_writing or options.connections not in {None, "off"},
+            mode=options.connections,
+        )
+        page_jobs: list[PageJob] = []
+        page_reports: list[dict[str, object]] = []
+        handwriting_reports: list[dict[str, object]] = []
+        simplification_reports: list[dict[str, object]] = []
+        for page_layout, paths, page_dir, body_glyphs_for_page in raw_pages:
+            warnings.extend(paths.warnings)
+            if options.optimize_travel and _boolean(vector, "optimize_travel"):
+                paths = optimize_paths(paths)
+            handwriting: dict[str, object] = {"enabled": False}
+            if options.font_mode == "centerline" and body_glyphs_for_page:
+                paths = apply_variation(
+                    paths, body_glyphs_for_page, load_variation_config(layout_config)
+                )
+                paths, handwriting = route_words(paths, body_glyphs_for_page, joining_config)
+                if joining_config.enabled:
+                    export_handwriting_debug(paths, page_dir / "connection-debug.svg")
+            handwriting_reports.append(handwriting)
+            simplification: dict[str, object] = {"enabled": False}
+            if isinstance(simplification_config, dict) and simplification_config.get("enabled", False):
+                deviations = _mapping(simplification_config, "max_deviation_mm")
+                paths, simplification = simplify_path_document(
+                    paths,
+                    duplicate_epsilon_mm=_non_negative(
+                        simplification_config, "duplicate_epsilon_mm"
+                    ),
+                    min_segment_length_mm=_non_negative(
+                        simplification_config, "min_segment_length_mm"
+                    ),
+                    max_deviation_mm=_non_negative(deviations, options.font_mode),
+                )
+            simplification_reports.append(simplification)
+            paths.warnings = list(dict.fromkeys([*warnings, *page_layout.warnings]))
+            validate_path_document(
+                paths, max_points_per_contour=_positive_int(vector, "max_points_per_contour")
             )
-        paths.warnings = list(dict.fromkeys(warnings))
-        validate_path_document(
-            paths, max_points_per_contour=_positive_int(vector, "max_points_per_contour")
-        )
-        save_path_document(paths, output_dir / "paths.json")
-        export_plotter_preview(
-            paths,
-            output_dir / "plotter-preview.svg",
-            stroke_width_mm=_positive(preview, "plotter_stroke_width_mm"),
-            show_page_border=_boolean(preview, "show_page_border"),
-        )
-
-        statistics = path_statistics(paths)
-        if centerline_info is not None:
-            retraced = float(centerline_info["retraced_length_mm"])
-            draw_length = float(statistics["draw_distance_mm"])
-            centerline_info["original_draw_length_mm"] = round(max(0.0, draw_length - retraced), 3)
-            centerline_info["retrace_ratio"] = round(
-                retraced / max(draw_length - retraced, 1e-9), 6
+            save_path_document(paths, page_dir / "paths.json")
+            export_plotter_preview(
+                paths, page_dir / "plotter-preview.svg",
+                stroke_width_mm=_positive(preview, "plotter_stroke_width_mm"),
+                show_page_border=_boolean(preview, "show_page_border"),
             )
-        analysis_config = machine_config.get("motion_analysis", {})
-        if not isinstance(analysis_config, dict):
-            raise TypeError("motion_analysis must be a mapping")
-        motion = calculate_motion_statistics(
-            paths,
-            motion_profile,
-            short_segment_mm=float(analysis_config.get("short_segment_mm", 0.2)),
-            very_short_segment_mm=float(analysis_config.get("very_short_segment_mm", 0.08)),
-        )
-        statistics.update(
-            {
-                "characters": layout.character_count,
-                "glyphs": len(layout.glyphs),
-                "lines": layout.line_count,
+            statistics = path_statistics(paths)
+            motion = calculate_motion_statistics(
+                paths, motion_profile,
+                short_segment_mm=float(analysis_config.get("short_segment_mm", 0.2)),
+                very_short_segment_mm=float(analysis_config.get("very_short_segment_mm", 0.08)),
+            )
+            statistics.update({
+                "characters": page_layout.layout.character_count,
+                "glyphs": len(page_layout.layout.glyphs),
+                "lines": page_layout.layout.line_count,
                 "estimated_time_minutes": motion["ideal_total_time_minutes"],
+            })
+            page_gcode = generate_gcode(
+                paths, machine_config, motion_profile=motion_profile, motion=motion
+            )
+            page_gcode = page_gcode.replace(
+                "; Generated by plotter-processor\n",
+                (
+                    "; Generated by plotter-processor\n"
+                    f"; Page {page_layout.page_index + 1}/{page_count}\n"
+                ),
+                1,
+            )
+            _assert_safe_gcode(
+                page_gcode, allow_home=bool(_mapping(machine_config, "gcode").get("home", False))
+            )
+            page_gcode_path = page_dir / ("output.gcode" if page_count == 1 else "page.gcode")
+            write_gcode_atomic(page_gcode, page_gcode_path)
+            analyzed = analyze_gcode(page_gcode)
+            motion["gcode_command_count"] = analyzed["gcode_command_count"]
+            motion["gcode_analysis"] = analyzed
+            page_report = {
+                "status": "ok", "page": page_layout.page_index + 1,
+                "page_count": page_count, "statistics": statistics, "motion": motion,
+                "handwriting": handwriting, "simplification": simplification,
+                "source_element_ids": list(page_layout.source_element_ids),
+                "warnings": paths.warnings,
             }
+            if page_count > 1:
+                _write_report(page_dir / "report.json", page_report)
+            page_reports.append(page_report)
+            page_jobs.append(PageJob(
+                page_layout.page_index, page_layout.page_index + 1, paths,
+                page_layout.source_element_ids, paths.warnings, dict(page_layout.metadata),
+            ))
+
+        page_change = _mapping(machine_config, "page_change")
+        pause_seconds = _non_negative(page_change, "pause_seconds")
+        job = PlotterJob(
+            page, page_jobs, list(dict.fromkeys(warnings)),
+            {"page_count": page_count, "pause_seconds": pause_seconds},
         )
-        gcode = generate_gcode(paths, machine_config, motion_profile=motion_profile, motion=motion)
-        _assert_safe_gcode(gcode)
-        analyzed = analyze_gcode(gcode)
-        motion["gcode_command_count"] = analyzed["gcode_command_count"]
-        motion["gcode_analysis"] = analyzed
-        write_gcode_atomic(gcode, gcode_path)
+        if page_count > 1:
+            job_gcode = generate_job_gcode(job, machine_config, motion_profile=motion_profile)
+            _assert_safe_gcode(
+                job_gcode, allow_home=bool(_mapping(machine_config, "gcode").get("home", False))
+            )
+            write_gcode_atomic(job_gcode, gcode_path)
+            _export_job_preview(job, output_dir / "plotter-preview.svg", preview)
+            save_job_manifest(job, output_dir / "job.json")
+        else:
+            save_job_manifest(job, output_dir / "job.json")
+
+        total_motion_seconds = sum(
+            float(report["motion"]["ideal_total_time_seconds"]) for report in page_reports
+        )
+        pause_count = max(0, page_count - 1)
+        total_pause_seconds = pause_count * pause_seconds
+        statistics = _aggregate_statistics(page_reports)
+        motion = dict(page_reports[0]["motion"])
+        motion.update({
+            "ideal_motion_time_seconds": round(total_motion_seconds, 3),
+            "page_change_pause_time_seconds": total_pause_seconds,
+            "estimated_job_time_seconds": round(total_motion_seconds + total_pause_seconds, 3),
+        })
+        handwriting = (
+            handwriting_reports[0] if page_count == 1 else _aggregate_handwriting(handwriting_reports)
+        )
         report = {
             "status": "ok",
             "pipeline": "ttf-centerline" if options.font_mode == "centerline" else "ttf-vector",
             "font_mode": options.font_mode,
-            "input": str(options.input_path),
-            "font": str(options.font_path),
-            "page": options.page,
-            "size": options.size,
-            "shaping": options.layout_engine or str(layout_options.get("engine", "legacy")),
-            "statistics": statistics,
-            "motion": motion,
-            "simplification": simplification,
-            "handwriting": handwriting,
-            "warnings": paths.warnings,
+            "input": str(options.input_path), "font": str(options.font_path),
+            "page": options.page, "size": options.size, "shaping": engine,
+            "statistics": statistics, "motion": motion,
+            "simplification": simplification_reports[0], "handwriting": handwriting,
+            "document_import": {**paginated.import_statistics, "layout_mode": options.pdf_layout},
+            "latex": {
+                **paginated.latex_statistics,
+                "requested_mode": options.latex,
+            },
+            "pagination": {
+                "enabled": pagination_enabled, "page_count": page_count,
+                "page_numbers": page_numbers_enabled,
+                "page_number_format": str(footer_options.get("format", "{page}")),
+                "pause_seconds": pause_seconds, "pause_count": pause_count,
+                "total_pause_seconds": total_pause_seconds,
+                "park_mode": _mapping(page_change, "park").get("mode", "corner"),
+                "park_corner": _mapping(page_change, "park").get("corner"),
+            },
+            "pages": [
+                {
+                    "page": index + 1,
+                    "text_elements": sum(
+                        isinstance(element, SourceTextElement)
+                        for element in document.elements
+                        if element.id in page_jobs[index].source_element_ids
+                    ),
+                    "image_elements": sum(
+                        isinstance(element, (SourceRasterImageElement, SourceVectorElement))
+                        for element in document.elements
+                        if element.id in page_jobs[index].source_element_ids
+                    ),
+                    **page_report["statistics"],
+                    "gcode": (
+                        "output.gcode" if page_count == 1
+                        else f"pages/page-{index + 1:03d}/page.gcode"
+                    ),
+                }
+                for index, page_report in enumerate(page_reports)
+            ],
+            "warnings": list(dict.fromkeys(warnings)),
             "outputs": {
                 "extracted": str(extracted_path),
-                "font_preview": str(output_dir / "font-preview.svg"),
                 "plotter_preview": str(output_dir / "plotter-preview.svg"),
-                "paths": str(output_dir / "paths.json"),
                 "gcode": str(gcode_path),
+                "job": str(output_dir / "job.json"),
+                "document_structure": str(output_dir / "document-structure.json"),
             },
         }
+        if options.latex_debug and paginated.latex_statistics.get("expressions_found", 0):
+            report["outputs"]["latex_debug"] = str(output_dir / "latex-debug")
+        if page_count == 1:
+            report["outputs"].update({
+                "font_preview": str(output_dir / "font-preview.svg"),
+                "paths": str(output_dir / "paths.json"),
+            })
+            if options.font_mode == "centerline":
+                report["outputs"]["centerline_font_preview"] = str(
+                    output_dir / "centerline-font-preview.svg"
+                )
+            if joining_config.enabled:
+                report["outputs"]["connection_debug"] = str(
+                    output_dir / "connection-debug.svg"
+                )
         if centerline_info is not None:
             report["centerline"] = centerline_info
-            report["outputs"]["centerline_font_preview"] = str(
-                output_dir / "centerline-font-preview.svg"
-            )
-            if joining_config.enabled:
-                report["outputs"]["connection_debug"] = str(output_dir / "connection-debug.svg")
         if options.input_path.name == "benchmark_50_words.txt":
             report["benchmark_id"] = "benchmark_50_words_v1"
         _write_report(report_path, report)
         return PipelineResult("ok", report_path)
     except (FileNotFoundError, KeyError, OSError, TypeError, ValueError) as error:
-        gcode_path.unlink(missing_ok=True)
+        for stale_gcode in output_dir.rglob("*.gcode"):
+            stale_gcode.unlink(missing_ok=True)
         _write_report(
             report_path,
             {
@@ -321,7 +479,116 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         return PipelineResult("error", report_path, str(error))
 
 
-def _assert_safe_gcode(gcode: str) -> None:
+def _apply_page_change_overrides(
+    machine_config: dict[str, object], options: PipelineOptions
+) -> None:
+    page_change = _mapping(machine_config, "page_change")
+    if options.page_pause_seconds is not None:
+        if options.page_pause_seconds < 0:
+            raise ValueError("--page-pause-seconds must be non-negative")
+        page_change["pause_seconds"] = options.page_pause_seconds
+    if options.park_corner is not None:
+        park = _mapping(page_change, "park")
+        park["mode"] = "corner"
+        park["corner"] = options.park_corner
+
+
+def _centerline_report(compiled: object, cache_path: Path | None) -> dict[str, object]:
+    glyphs = compiled.glyphs
+    graph_edges = sum(int(glyph.quality.get("graph_edges", 0)) for glyph in glyphs.values())
+    routed_strokes = sum(len(glyph.strokes) for glyph in glyphs.values())
+    return {
+        "routing_strategy": "one_stroke_per_component",
+        "compiled_glyphs": len(glyphs),
+        "cache_hits": compiled.cache_hits,
+        "cache_misses": compiled.cache_misses,
+        "needs_review": sum(bool(glyph.quality.get("needs_review")) for glyph in glyphs.values()),
+        "total_unique_glyphs": len(glyphs),
+        "auto_passed": sum(
+            not bool(glyph.quality.get("needs_review")) for glyph in glyphs.values()
+        ),
+        "failed": 0,
+        "cache": str(cache_path) if cache_path else None,
+        "font_sha256": compiled.font_sha256,
+        "glyph_components": routed_strokes,
+        "graph_edges_before_routing": graph_edges,
+        "strokes_after_routing": routed_strokes,
+        "pen_lifts_before_routing": graph_edges,
+        "pen_lifts_after_routing": routed_strokes,
+        "pen_lifts_saved": max(0, graph_edges - routed_strokes),
+        "retraced_length_mm": 0.0,
+        "fallback_glyphs": [
+            char for char, glyph in glyphs.items() if glyph.quality.get("fallback_used")
+        ],
+        "worst_glyphs": [],
+    }
+
+
+def _aggregate_statistics(page_reports: list[dict[str, object]]) -> dict[str, object]:
+    keys = (
+        "contours", "strokes", "points", "closed_contours", "open_contours",
+        "draw_distance_mm", "travel_distance_mm", "characters", "glyphs", "lines",
+    )
+    result: dict[str, object] = {}
+    for key in keys:
+        result[key] = round(
+            sum(float(report["statistics"].get(key, 0)) for report in page_reports), 3
+        )
+    total_minutes = sum(
+        float(report["statistics"].get("estimated_time_minutes", 0))
+        for report in page_reports
+    )
+    result["estimated_time_minutes"] = total_minutes
+    result["pages"] = len(page_reports)
+    result["bounding_box_mm"] = None
+    return result
+
+
+def _aggregate_handwriting(reports: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "enabled": any(bool(report.get("enabled")) for report in reports),
+        "mode": next((report.get("mode") for report in reports if report.get("mode")), "off"),
+        "words": sum(int(report.get("words", 0)) for report in reports),
+        "joins_created": sum(int(report.get("joins_created", 0)) for report in reports),
+        "joins_rejected": sum(int(report.get("joins_rejected", 0)) for report in reports),
+        "pen_lifts_saved": sum(int(report.get("pen_lifts_saved", 0)) for report in reports),
+    }
+
+
+def _export_job_preview(
+    job: PlotterJob, output_path: Path, preview_options: dict[str, object]
+) -> None:
+    stroke_width = _positive(preview_options, "plotter_stroke_width_mm")
+    gap = 10.0
+    total_height = len(job.pages) * job.page_spec.height_mm + (len(job.pages) - 1) * gap
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '
+            f'{job.page_spec.width_mm} {total_height}">'
+        ),
+        '<rect width="100%" height="100%" fill="white"/>',
+    ]
+    for page_index, page_job in enumerate(job.pages):
+        offset = page_index * (job.page_spec.height_mm + gap)
+        lines.append(
+            f'<rect x="0" y="{offset}" width="{job.page_spec.width_mm}" '
+            f'height="{job.page_spec.height_mm}" fill="none" stroke="#888" stroke-width="0.2"/>'
+        )
+        lines.append(f'<g transform="translate(0 {offset})" fill="none" stroke="#111">')
+        for stroke in page_job.path_document.strokes:
+            points = " ".join(f"{point.x:.4f},{point.y:.4f}" for point in stroke.points)
+            tag = "polygon" if stroke.closed else "polyline"
+            lines.append(
+                f'<{tag} points="{points}" stroke-width="{stroke_width}" '
+                f'data-element-type="{stroke.element_type or "text"}"/>'
+            )
+        lines.append("</g>")
+    lines.append("</svg>")
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _assert_safe_gcode(gcode: str, *, allow_home: bool = False) -> None:
     for command in ("M104", "M109", "M140", "M190"):
         if command in gcode:
             raise ValueError(f"Unsafe heating command generated: {command}")
@@ -331,6 +598,8 @@ def _assert_safe_gcode(gcode: str) -> None:
         for token in line.split()
     ):
         raise ValueError("Unsafe extrusion command generated")
+    if not allow_home and any(line.strip().startswith("G28") for line in gcode.splitlines()):
+        raise ValueError("Unsafe homing command generated while gcode.home is disabled")
 
 
 def _write_report(path: Path, report: dict[str, object]) -> None:
