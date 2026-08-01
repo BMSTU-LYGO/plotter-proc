@@ -42,6 +42,8 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         force_centerline_rebuild=args.force_centerline_rebuild,
         strict_centerline_quality=args.strict_centerline_quality,
         motion_profile=args.motion_profile,
+        latex=args.latex,
+        latex_debug=args.latex_debug,
         join_writing=args.join_writing,
         layout_engine=args.layout_engine,
         connections=args.connections,
@@ -230,6 +232,8 @@ def _compose(args: argparse.Namespace) -> int:
         machine_config_path=args.machine_config,
         connections=args.connections,
         motion_profile=args.motion_profile,
+        latex=args.latex,
+        latex_debug=args.latex_debug,
     )
     if result.status == "error":
         print(f"Error: {result.error}\nReport: {result.report_path}")
@@ -269,6 +273,8 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
         "--park-corner",
         choices=("top_left", "top_right", "bottom_left", "bottom_right"),
     )
+    parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
+    parser.add_argument("--latex-debug", action="store_true")
     parser.set_defaults(paginate=None, page_numbers=None)
 
 
@@ -333,6 +339,8 @@ def build_parser() -> argparse.ArgumentParser:
     compose_parser.add_argument(
         "--motion-profile", choices=("safe", "balanced", "fast"), default="safe"
     )
+    compose_parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
+    compose_parser.add_argument("--latex-debug", action="store_true")
     compose_parser.set_defaults(handler=_compose)
 
     gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")

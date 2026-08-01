@@ -54,8 +54,19 @@ class SourceVectorElement:
     bbox: SourceBBox | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SourceMathElement:
+    id: str
+    source_order: int
+    source_page_index: int
+    expression: str
+    display_mode: bool
+    source_syntax: str
+    bbox: SourceBBox | None = None
+
+
 SourceElement: TypeAlias = (
-    SourceTextElement | SourceRasterImageElement | SourceVectorElement
+    SourceTextElement | SourceRasterImageElement | SourceVectorElement | SourceMathElement
 )
 
 

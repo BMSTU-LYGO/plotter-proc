@@ -79,6 +79,11 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         ))
 
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:
+        if (
+            paragraph.xpath(".//*[local-name()='oMath' or local-name()='oMathPara']")
+            and "omml_equation_not_supported" not in warnings
+        ):
+            warnings.append("omml_equation_not_supported")
         buffer = ""
         emitted = False
         for child in paragraph.iterchildren():

@@ -29,6 +29,7 @@ from plotter_processor.handwriting import (
 )
 from plotter_processor.job_exporter import save_job_manifest
 from plotter_processor.job_models import PageJob, PlotterJob
+from plotter_processor.latex_parser import contains_latex
 from plotter_processor.models import PageSpec, PathDocument
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.motion_statistics import calculate_motion_statistics
@@ -66,6 +67,8 @@ class PipelineOptions:
     page_numbers: bool | None = None
     page_pause_seconds: float | None = None
     park_corner: str | None = None
+    latex: str = "auto"
+    latex_debug: bool = False
 
 
 @dataclass(slots=True)
@@ -87,6 +90,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown font mode: {options.font_mode}")
         if options.images not in {"auto", "outline", "centerline", "off"}:
             raise ValueError(f"Unknown image mode: {options.images}")
+        if options.latex not in {"auto", "mathtext", "off"}:
+            raise ValueError(f"Unknown LaTeX mode: {options.latex}")
         machine_config = load_yaml(options.machine_config_path)
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
@@ -115,6 +120,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
         image_options = _mapping(layout_config, "images")
+        latex_options = _mapping(layout_config, "latex")
         pagination_options = dict(_mapping(layout_config, "pagination"))
         footer_options = dict(_mapping(pagination_options, "footer"))
         pagination_enabled = (
@@ -130,6 +136,18 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         if not page_numbers_enabled:
             footer_options["enabled"] = False
         pagination_options["footer"] = footer_options
+        latex_mode = options.latex
+        if latex_mode == "auto":
+            latex_mode = "mathtext" if bool(latex_options.get("enabled", True)) else "off"
+        if options.input_path.suffix.lower() == ".pdf":
+            latex_mode = "off"
+        if latex_mode == "off" and any(
+            contains_latex(paragraph)
+            for element in document.elements
+            if isinstance(element, SourceTextElement)
+            for paragraph in element.paragraphs
+        ):
+            warnings.append("latex_disabled_delimiters_left_literal")
         validate_page_spec(page, margins)
         engine = options.layout_engine or str(layout_options.get("engine", "legacy"))
         language = str(layout_options.get("language", "ru"))
@@ -138,12 +156,13 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         features = tuple(layout_options.get("features", []))
 
         with load_font(options.font_path) as font:
-            if text:
-                font.validate_text(text)
             paginated = paginate_document(
                 document, font, page, margins, size_options, image_options, pagination_options,
                 enabled=pagination_enabled, image_mode=options.images,
                 image_debug_dir=output_dir / "image-debug" if options.image_debug else None,
+                latex_mode=latex_mode,
+                latex_options=latex_options,
+                latex_debug_dir=output_dir / "latex-debug" if options.latex_debug else None,
                 preserve_source_page_breaks=bool(
                     pagination_options.get("preserve_source_page_breaks", True)
                 ),
@@ -376,6 +395,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
             "document_import": {**paginated.import_statistics, "layout_mode": options.pdf_layout},
+            "latex": {
+                **paginated.latex_statistics,
+                "requested_mode": options.latex,
+            },
             "pagination": {
                 "enabled": pagination_enabled, "page_count": page_count,
                 "page_numbers": page_numbers_enabled,
@@ -415,6 +438,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "document_structure": str(output_dir / "document-structure.json"),
             },
         }
+        if options.latex_debug and paginated.latex_statistics.get("expressions_found", 0):
+            report["outputs"]["latex_debug"] = str(output_dir / "latex-debug")
         if page_count == 1:
             report["outputs"].update({
                 "font_preview": str(output_dir / "font-preview.svg"),

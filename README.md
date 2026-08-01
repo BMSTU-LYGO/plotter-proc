@@ -40,6 +40,32 @@ python3 -m venv .venv
 
 Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
 
+## Формулы LaTeX (MVP)
+
+В TXT, обычном тексте DOCX и `composition` поддерживаются inline-формулы
+`$...$`, `\(...\)` и блочные формулы `$$...$$`, `\[...\]`. MathText
+преобразует степени и индексы, дроби, корни, греческие буквы, основные
+операторы, суммы, интегралы и скобки непосредственно в векторные контуры —
+без запуска shell или системного `latex`. Запись `\$` означает обычный знак
+доллара.
+
+```bash
+.venv/bin/python -m plotter_processor run examples/formulas.txt \
+  --font assets/1.ttf --font-mode centerline \
+  --latex mathtext --latex-debug --output-dir build/formulas
+```
+
+Режим `--latex auto` включён по умолчанию, `--latex off` оставляет разделители
+обычным текстом и добавляет предупреждение в отчёт. `--latex-debug` сохраняет
+отдельные `latex-debug/formula-NNN.svg` и `.json`. Формулы остаются outline;
+centerline применяется только к обычному тексту.
+
+Это не полный TeX: не поддерживаются LaTeX-документы, `\documentclass`,
+packages, TikZ, пользовательские макросы, bibliography, произвольные file
+includes, внешний `latex` и shell execution. OMML из DOCX только обнаруживается
+и отмечается предупреждением; полное преобразование OMML и восстановление
+исходного LaTeX из PDF не выполняются.
+
 ## Профили скорости
 
 `safe` повторяет прежние Z и скорости и остаётся профилем по умолчанию.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from plotter_processor.document_models import (
@@ -13,6 +13,9 @@ from plotter_processor.document_models import (
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.image_preprocessor import preprocess_image
 from plotter_processor.image_vectorizer import vectorize_image
+from plotter_processor.latex_layout import FormulaInfo, layout_latex_paragraph
+from plotter_processor.latex_parser import contains_latex
+from plotter_processor.latex_renderer import MathTextRenderer
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
@@ -34,6 +37,7 @@ class PaginatedLayout:
     warnings: list[str]
     import_statistics: dict[str, object]
     element_details: dict[str, dict[str, object]]
+    latex_statistics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -45,6 +49,7 @@ class _PageState:
     warnings: list[str] = field(default_factory=list)
     text_fragments: list[str] = field(default_factory=list)
     line_count: int = 0
+    formulas: list[FormulaInfo] = field(default_factory=list)
 
     @property
     def has_content(self) -> bool:
@@ -63,6 +68,9 @@ def paginate_document(
     enabled: bool = True,
     image_mode: str = "auto",
     image_debug_dir: Path | None = None,
+    latex_mode: str = "off",
+    latex_options: Mapping[str, object] | None = None,
+    latex_debug_dir: Path | None = None,
     preserve_source_page_breaks: bool = True,
     tab_spaces: int = 4,
     engine: str = "legacy",
@@ -95,6 +103,14 @@ def paginate_document(
     warnings = list(document.warnings)
     details: dict[str, dict[str, object]] = {}
     image_found = image_vectorized = image_strokes = image_points = vector_count = 0
+    formula_index = 0
+    rendered_formulas: list[FormulaInfo] = []
+    latex_config = dict(latex_options or {})
+    renderer = (
+        MathTextRenderer(curve_tolerance_mm=float(latex_config.get("curve_tolerance_mm", 0.04)))
+        if latex_mode in {"auto", "mathtext"}
+        else None
+    )
 
     def add_source_id(element_id: str) -> None:
         if element_id not in state.source_ids:
@@ -119,8 +135,13 @@ def paginate_document(
         )
         pages.append(PageLayout(
             len(pages), layout, state.graphics, tuple(state.source_ids),
-            list(dict.fromkeys(state.warnings)), {"text": "".join(state.text_fragments)},
+            list(dict.fromkeys(state.warnings)),
+            {
+                "text": "".join(state.text_fragments),
+                "formulas": [asdict(formula) for formula in state.formulas],
+            },
         ))
+        warnings.extend(state.warnings)
         state = _PageState(top)
 
     def ensure_height(required: float) -> None:
@@ -142,12 +163,81 @@ def paginate_document(
                     normalized, normalization_warnings = normalize_text(raw_paragraph)
                     warnings.extend(normalization_warnings)
                     normalized_paragraphs.extend(normalized.split("\n"))
+                normalized_paragraphs = _merge_multiline_math_blocks(normalized_paragraphs)
                 for paragraph_index, paragraph in enumerate(normalized_paragraphs):
                     if not paragraph:
                         ensure_height(line_advance)
                         state.cursor_y += line_advance
                         state.text_fragments.append("\n")
                         add_source_id(element.id)
+                        continue
+                    if renderer is not None and contains_latex(paragraph):
+                        try:
+                            rich_lines, formula_index = layout_latex_paragraph(
+                                paragraph,
+                                font,
+                                usable_width,
+                                dict(size_options),
+                                latex_config,
+                                renderer,
+                                formula_index_start=formula_index,
+                                element_id=element.id,
+                                debug_dir=latex_debug_dir,
+                                tab_spaces=tab_spaces,
+                                engine=engine,
+                                language=language,
+                                script=script,
+                                direction=direction,
+                                features=features,
+                            )
+                        except ValueError as error:
+                            raise ValueError(
+                                f"Source page {element.source_page_index + 1}, "
+                                f"source element {element.id!r}: {error}"
+                            ) from error
+                        if formula_index > int(
+                            latex_config.get("max_elements_per_document", 500)
+                        ):
+                            raise ValueError(
+                                "Document exceeds latex.max_elements_per_document "
+                                f"({latex_config.get('max_elements_per_document', 500)})"
+                            )
+                        for rich_line in rich_lines:
+                            required = (
+                                rich_line.spacing_before_mm
+                                + rich_line.advance_mm
+                                + rich_line.spacing_after_mm
+                            )
+                            ensure_height(required)
+                            state.cursor_y += rich_line.spacing_before_mm
+                            for glyph in rich_line.glyphs:
+                                state.glyphs.append(replace(
+                                    glyph,
+                                    x_mm=left + glyph.x_mm,
+                                    baseline_y_mm=state.cursor_y + glyph.baseline_y_mm,
+                                    line_index=state.line_count,
+                                    glyph_index=len(state.glyphs),
+                                ))
+                            for stroke in rich_line.formula_strokes:
+                                state.graphics.append(replace(
+                                    stroke,
+                                    id=len(state.graphics),
+                                    points=[
+                                        Point(left + point.x, state.cursor_y + point.y)
+                                        for point in stroke.points
+                                    ],
+                                ))
+                            state.formulas.extend(rich_line.formula_infos)
+                            rendered_formulas.extend(rich_line.formula_infos)
+                            state.warnings.extend(rich_line.warnings)
+                            state.cursor_y += rich_line.advance_mm + rich_line.spacing_after_mm
+                            state.line_count += 1
+                            add_source_id(element.id)
+                        state.text_fragments.append(paragraph)
+                        if paragraph_index < len(normalized_paragraphs) - 1:
+                            state.text_fragments.append("\n")
+                        if state.cursor_y + paragraph_spacing <= content_bottom + 1e-9:
+                            state.cursor_y += paragraph_spacing
                         continue
                     tall_page = PageSpec("flow", page.width_mm, 1_000_000.0)
                     tall_margins = dict(margins)
@@ -201,7 +291,15 @@ def paginate_document(
                         state.text_fragments.append("\n")
                     if state.cursor_y + paragraph_spacing <= content_bottom + 1e-9:
                         state.cursor_y += paragraph_spacing
-                details[element.id] = {"type": "text", "characters": sum(map(len, element.paragraphs))}
+                element_formulas = [
+                    formula for formula in rendered_formulas
+                    if formula.element_id.startswith(f"{element.id}-formula-")
+                ]
+                details[element.id] = {
+                    "type": "text",
+                    "characters": sum(map(len, element.paragraphs)),
+                    "formulas": [asdict(formula) for formula in element_formulas],
+                }
                 continue
 
             required_before = spacing_before if state.has_content else 0.0
@@ -285,7 +383,25 @@ def paginate_document(
         "image_strokes": image_strokes,
         "image_points": image_points,
     }
-    return PaginatedLayout(pages, list(dict.fromkeys(warnings)), stats, details)
+    latex_stats = {
+        "enabled": renderer is not None,
+        "backend": "mathtext" if renderer is not None else "off",
+        "expressions_found": len(rendered_formulas),
+        "inline_expressions": sum(not formula.display_mode for formula in rendered_formulas),
+        "block_expressions": sum(formula.display_mode for formula in rendered_formulas),
+        "rendered": len(rendered_formulas),
+        "fallbacks": 0,
+        "unsupported": [
+            "full LaTeX documents and packages",
+            "TikZ, user macros, bibliography, and file includes",
+            "external LaTeX or shell execution",
+            "full OMML conversion",
+            "LaTeX reconstruction from PDF",
+        ],
+    }
+    return PaginatedLayout(
+        pages, list(dict.fromkeys(warnings)), stats, details, latex_stats
+    )
 
 
 def add_page_numbers(
@@ -370,6 +486,37 @@ def _text_width(text: str, font: LoadedFont, scale: float) -> float:
         font.advance_for_glyph(font.glyph_name_for_char(character)) * scale
         for character in text
     )
+
+
+def _merge_multiline_math_blocks(lines: list[str]) -> list[str]:
+    merged: list[str] = []
+    pending: list[str] = []
+    closer: str | None = None
+    for line in lines:
+        if closer is not None:
+            pending.append(line)
+            if closer in line:
+                merged.append("\n".join(pending))
+                pending = []
+                closer = None
+            continue
+        candidates = [
+            (position, opener, ending)
+            for opener, ending in (("$$", "$$"), (r"\[", r"\]"))
+            if (position := line.find(opener)) >= 0
+        ]
+        if not candidates:
+            merged.append(line)
+            continue
+        position, opener, ending = min(candidates)
+        if line.find(ending, position + len(opener)) >= 0:
+            merged.append(line)
+            continue
+        pending = [line]
+        closer = ending
+    if pending:
+        merged.append("\n".join(pending))
+    return merged
 
 
 def _number(values: Mapping[str, object], key: str) -> float:

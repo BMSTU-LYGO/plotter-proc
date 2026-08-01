@@ -52,6 +52,19 @@ pagination:
     size: small
     font_mode: centerline
 
+latex:
+  enabled: true
+  backend: mathtext
+  max_expression_length: 4000
+  max_elements_per_document: 500
+  inline_size_scale: 1.0
+  block_size_scale: 1.15
+  block_spacing_before_mm: 2.0
+  block_spacing_after_mm: 2.0
+  block_alignment: center
+  min_scale: 0.65
+  curve_tolerance_mm: 0.04
+
 images:
   enabled: true
   mode: auto

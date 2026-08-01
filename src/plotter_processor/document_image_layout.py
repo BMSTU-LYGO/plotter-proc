@@ -7,6 +7,7 @@ from pathlib import Path
 
 from plotter_processor.document_models import (
     SourceDocument,
+    SourceMathElement,
     SourceRasterImageElement,
     SourceTextElement,
     SourceVectorElement,
@@ -205,6 +206,15 @@ def save_document_structure(
                         ),
                         **(
                             {
+                                "expression": element.expression,
+                                "display_mode": element.display_mode,
+                                "source_syntax": element.source_syntax,
+                            }
+                            if isinstance(element, SourceMathElement)
+                            else {}
+                        ),
+                        **(
+                            {
                                 "asset_path": str(element.image_path),
                                 "width_px": element.width_px,
                                 "height_px": element.height_px,
@@ -253,6 +263,8 @@ def _element_type(element: object) -> str:
         return "text"
     if isinstance(element, SourceRasterImageElement):
         return "raster-image"
+    if isinstance(element, SourceMathElement):
+        return "latex"
     return "pdf-vector"
 
 
