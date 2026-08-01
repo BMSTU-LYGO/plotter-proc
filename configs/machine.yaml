@@ -56,3 +56,13 @@ gcode:
   absolute_positioning: true
   units_mm: true
   decimals: 3
+
+page_change:
+  enabled: true
+  pause_seconds: 90
+  park:
+    mode: corner
+    corner: top_right
+    inset_mm: 5.0
+  wait_command: dwell
+  keep_steppers_enabled: true

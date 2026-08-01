@@ -48,6 +48,10 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         images=args.images,
         image_debug=args.image_debug,
         pdf_layout=args.pdf_layout,
+        paginate=args.paginate,
+        page_numbers=args.page_numbers,
+        page_pause_seconds=args.page_pause_seconds,
+        park_corner=args.park_corner,
     )
 
 
@@ -256,6 +260,16 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--images", choices=("auto", "outline", "centerline", "off"), default="auto")
     parser.add_argument("--image-debug", action="store_true")
     parser.add_argument("--pdf-layout", choices=("reflow", "preserve"), default="reflow")
+    parser.add_argument("--paginate", dest="paginate", action="store_true")
+    parser.add_argument("--no-paginate", dest="paginate", action="store_false")
+    parser.add_argument("--page-numbers", dest="page_numbers", action="store_true")
+    parser.add_argument("--no-page-numbers", dest="page_numbers", action="store_false")
+    parser.add_argument("--page-pause-seconds", type=float)
+    parser.add_argument(
+        "--park-corner",
+        choices=("top_left", "top_right", "bottom_left", "bottom_right"),
+    )
+    parser.set_defaults(paginate=None, page_numbers=None)
 
 
 def build_parser() -> argparse.ArgumentParser:

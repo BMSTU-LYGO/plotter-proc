@@ -91,49 +91,67 @@ def layout_text(
                 if x > left and x + token_width > left + usable_width:
                     new_line()
                     x = left
-                items = shaped.glyphs if shaped is not None else token
-                for item in items:
-                    char = item.source_characters if shaped is not None else item
-                    glyph_name = (
-                        item.glyph_name if shaped is not None else font.glyph_name_for_char(char)
-                    )
-                    advance = (
-                        item.x_advance_font_units * scale
-                        if shaped is not None
-                        else font.advance_for_glyph(glyph_name) * scale
-                    )
-                    if x > left and x + advance > left + usable_width:
+                if shaped is not None:
+                    clusters: list[list[object]] = []
+                    for item in shaped.glyphs:
+                        if not clusters or clusters[-1][0].cluster_index != item.cluster_index:
+                            clusters.append([item])
+                        else:
+                            clusters[-1].append(item)
+                else:
+                    clusters = [[character] for character in token]
+                for cluster in clusters:
+                    advances = [
+                        (
+                            item.x_advance_font_units * scale
+                            if shaped is not None
+                            else font.advance_for_glyph(font.glyph_name_for_char(item)) * scale
+                        )
+                        for item in cluster
+                    ]
+                    cluster_advance = sum(advances)
+                    if x > left and x + cluster_advance > left + usable_width:
                         new_line()
                         x = left
-                    if x + advance > left + usable_width + 1e-9:
+                    if x + cluster_advance > left + usable_width + 1e-9:
                         raise ValueError(OVERFLOW_ERROR)
-                    glyphs.append(
-                        PositionedGlyph(
-                            char=char,
-                            codepoint=ord(char[0]),
-                            glyph_name=glyph_name,
-                            x_mm=x + (item.x_offset_font_units * scale if shaped is not None else 0),
-                            baseline_y_mm=baseline
-                            - (item.y_offset_font_units * scale if shaped is not None else 0),
-                            advance_mm=advance,
-                            scale_mm_per_font_unit=scale,
-                            line_index=line_index,
-                            glyph_index=glyph_index,
-                            word_index=word_index,
-                            cluster_index=item.cluster_index if shaped is not None else glyph_index,
-                            font_id=item.font.id if shaped is not None else None,
-                            font_sha256=item.font.sha256 if shaped is not None else None,
-                            x_offset_font_units=(
-                                item.x_offset_font_units if shaped is not None else 0.0
-                            ),
-                            y_offset_font_units=(
-                                item.y_offset_font_units if shaped is not None else 0.0
-                            ),
+                    for item, advance in zip(cluster, advances, strict=True):
+                        char = item.source_characters if shaped is not None else item
+                        glyph_name = (
+                            item.glyph_name
+                            if shaped is not None
+                            else font.glyph_name_for_char(char)
                         )
-                    )
-                    glyph_index += 1
-                    x += advance
-                    max_used_x = max(max_used_x, x)
+                        glyphs.append(
+                            PositionedGlyph(
+                                char=char,
+                                codepoint=ord(char[0]),
+                                glyph_name=glyph_name,
+                                x_mm=x
+                                + (item.x_offset_font_units * scale if shaped is not None else 0),
+                                baseline_y_mm=baseline
+                                - (item.y_offset_font_units * scale if shaped is not None else 0),
+                                advance_mm=advance,
+                                scale_mm_per_font_unit=scale,
+                                line_index=line_index,
+                                glyph_index=glyph_index,
+                                word_index=word_index,
+                                cluster_index=(
+                                    item.cluster_index if shaped is not None else glyph_index
+                                ),
+                                font_id=item.font.id if shaped is not None else None,
+                                font_sha256=item.font.sha256 if shaped is not None else None,
+                                x_offset_font_units=(
+                                    item.x_offset_font_units if shaped is not None else 0.0
+                                ),
+                                y_offset_font_units=(
+                                    item.y_offset_font_units if shaped is not None else 0.0
+                                ),
+                            )
+                        )
+                        glyph_index += 1
+                        x += advance
+                        max_used_x = max(max_used_x, x)
                 word_index += 1
         if paragraph_index < len(paragraphs) - 1:
             new_line(paragraph_spacing if paragraph else 0.0)

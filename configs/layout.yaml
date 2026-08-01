@@ -41,6 +41,17 @@ document_import:
   pdf_layout: reflow
   preserve_source_page_breaks: true
 
+pagination:
+  enabled: true
+  preserve_source_page_breaks: true
+  footer:
+    enabled: true
+    reserved_height_mm: 8.0
+    baseline_from_bottom_mm: 4.5
+    format: "{page}"
+    size: small
+    font_mode: centerline
+
 images:
   enabled: true
   mode: auto
