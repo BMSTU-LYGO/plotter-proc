@@ -10,10 +10,12 @@ from PIL import Image, UnidentifiedImageError
 from plotter_processor.document_models import (
     SourceBBox,
     SourceDocument,
+    SourceMathElement,
     SourcePage,
     SourceRasterImageElement,
     SourceTextElement,
 )
+from plotter_processor.omml_parser import parse_omml
 
 EMU_PER_MM = 36000.0
 
@@ -23,7 +25,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         document = Document(path)
     except Exception as error:
         raise ValueError(f"Cannot read DOCX document: {path}") from error
-    elements: list[SourceTextElement | SourceRasterImageElement] = []
+    elements: list[SourceTextElement | SourceRasterImageElement | SourceMathElement] = []
     warnings: list[str] = []
     asset_cache: dict[str, Path] = {}
     body = document.element.body
@@ -78,15 +80,34 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             width_px, height_px, width_mm, height_mm, bbox,
         ))
 
+    def add_math(math: object) -> None:
+        try:
+            parsed = parse_omml(math)
+        except ValueError as error:
+            warnings.append(f"omml_equation_not_supported:{error}")
+            return
+        warnings.extend(parsed.warnings)
+        elements.append(SourceMathElement(
+            f"page-001-math-{len(elements) + 1:03d}",
+            len(elements),
+            0,
+            parsed.expression,
+            parsed.display_mode,
+            "omml",
+        ))
+
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:
-        if (
-            paragraph.xpath(".//*[local-name()='oMath' or local-name()='oMathPara']")
-            and "omml_equation_not_supported" not in warnings
-        ):
-            warnings.append("omml_equation_not_supported")
         buffer = ""
         emitted = False
         for child in paragraph.iterchildren():
+            child_local = child.tag.rsplit("}", 1)[-1]
+            if child_local in {"oMath", "oMathPara"}:
+                if buffer:
+                    add_text(buffer, table=table)
+                    buffer = ""
+                add_math(child)
+                emitted = True
+                continue
             if child.tag != qn("w:r"):
                 continue
             for part in child.iterchildren():

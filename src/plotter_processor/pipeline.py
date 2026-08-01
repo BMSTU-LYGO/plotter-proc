@@ -69,6 +69,10 @@ class PipelineOptions:
     park_corner: str | None = None
     latex: str = "auto"
     latex_debug: bool = False
+    latex_stroke_mode: str | None = None
+    strict_latex_quality: bool = False
+    pdf_math: str = "auto"
+    math_debug: bool = False
 
 
 @dataclass(slots=True)
@@ -92,12 +96,24 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown image mode: {options.images}")
         if options.latex not in {"auto", "mathtext", "off"}:
             raise ValueError(f"Unknown LaTeX mode: {options.latex}")
+        if options.latex_stroke_mode not in {None, "centerline", "outline"}:
+            raise ValueError(f"Unknown LaTeX stroke mode: {options.latex_stroke_mode}")
+        if options.pdf_math not in {"auto", "visual", "off"}:
+            raise ValueError(f"Unknown PDF math mode: {options.pdf_math}")
         machine_config = load_yaml(options.machine_config_path)
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
         _apply_page_change_overrides(machine_config, options)
+        initial_latex_options = _mapping(layout_config, "latex")
+        initial_pdf_math_options = initial_latex_options.get("pdf_math", {})
+        if not isinstance(initial_pdf_math_options, dict):
+            raise TypeError("latex.pdf_math must be a mapping")
         document = read_structured_document(
-            options.input_path, assets_dir=output_dir / "extracted-assets"
+            options.input_path,
+            assets_dir=output_dir / "extracted-assets",
+            pdf_math_mode=options.pdf_math,
+            pdf_math_options=dict(initial_pdf_math_options),
+            math_debug_dir=output_dir / "latex-debug" if options.math_debug else None,
         )
         text = "\n".join(
             paragraph
@@ -140,7 +156,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         if latex_mode == "auto":
             latex_mode = "mathtext" if bool(latex_options.get("enabled", True)) else "off"
         if options.input_path.suffix.lower() == ".pdf":
-            latex_mode = "off"
+            latex_mode = "mathtext" if options.pdf_math != "off" else "off"
         if latex_mode == "off" and any(
             contains_latex(paragraph)
             for element in document.elements
@@ -162,7 +178,13 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 image_debug_dir=output_dir / "image-debug" if options.image_debug else None,
                 latex_mode=latex_mode,
                 latex_options=latex_options,
-                latex_debug_dir=output_dir / "latex-debug" if options.latex_debug else None,
+                latex_debug_dir=(
+                    output_dir / "latex-debug"
+                    if options.latex_debug or options.math_debug
+                    else None
+                ),
+                latex_stroke_mode=options.latex_stroke_mode,
+                strict_latex_quality=options.strict_latex_quality,
                 preserve_source_page_breaks=bool(
                     pagination_options.get("preserve_source_page_breaks", True)
                 ),
@@ -398,6 +420,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "latex": {
                 **paginated.latex_statistics,
                 "requested_mode": options.latex,
+                "stroke_mode": options.latex_stroke_mode
+                or str(latex_options.get("stroke_mode", "centerline")),
+                "pdf_math_mode": options.pdf_math,
             },
             "pagination": {
                 "enabled": pagination_enabled, "page_count": page_count,

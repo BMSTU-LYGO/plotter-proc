@@ -63,6 +63,10 @@ class SourceMathElement:
     display_mode: bool
     source_syntax: str
     bbox: SourceBBox | None = None
+    visual_image_path: Path | None = None
+    visual_ppmm: float | None = None
+    absorbed_element_ids: tuple[str, ...] = ()
+    detection_confidence: float | None = None
 
 
 SourceElement: TypeAlias = (

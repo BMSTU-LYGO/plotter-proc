@@ -45,26 +45,37 @@ python3 -m venv .venv
 В TXT, обычном тексте DOCX и `composition` поддерживаются inline-формулы
 `$...$`, `\(...\)` и блочные формулы `$$...$$`, `\[...\]`. MathText
 преобразует степени и индексы, дроби, корни, греческие буквы, основные
-операторы, суммы, интегралы и скобки непосредственно в векторные контуры —
-без запуска shell или системного `latex`. Запись `\$` означает обычный знак
-доллара.
+операторы, суммы, интегралы и скобки в high-resolution ink mask, после чего
+общий raster-to-centerline pipeline строит центральные линии. Shell и
+системный `latex` не запускаются. Запись `\$` означает обычный знак доллара.
 
 ```bash
 .venv/bin/python -m plotter_processor run examples/formulas.txt \
   --font assets/1.ttf --font-mode centerline \
-  --latex mathtext --latex-debug --output-dir build/formulas
+  --latex mathtext --latex-stroke-mode centerline \
+  --strict-latex-quality --latex-debug --output-dir build/formulas
 ```
 
 Режим `--latex auto` включён по умолчанию, `--latex off` оставляет разделители
-обычным текстом и добавляет предупреждение в отчёт. `--latex-debug` сохраняет
-отдельные `latex-debug/formula-NNN.svg` и `.json`. Формулы остаются outline;
-centerline применяется только к обычному тексту.
+обычным текстом и добавляет предупреждение в отчёт. Default stroke mode —
+`centerline`; прежний результат доступен через `--latex-stroke-mode outline`.
+`--latex-debug` сохраняет mask, skeleton, graph, centerline и overlay каждой
+формулы. `--strict-latex-quality` останавливает job до G-code при провале
+quality gate.
+
+Базовое подмножество Word OMML (символы, индексы, степени, дроби, корни,
+скобки и n-ary operators) становится отдельным математическим элементом. Для
+PDF доступен `--pdf-math auto|visual|off`: detector выделяет визуальный bbox
+формулы, рендерит только этот clip и строит centerline, не печатая поглощённые
+text/vector primitives второй раз. `--math-debug` сохраняет PDF clip и список
+поглощённых элементов.
 
 Это не полный TeX: не поддерживаются LaTeX-документы, `\documentclass`,
 packages, TikZ, пользовательские макросы, bibliography, произвольные file
-includes, внешний `latex` и shell execution. OMML из DOCX только обнаруживается
-и отмечается предупреждением; полное преобразование OMML и восстановление
-исходного LaTeX из PDF не выполняются.
+includes, внешний `latex` и shell execution. Поддерживается не весь OMML;
+неизвестные узлы отмечаются конкретным warning. PDF-режим является visual
+centerline reconstruction: исходная строка `.tex` не восстанавливается,
+low-confidence регионы остаются обычным текстом/вектором.
 
 ## Профили скорости
 

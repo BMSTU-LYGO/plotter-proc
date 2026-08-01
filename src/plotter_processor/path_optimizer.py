@@ -77,6 +77,11 @@ def _copy_stroke(stroke: PlotterStroke) -> PlotterStroke:
         font_role=stroke.font_role,
         font_sha256=stroke.font_sha256,
         source_path=stroke.source_path,
+        source_page_index=stroke.source_page_index,
+        semantic_role=stroke.semantic_role,
+        layout_group=stroke.layout_group,
+        preserve_order=stroke.preserve_order,
+        z_order=stroke.z_order,
     )
 
 

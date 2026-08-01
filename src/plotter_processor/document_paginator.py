@@ -6,6 +6,7 @@ from pathlib import Path
 
 from plotter_processor.document_models import (
     SourceDocument,
+    SourceMathElement,
     SourceRasterImageElement,
     SourceTextElement,
     SourceVectorElement,
@@ -13,9 +14,9 @@ from plotter_processor.document_models import (
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.image_preprocessor import preprocess_image
 from plotter_processor.image_vectorizer import vectorize_image
-from plotter_processor.latex_layout import FormulaInfo, layout_latex_paragraph
+from plotter_processor.latex_layout import FormulaInfo, layout_latex_paragraph, layout_math_element
 from plotter_processor.latex_parser import contains_latex
-from plotter_processor.latex_renderer import MathTextRenderer
+from plotter_processor.latex_renderer import math_renderer_from_options, render_visual_math_image
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
@@ -71,6 +72,8 @@ def paginate_document(
     latex_mode: str = "off",
     latex_options: Mapping[str, object] | None = None,
     latex_debug_dir: Path | None = None,
+    latex_stroke_mode: str | None = None,
+    strict_latex_quality: bool | None = None,
     preserve_source_page_breaks: bool = True,
     tab_spaces: int = 4,
     engine: str = "legacy",
@@ -107,7 +110,11 @@ def paginate_document(
     rendered_formulas: list[FormulaInfo] = []
     latex_config = dict(latex_options or {})
     renderer = (
-        MathTextRenderer(curve_tolerance_mm=float(latex_config.get("curve_tolerance_mm", 0.04)))
+        math_renderer_from_options(
+            latex_config,
+            stroke_mode=latex_stroke_mode,
+            strict_quality=strict_latex_quality,
+        )
         if latex_mode in {"auto", "mathtext"}
         else None
     )
@@ -182,6 +189,7 @@ def paginate_document(
                                 renderer,
                                 formula_index_start=formula_index,
                                 element_id=element.id,
+                                source_page_index=element.source_page_index,
                                 debug_dir=latex_debug_dir,
                                 tab_spaces=tab_spaces,
                                 engine=engine,
@@ -222,13 +230,17 @@ def paginate_document(
                                 state.graphics.append(replace(
                                     stroke,
                                     id=len(state.graphics),
+                                    source_page_index=element.source_page_index,
                                     points=[
                                         Point(left + point.x, state.cursor_y + point.y)
                                         for point in stroke.points
                                     ],
                                 ))
-                            state.formulas.extend(rich_line.formula_infos)
-                            rendered_formulas.extend(rich_line.formula_infos)
+                            placed_infos = _place_formula_infos(
+                                rich_line.formula_infos, left, state.cursor_y
+                            )
+                            state.formulas.extend(placed_infos)
+                            rendered_formulas.extend(placed_infos)
                             state.warnings.extend(rich_line.warnings)
                             state.cursor_y += rich_line.advance_mm + rich_line.spacing_after_mm
                             state.line_count += 1
@@ -303,6 +315,91 @@ def paginate_document(
                 continue
 
             required_before = spacing_before if state.has_content else 0.0
+            if isinstance(element, SourceMathElement):
+                if renderer is None:
+                    warning = f"math_element_skipped_latex_off: {element.id}"
+                    warnings.append(warning)
+                    details[element.id] = {"type": "math", "skipped": True, "warning": warning}
+                    continue
+                formula_index += 1
+                try:
+                    rendered_visual = (
+                        render_visual_math_image(
+                            element.visual_image_path,
+                            element.expression,
+                            element.visual_ppmm or float(latex_config.get("render_ppmm", 24.0)),
+                            latex_config,
+                            strict_quality=bool(strict_latex_quality),
+                        )
+                        if element.visual_image_path is not None
+                        else None
+                    )
+                    rich_line = layout_math_element(
+                        element.expression,
+                        usable_width,
+                        dict(size_options),
+                        latex_config,
+                        renderer,
+                        formula_index=formula_index,
+                        element_id=element.id,
+                        source_syntax=element.source_syntax,
+                        display_mode=element.display_mode,
+                        source_page_index=element.source_page_index,
+                        debug_dir=latex_debug_dir,
+                        rendered_math=rendered_visual,
+                    )
+                except ValueError as error:
+                    raise ValueError(
+                        f"Source page {element.source_page_index + 1}, "
+                        f"source element {element.id!r}: {error}"
+                    ) from error
+                required = (
+                    rich_line.spacing_before_mm
+                    + rich_line.advance_mm
+                    + rich_line.spacing_after_mm
+                )
+                ensure_height(required)
+                state.cursor_y += rich_line.spacing_before_mm
+                for stroke in rich_line.formula_strokes:
+                    state.graphics.append(replace(
+                        stroke,
+                        id=len(state.graphics),
+                        source_page_index=element.source_page_index,
+                        points=[
+                            Point(left + point.x, state.cursor_y + point.y)
+                            for point in stroke.points
+                        ],
+                    ))
+                source_bbox = (
+                    {
+                        "x0": element.bbox.x0,
+                        "y0": element.bbox.y0,
+                        "x1": element.bbox.x1,
+                        "y1": element.bbox.y1,
+                    }
+                    if element.bbox is not None
+                    else None
+                )
+                placed_infos = _place_formula_infos(
+                    rich_line.formula_infos,
+                    left,
+                    state.cursor_y,
+                    source_bbox=source_bbox,
+                )
+                state.formulas.extend(placed_infos)
+                rendered_formulas.extend(placed_infos)
+                state.warnings.extend(rich_line.warnings)
+                state.cursor_y += rich_line.advance_mm + rich_line.spacing_after_mm
+                state.line_count += 1
+                add_source_id(element.id)
+                details[element.id] = {
+                    "type": "math",
+                    "source_syntax": element.source_syntax,
+                    "expression": element.expression,
+                    "formula_index": formula_index,
+                }
+                continue
+
             if isinstance(element, SourceRasterImageElement):
                 image_found += 1
                 if image_mode == "off":
@@ -376,6 +473,7 @@ def paginate_document(
     stats = {
         "source_pages": len(document.pages),
         "text_elements": sum(isinstance(item, SourceTextElement) for item in document.elements),
+        "math_elements": sum(isinstance(item, SourceMathElement) for item in document.elements),
         "raster_images_found": image_found,
         "raster_images_vectorized": image_vectorized,
         "pdf_vector_elements": vector_count,
@@ -390,7 +488,28 @@ def paginate_document(
         "inline_expressions": sum(not formula.display_mode for formula in rendered_formulas),
         "block_expressions": sum(formula.display_mode for formula in rendered_formulas),
         "rendered": len(rendered_formulas),
-        "fallbacks": 0,
+        "semantic_expressions": sum(
+            formula.source_kind == "semantic-latex" for formula in rendered_formulas
+        ),
+        "omml_expressions": sum(
+            formula.source_syntax == "omml" for formula in rendered_formulas
+        ),
+        "pdf_visual_expressions": sum(
+            formula.source_syntax == "pdf-visual" for formula in rendered_formulas
+        ),
+        "outline_fallbacks": sum(
+            "latex_centerline_outline_fallback" in formula.warnings
+            for formula in rendered_formulas
+        ),
+        "fallbacks": sum(bool(formula.warnings) for formula in rendered_formulas),
+        "strokes": sum(formula.strokes for formula in rendered_formulas),
+        "points": sum(formula.points for formula in rendered_formulas),
+        "pen_lifts": sum(formula.strokes for formula in rendered_formulas),
+        "needs_review": sum(
+            bool((formula.quality or {}).get("needs_review")) for formula in rendered_formulas
+        ),
+        "warnings": sorted({warning for formula in rendered_formulas for warning in formula.warnings}),
+        "formulas": [asdict(formula) for formula in rendered_formulas],
         "unsupported": [
             "full LaTeX documents and packages",
             "TikZ, user macros, bibliography, and file includes",
@@ -462,6 +581,34 @@ def _image_size(
     height = element.displayed_height or width * element.height_px / max(1, element.width_px)
     scale = min(1.0, usable_width / width, usable_height * max_height_ratio / height)
     return width * scale, height * scale
+
+
+def _place_formula_infos(
+    formulas: list[FormulaInfo],
+    x_offset: float,
+    y_offset: float,
+    *,
+    source_bbox: dict[str, float] | None = None,
+) -> list[FormulaInfo]:
+    result: list[FormulaInfo] = []
+    for formula in formulas:
+        target = formula.target_bbox
+        translated = (
+            {
+                "x": float(target["x"]) + x_offset,
+                "y": float(target["y"]) + y_offset,
+                "width": float(target["width"]),
+                "height": float(target["height"]),
+            }
+            if target is not None
+            else None
+        )
+        result.append(replace(
+            formula,
+            source_bbox=source_bbox or formula.source_bbox,
+            target_bbox=translated,
+        ))
+    return result
 
 
 def _vector_size(

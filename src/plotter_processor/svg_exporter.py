@@ -68,6 +68,8 @@ def export_plotter_preview(
             attributes["data-element-id"] = stroke.element_id
         if stroke.element_type is not None:
             attributes["data-element-type"] = stroke.element_type
+        if stroke.semantic_role is not None:
+            attributes["data-semantic-role"] = stroke.semantic_role
         if stroke.font_role is not None:
             attributes["data-font-role"] = stroke.font_role
         ElementTree.SubElement(root, _tag("path"), attributes)

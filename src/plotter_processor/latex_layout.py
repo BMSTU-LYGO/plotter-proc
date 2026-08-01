@@ -29,6 +29,13 @@ class FormulaInfo:
     height_mm: float
     strokes: int
     points: int
+    stroke_mode: str = "outline"
+    source_kind: str = "semantic-latex"
+    source_page_index: int | None = None
+    quality: dict[str, object] | None = None
+    warnings: tuple[str, ...] = ()
+    source_bbox: dict[str, float] | None = None
+    target_bbox: dict[str, float] | None = None
 
 
 @dataclass(slots=True)
@@ -53,6 +60,7 @@ def layout_latex_paragraph(
     *,
     formula_index_start: int,
     element_id: str,
+    source_page_index: int | None = None,
     debug_dir: Path | None = None,
     tab_spaces: int = 4,
     engine: str = "legacy",
@@ -110,6 +118,13 @@ def layout_latex_paragraph(
                     id=len(placed_strokes),
                     element_id=formula_id,
                     element_type="latex",
+                    semantic_role=(
+                        "latex-centerline"
+                        if rendered.stroke_mode == "centerline"
+                        else "latex-outline"
+                    ),
+                    layout_group=formula_id,
+                    preserve_order=True,
                     source_chars=run.expression,
                     points=[
                         Point(
@@ -123,6 +138,15 @@ def layout_latex_paragraph(
                 index, run.expression, run.display_mode, run.source_syntax, run.delimiter,
                 run.start, formula_id, rendered.width_mm, rendered.height_mm,
                 len(rendered.strokes), sum(len(stroke.points) for stroke in rendered.strokes),
+                rendered.stroke_mode, rendered.source_kind, source_page_index,
+                rendered.quality, rendered.warnings,
+                None,
+                {
+                    "x": formula_x,
+                    "y": baseline - rendered.baseline_mm,
+                    "width": rendered.width_mm,
+                    "height": rendered.height_mm,
+                },
             ))
         lines.append(RichLine(
             placed_glyphs, placed_strokes, height,
@@ -216,6 +240,101 @@ def layout_latex_paragraph(
             x += rendered.width_mm
     finish_line()
     return lines, formula_index
+
+
+def layout_math_element(
+    expression: str,
+    usable_width_mm: float,
+    size_options: dict[str, object],
+    latex_options: dict[str, object],
+    renderer: MathTextRenderer,
+    *,
+    formula_index: int,
+    element_id: str,
+    source_syntax: str,
+    display_mode: bool,
+    source_page_index: int | None,
+    debug_dir: Path | None = None,
+    rendered_math: RenderedMath | None = None,
+) -> RichLine:
+    em_size = _positive(size_options, "em_size_mm")
+    size_scale = _positive(
+        latex_options, "block_size_scale" if display_mode else "inline_size_scale"
+    )
+    rendered = replace(
+        rendered_math or renderer.render(expression, em_size * size_scale),
+        source_kind=source_syntax,
+    )
+    warnings = list(rendered.warnings)
+    if rendered.width_mm > usable_width_mm:
+        scale = usable_width_mm / rendered.width_mm
+        if scale < _positive(latex_options, "min_scale"):
+            raise ValueError(
+                f"LaTeX formula {formula_index} in element {element_id!r} "
+                "is wider than the page at minimum scale"
+            )
+        rendered = scale_rendered_math(rendered, scale)
+        warnings.append(f"latex_formula_scaled: {formula_index}")
+    x = (usable_width_mm - rendered.width_mm) / 2 if display_mode else 0.0
+    formula_id = f"{element_id}-formula-{formula_index:03d}"
+    strokes = [
+        replace(
+            stroke,
+            id=index,
+            element_id=formula_id,
+            element_type="latex",
+            semantic_role=(
+                "latex-centerline"
+                if rendered.stroke_mode == "centerline"
+                else "latex-outline"
+            ),
+            layout_group=formula_id,
+            preserve_order=True,
+            source_chars=expression,
+            points=[Point(point.x + x, point.y) for point in stroke.points],
+        )
+        for index, stroke in enumerate(rendered.strokes)
+    ]
+    if debug_dir is not None:
+        export_latex_debug(
+            rendered,
+            debug_dir / f"formula-{formula_index:03d}.svg",
+            debug_dir / f"formula-{formula_index:03d}.json",
+            formula_index=formula_index,
+            display_mode=display_mode,
+            source_syntax=source_syntax,
+        )
+    info = FormulaInfo(
+        formula_index,
+        expression,
+        display_mode,
+        source_syntax,
+        source_syntax,
+        0,
+        formula_id,
+        rendered.width_mm,
+        rendered.height_mm,
+        len(strokes),
+        sum(len(stroke.points) for stroke in strokes),
+        rendered.stroke_mode,
+        source_syntax,
+        source_page_index,
+        rendered.quality,
+        rendered.warnings,
+        None,
+        {"x": x, "y": 0.0, "width": rendered.width_mm, "height": rendered.height_mm},
+    )
+    line_multiplier = _positive(size_options, "line_height_multiplier")
+    return RichLine(
+        [],
+        strokes,
+        rendered.height_mm,
+        rendered.height_mm * line_multiplier,
+        _non_negative(latex_options, "block_spacing_before_mm") if display_mode else 0.0,
+        _non_negative(latex_options, "block_spacing_after_mm") if display_mode else 0.0,
+        [info],
+        list(dict.fromkeys(warnings)),
+    )
 
 
 def _layout_word(

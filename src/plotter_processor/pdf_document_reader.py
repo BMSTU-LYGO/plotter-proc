@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 from pathlib import Path
 
@@ -10,17 +11,26 @@ from PIL import Image, UnidentifiedImageError
 from plotter_processor.document_models import (
     SourceBBox,
     SourceDocument,
+    SourceMathElement,
     SourcePage,
     SourceRasterImageElement,
     SourceTextElement,
     SourceVectorElement,
 )
 from plotter_processor.models import PlotterStroke, Point
+from plotter_processor.pdf_math_detector import collect_pdf_spans, detect_pdf_math_regions
 
 PT_TO_MM = 25.4 / 72.0
 
 
-def read_pdf_document(path: Path, assets_dir: Path) -> SourceDocument:
+def read_pdf_document(
+    path: Path,
+    assets_dir: Path,
+    *,
+    math_mode: str = "off",
+    math_options: dict[str, object] | None = None,
+    math_debug_dir: Path | None = None,
+) -> SourceDocument:
     try:
         document = pymupdf.open(path)
     except Exception as error:
@@ -31,9 +41,105 @@ def read_pdf_document(path: Path, assets_dir: Path) -> SourceDocument:
     try:
         for page_index, page in enumerate(document):
             page_dir = assets_dir / f"page-{page_index + 1:03d}"
-            elements: list[SourceTextElement | SourceRasterImageElement | SourceVectorElement] = []
+            elements: list[
+                SourceTextElement
+                | SourceRasterImageElement
+                | SourceVectorElement
+                | SourceMathElement
+            ] = []
             order = 0
             blocks = page.get_text("dict", sort=False).get("blocks", [])
+            drawings = page.get_drawings()
+            options = math_options or {}
+            drawing_rects = [
+                (float(rect.x0), float(rect.y0), float(rect.x1), float(rect.y1))
+                for drawing in drawings
+                if (rect := drawing.get("rect")) is not None
+            ]
+            regions, detector_warnings = detect_pdf_math_regions(
+                collect_pdf_spans(blocks),
+                drawing_rects,
+                mode=math_mode,
+                confidence_threshold=float(options.get("confidence_threshold", 0.75)),
+                max_region_area_ratio=float(options.get("max_region_area_ratio", 0.35)),
+                page_area=float(page.rect.width * page.rect.height),
+            )
+            warnings.extend(
+                f"{warning}:page-{page_index + 1:03d}" for warning in detector_warnings
+            )
+            absorbed_blocks: set[int] = set()
+            absorbed_drawings: set[int] = set()
+            render_ppmm = float(options.get("render_ppmm", 24.0))
+            padding_mm = float(options.get("bbox_padding_mm", 0.8))
+            for region in regions:
+                clip = pymupdf.Rect(*region.bbox)
+                padding_pt = padding_mm / PT_TO_MM
+                clip = pymupdf.Rect(
+                    max(page.rect.x0, clip.x0 - padding_pt),
+                    max(page.rect.y0, clip.y0 - padding_pt),
+                    min(page.rect.x1, clip.x1 + padding_pt),
+                    min(page.rect.y1, clip.y1 + padding_pt),
+                )
+                pixels_per_point = render_ppmm * PT_TO_MM
+                pixmap = page.get_pixmap(
+                    matrix=pymupdf.Matrix(pixels_per_point, pixels_per_point),
+                    clip=clip,
+                    alpha=False,
+                )
+                if pixmap.width * pixmap.height > int(options.get("max_render_pixels", 16_000_000)):
+                    warnings.append(
+                        f"pdf_math_region_complexity_limited:page-{page_index + 1:03d}:{region.id}"
+                    )
+                    continue
+                page_dir.mkdir(parents=True, exist_ok=True)
+                asset = page_dir / f"{region.id}.png"
+                asset.write_bytes(pixmap.tobytes("png"))
+                element_id = f"page-{page_index + 1:03d}-math-{len(elements) + 1:03d}"
+                absorbed = (
+                    *(f"text-block-{index}" for index in region.block_indices),
+                    *(f"drawing-{index}" for index in region.drawing_indices),
+                )
+                elements.append(SourceMathElement(
+                    element_id,
+                    order,
+                    page_index,
+                    region.text,
+                    True,
+                    "pdf-visual",
+                    SourceBBox(clip.x0, clip.y0, clip.x1, clip.y1),
+                    asset,
+                    render_ppmm,
+                    absorbed,
+                    region.confidence,
+                ))
+                absorbed_blocks.update(region.block_indices)
+                absorbed_drawings.update(region.drawing_indices)
+                order += 1
+                if math_debug_dir is not None:
+                    math_debug_dir.mkdir(parents=True, exist_ok=True)
+                    debug_index = sum(
+                        isinstance(item, SourceMathElement) for item in elements
+                    )
+                    (math_debug_dir / f"formula-{debug_index:03d}-pdf-clip.png").write_bytes(
+                        pixmap.tobytes("png")
+                    )
+                    (math_debug_dir / f"formula-{debug_index:03d}-absorbed-elements.json").write_text(
+                        json.dumps(
+                            {
+                                "formula_id": element_id,
+                                "absorbed_text_span_ids": list(region.span_ids),
+                                "absorbed_vector_ids": [
+                                    f"drawing-{index}" for index in region.drawing_indices
+                                ],
+                                "bbox": list(region.bbox),
+                                "confidence": region.confidence,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
             ordered_blocks = sorted(
                 enumerate(blocks),
                 key=lambda item: (
@@ -42,7 +148,9 @@ def read_pdf_document(path: Path, assets_dir: Path) -> SourceDocument:
                     item[0],
                 ),
             )
-            for _, block in ordered_blocks:
+            for block_index, block in ordered_blocks:
+                if block_index in absorbed_blocks:
+                    continue
                 bbox = _bbox(block.get("bbox"))
                 if block.get("type") == 0:
                     paragraphs = tuple(
@@ -91,7 +199,9 @@ def read_pdf_document(path: Path, assets_dir: Path) -> SourceDocument:
                     )
                     order += 1
 
-            for drawing_index, drawing in enumerate(page.get_drawings()):
+            for drawing_index, drawing in enumerate(drawings):
+                if drawing_index in absorbed_drawings:
+                    continue
                 if _drawing_requires_raster(drawing):
                     rect = drawing.get("rect")
                     if rect is None or rect.is_empty:
@@ -235,12 +345,17 @@ def _drawing_requires_raster(drawing: dict[str, object]) -> bool:
 
 
 def _omit_raster_frames(
-    elements: list[SourceTextElement | SourceRasterImageElement | SourceVectorElement],
+    elements: list[
+        SourceTextElement | SourceRasterImageElement | SourceVectorElement | SourceMathElement
+    ],
 ) -> tuple[
-    list[SourceTextElement | SourceRasterImageElement | SourceVectorElement], list[str]
+    list[SourceTextElement | SourceRasterImageElement | SourceVectorElement | SourceMathElement],
+    list[str],
 ]:
     rasters = [item for item in elements if isinstance(item, SourceRasterImageElement)]
-    kept: list[SourceTextElement | SourceRasterImageElement | SourceVectorElement] = []
+    kept: list[
+        SourceTextElement | SourceRasterImageElement | SourceVectorElement | SourceMathElement
+    ] = []
     warnings: list[str] = []
     for element in elements:
         is_rectangle_frame = (

@@ -44,6 +44,10 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         motion_profile=args.motion_profile,
         latex=args.latex,
         latex_debug=args.latex_debug,
+        latex_stroke_mode=args.latex_stroke_mode,
+        strict_latex_quality=args.strict_latex_quality,
+        pdf_math=args.pdf_math,
+        math_debug=args.math_debug,
         join_writing=args.join_writing,
         layout_engine=args.layout_engine,
         connections=args.connections,
@@ -234,6 +238,8 @@ def _compose(args: argparse.Namespace) -> int:
         motion_profile=args.motion_profile,
         latex=args.latex,
         latex_debug=args.latex_debug,
+        latex_stroke_mode=args.latex_stroke_mode,
+        strict_latex_quality=args.strict_latex_quality,
     )
     if result.status == "error":
         print(f"Error: {result.error}\nReport: {result.report_path}")
@@ -275,6 +281,10 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
     parser.add_argument("--latex-debug", action="store_true")
+    parser.add_argument("--latex-stroke-mode", choices=("centerline", "outline"))
+    parser.add_argument("--strict-latex-quality", action="store_true")
+    parser.add_argument("--pdf-math", choices=("auto", "visual", "off"), default="auto")
+    parser.add_argument("--math-debug", action="store_true")
     parser.set_defaults(paginate=None, page_numbers=None)
 
 
@@ -341,6 +351,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compose_parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
     compose_parser.add_argument("--latex-debug", action="store_true")
+    compose_parser.add_argument("--latex-stroke-mode", choices=("centerline", "outline"))
+    compose_parser.add_argument("--strict-latex-quality", action="store_true")
     compose_parser.set_defaults(handler=_compose)
 
     gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")

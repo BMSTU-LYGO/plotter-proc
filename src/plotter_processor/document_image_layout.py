@@ -209,6 +209,14 @@ def save_document_structure(
                                 "expression": element.expression,
                                 "display_mode": element.display_mode,
                                 "source_syntax": element.source_syntax,
+                                "visual_image_path": (
+                                    str(element.visual_image_path)
+                                    if element.visual_image_path is not None
+                                    else None
+                                ),
+                                "visual_ppmm": element.visual_ppmm,
+                                "absorbed_element_ids": list(element.absorbed_element_ids),
+                                "detection_confidence": element.detection_confidence,
                             }
                             if isinstance(element, SourceMathElement)
                             else {}

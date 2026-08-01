@@ -12,7 +12,12 @@ SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".txt"}
 
 
 def read_structured_document(
-    source_path: str | Path, *, assets_dir: str | Path | None = None
+    source_path: str | Path,
+    *,
+    assets_dir: str | Path | None = None,
+    pdf_math_mode: str = "off",
+    pdf_math_options: dict[str, object] | None = None,
+    math_debug_dir: str | Path | None = None,
 ) -> SourceDocument:
     path = Path(source_path)
     extension = path.suffix.lower()
@@ -25,7 +30,13 @@ def read_structured_document(
     if extension == ".pdf":
         from plotter_processor.pdf_document_reader import read_pdf_document
 
-        return read_pdf_document(path, asset_root)
+        return read_pdf_document(
+            path,
+            asset_root,
+            math_mode=pdf_math_mode,
+            math_options=pdf_math_options,
+            math_debug_dir=Path(math_debug_dir) if math_debug_dir is not None else None,
+        )
     if extension == ".docx":
         from plotter_processor.docx_document_reader import read_docx_document
 
