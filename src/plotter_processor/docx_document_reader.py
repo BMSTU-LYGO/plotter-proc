@@ -8,12 +8,19 @@ from docx.oxml.ns import qn
 from PIL import Image, UnidentifiedImageError
 
 from plotter_processor.document_models import (
+    SourceArrowElement,
     SourceBBox,
     SourceDocument,
     SourceMathElement,
     SourcePage,
+    SourceParagraph,
+    SourcePoint,
     SourceRasterImageElement,
+    SourceTableCell,
+    SourceTableElement,
     SourceTextElement,
+    SourceTextRun,
+    SourceTextStyle,
 )
 from plotter_processor.omml_parser import parse_omml
 
@@ -25,7 +32,13 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         document = Document(path)
     except Exception as error:
         raise ValueError(f"Cannot read DOCX document: {path}") from error
-    elements: list[SourceTextElement | SourceRasterImageElement | SourceMathElement] = []
+    elements: list[
+        SourceTextElement
+        | SourceRasterImageElement
+        | SourceMathElement
+        | SourceArrowElement
+        | SourceTableElement
+    ] = []
     warnings: list[str] = []
     asset_cache: dict[str, Path] = {}
     body = document.element.body
@@ -36,11 +49,15 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
     margin_right_mm = float(section.right_margin) / EMU_PER_MM
     margin_top_mm = float(section.top_margin) / EMU_PER_MM
 
-    def add_text(text: str, *, table: bool = False) -> None:
+    def add_text(text: str, *, styled: SourceParagraph | None = None) -> None:
         element_id = f"page-001-text-{len(elements) + 1:03d}"
-        elements.append(SourceTextElement(element_id, len(elements), 0, (text,)))
-        if table and "docx_table_layout_simplified" not in warnings:
-            warnings.append("docx_table_layout_simplified")
+        elements.append(SourceTextElement(
+            element_id,
+            len(elements),
+            0,
+            (text,),
+            styled_paragraphs=(styled,) if styled is not None else (),
+        ))
 
     def add_image(drawing: object) -> None:
         blips = drawing.xpath(".//*[local-name()='blip']")
@@ -156,33 +173,81 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             "omml",
         ))
 
+    def add_arrow(pict: object) -> bool:
+        lines = pict.xpath(".//*[local-name()='line']")
+        if not lines:
+            return False
+        line = lines[0]
+        start = _vml_point(line.get("from", "0,0"))
+        end = _vml_point(line.get("to", "0,0"))
+        strokes = line.xpath("./*[local-name()='stroke']")
+        start_head = bool(strokes and strokes[0].get("startarrow", "none") != "none")
+        end_head = bool(strokes and strokes[0].get("endarrow", "none") != "none")
+        style = (
+            strokes[0].get("endarrow") or strokes[0].get("startarrow") or "open"
+            if strokes
+            else "open"
+        )
+        elements.append(SourceArrowElement(
+            f"page-001-arrow-{len(elements) + 1:03d}",
+            len(elements),
+            0,
+            (start, end),
+            start_head,
+            end_head,
+            style,
+            SourceBBox(
+                min(start.x_mm, end.x_mm),
+                min(start.y_mm, end.y_mm),
+                max(start.x_mm, end.x_mm),
+                max(start.y_mm, end.y_mm),
+            ),
+            1.0,
+        ))
+        return True
+
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:
-        buffer = ""
+        runs: list[SourceTextRun] = []
         emitted = False
+
+        def flush() -> None:
+            nonlocal emitted
+            if not runs:
+                return
+            styled = SourceParagraph(tuple(runs), _paragraph_alignment(paragraph))
+            add_text(styled.text, styled=styled)
+            runs.clear()
+            emitted = True
+
         for child in paragraph.iterchildren():
             child_local = child.tag.rsplit("}", 1)[-1]
             if child_local in {"oMath", "oMathPara"}:
-                if buffer:
-                    add_text(buffer, table=table)
-                    buffer = ""
+                flush()
                 add_math(child)
                 emitted = True
                 continue
             if child.tag != qn("w:r"):
                 continue
+            run_text = ""
             for part in child.iterchildren():
                 local = part.tag.rsplit("}", 1)[-1]
                 if local in {"t", "tab", "br"}:
-                    buffer += part.text or ("\t" if local == "tab" else "\n")
+                    run_text += part.text or ("\t" if local == "tab" else "\n")
                 elif local in {"drawing", "pict"}:
-                    if buffer:
-                        add_text(buffer, table=table)
+                    if run_text:
+                        runs.append(SourceTextRun(run_text, _run_style(child, warnings)))
+                        run_text = ""
+                    flush()
+                    if local == "pict" and add_arrow(part):
                         emitted = True
-                        buffer = ""
+                        continue
                     add_image(part)
                     emitted = True
-        if buffer or not emitted:
-            add_text(buffer, table=table)
+            if run_text:
+                runs.append(SourceTextRun(run_text, _run_style(child, warnings)))
+        flush()
+        if not emitted:
+            add_text("", styled=SourceParagraph(()))
 
     def walk_container(container: object, *, table: bool = False) -> None:
         for child in container.iterchildren():
@@ -190,10 +255,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             if local == "p":
                 walk_paragraph(child, table=table)
             elif local == "tbl":
-                if "docx_table_layout_simplified" not in warnings:
-                    warnings.append("docx_table_layout_simplified")
-                for cell in child.xpath(".//*[local-name()='tc']"):
-                    walk_container(cell, table=True)
+                elements.append(_parse_table(child, len(elements), warnings))
 
     walk_container(body)
     return SourceDocument(
@@ -269,3 +331,132 @@ def _anchor_wrap(anchor: object, warnings: list[str]) -> tuple[str, str]:
         side = {"left": "left", "right": "right"}.get(value, "both")
         return mode, side
     return "square", "both"
+
+
+def _run_style(run: object, warnings: list[str]) -> SourceTextStyle:
+    properties = run.find(qn("w:rPr"))
+    if properties is None:
+        return SourceTextStyle()
+    underline_node = properties.find(qn("w:u"))
+    underline = None
+    if underline_node is not None:
+        raw = underline_node.get(qn("w:val"), "single")
+        if raw not in {"none", "false", "0"}:
+            if raw in {"single", "double", "words"}:
+                underline = raw
+            else:
+                underline = "single"
+                warnings.append(f"docx_underline_style_approximated:{raw}")
+    size_node = properties.find(qn("w:sz"))
+    size = float(size_node.get(qn("w:val"))) / 2 if size_node is not None else None
+    vertical = properties.find(qn("w:vertAlign"))
+    return SourceTextStyle(
+        underline=underline,
+        strike=properties.find(qn("w:strike")) is not None,
+        bold=properties.find(qn("w:b")) is not None,
+        italic=properties.find(qn("w:i")) is not None,
+        font_size_pt=size,
+        baseline_shift=vertical.get(qn("w:val")) if vertical is not None else None,
+    )
+
+
+def _paragraph_alignment(paragraph: object) -> str | None:
+    values = paragraph.xpath("./*[local-name()='pPr']/*[local-name()='jc']/@*[local-name()='val']")
+    return str(values[0]) if values else None
+
+
+def _vml_point(value: str) -> SourcePoint:
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 2:
+        raise ValueError(f"Invalid VML point: {value}")
+    return SourcePoint(*(_vml_length(part) for part in parts))
+
+
+def _vml_length(value: str) -> float:
+    if value.endswith("pt"):
+        return float(value[:-2]) * 25.4 / 72
+    if value.endswith("mm"):
+        return float(value[:-2])
+    return float(value) * 25.4 / 72
+
+
+def _parse_table(table: object, order: int, warnings: list[str]) -> SourceTableElement:
+    grid_values = table.xpath(
+        "./*[local-name()='tblGrid']/*[local-name()='gridCol']/@*[local-name()='w']"
+    )
+    column_widths = tuple(float(value) * 25.4 / 1440 for value in grid_values)
+    rows = table.xpath("./*[local-name()='tr']")
+    columns = len(column_widths)
+    mutable_cells: list[dict[str, object]] = []
+    active_vertical: dict[int, dict[str, object]] = {}
+    repeat_headers = 0
+    for row_index, row in enumerate(rows):
+        if (
+            row.xpath("./*[local-name()='trPr']/*[local-name()='tblHeader']")
+            and row_index == repeat_headers
+        ):
+            repeat_headers += 1
+        column = 0
+        for cell in row.xpath("./*[local-name()='tc']"):
+            span_values = cell.xpath(
+                "./*[local-name()='tcPr']/*[local-name()='gridSpan']/@*[local-name()='val']"
+            )
+            column_span = int(span_values[0]) if span_values else 1
+            merge_nodes = cell.xpath("./*[local-name()='tcPr']/*[local-name()='vMerge']")
+            merge_value = (
+                merge_nodes[0].get(qn("w:val"), "continue") if merge_nodes else None
+            )
+            if merge_value == "continue" and column in active_vertical:
+                active_vertical[column]["row_span"] = int(
+                    active_vertical[column]["row_span"]
+                ) + 1
+                column += column_span
+                continue
+            paragraphs = tuple(
+                _xml_paragraph_model(paragraph, warnings)
+                for paragraph in cell.xpath("./*[local-name()='p']")
+            ) or (SourceParagraph(()),)
+            width_values = cell.xpath(
+                "./*[local-name()='tcPr']/*[local-name()='tcW']/@*[local-name()='w']"
+            )
+            entry: dict[str, object] = {
+                "row": row_index,
+                "column": column,
+                "row_span": 1,
+                "column_span": column_span,
+                "paragraphs": paragraphs,
+                "width_mm": float(width_values[0]) * 25.4 / 1440 if width_values else None,
+            }
+            mutable_cells.append(entry)
+            if merge_value == "restart":
+                active_vertical[column] = entry
+            elif merge_nodes:
+                active_vertical.pop(column, None)
+            column += column_span
+        columns = max(columns, column)
+    if not column_widths:
+        column_widths = tuple(0.0 for _ in range(columns))
+    cells = tuple(SourceTableCell(**entry) for entry in mutable_cells)
+    if table.xpath(".//*[local-name()='tbl']"):
+        warnings.append("docx_nested_table_not_supported")
+    return SourceTableElement(
+        f"page-001-table-{order + 1:03d}",
+        order,
+        0,
+        len(rows),
+        columns,
+        cells,
+        column_widths,
+        repeat_header_rows=repeat_headers,
+    )
+
+
+def _xml_paragraph_model(paragraph: object, warnings: list[str]) -> SourceParagraph:
+    runs: list[SourceTextRun] = []
+    for run in paragraph.xpath("./*[local-name()='r']"):
+        text = "".join(run.xpath(".//*[local-name()='t']/text()"))
+        if text:
+            runs.append(SourceTextRun(text, _run_style(run, warnings)))
+        if run.xpath(".//*[local-name()='drawing' or local-name()='pict']"):
+            warnings.append("docx_table_embedded_object_not_supported")
+    return SourceParagraph(tuple(runs), _paragraph_alignment(paragraph))

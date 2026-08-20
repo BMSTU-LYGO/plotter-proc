@@ -8,6 +8,34 @@ from plotter_processor.models import PlotterStroke
 
 
 @dataclass(frozen=True, slots=True)
+class SourceTextStyle:
+    underline: str | None = None
+    strike: bool = False
+    bold: bool = False
+    italic: bool = False
+    font_size_pt: float | None = None
+    baseline_shift: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceTextRun:
+    text: str
+    style: SourceTextStyle = SourceTextStyle()
+    bbox: SourceBBox | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceParagraph:
+    runs: tuple[SourceTextRun, ...]
+    alignment: str | None = None
+    bbox: SourceBBox | None = None
+
+    @property
+    def text(self) -> str:
+        return "".join(run.text for run in self.runs)
+
+
+@dataclass(frozen=True, slots=True)
 class SourceBBox:
     x0: float
     y0: float
@@ -34,6 +62,7 @@ class SourceTextElement:
     source_page_index: int
     paragraphs: tuple[str, ...]
     bbox: SourceBBox | None = None
+    styled_paragraphs: tuple[SourceParagraph, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,8 +118,82 @@ class SourceMathElement:
     detection_confidence: float | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SourcePoint:
+    x_mm: float
+    y_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class SourceLineElement:
+    id: str
+    source_order: int
+    source_page_index: int
+    start: SourcePoint
+    end: SourcePoint
+    line_width_mm: float | None = None
+    dash_style: str | None = None
+    bbox: SourceBBox | None = None
+    semantic_role: str = "line"
+    confidence: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceArrowElement:
+    id: str
+    source_order: int
+    source_page_index: int
+    points: tuple[SourcePoint, ...]
+    head_at_start: bool
+    head_at_end: bool
+    head_style: str = "open"
+    bbox: SourceBBox | None = None
+    confidence: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CellBorders:
+    top: bool = True
+    right: bool = True
+    bottom: bool = True
+    left: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class SourceTableCell:
+    row: int
+    column: int
+    row_span: int
+    column_span: int
+    paragraphs: tuple[SourceParagraph, ...]
+    width_mm: float | None = None
+    height_mm: float | None = None
+    borders: CellBorders = CellBorders()
+    vertical_alignment: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceTableElement:
+    id: str
+    source_order: int
+    source_page_index: int
+    rows: int
+    columns: int
+    cells: tuple[SourceTableCell, ...]
+    column_widths_mm: tuple[float, ...]
+    bbox: SourceBBox | None = None
+    repeat_header_rows: int = 0
+    source_kind: str = "docx-table"
+
+
 SourceElement: TypeAlias = (
-    SourceTextElement | SourceRasterImageElement | SourceVectorElement | SourceMathElement
+    SourceTextElement
+    | SourceRasterImageElement
+    | SourceVectorElement
+    | SourceMathElement
+    | SourceLineElement
+    | SourceArrowElement
+    | SourceTableElement
 )
 
 

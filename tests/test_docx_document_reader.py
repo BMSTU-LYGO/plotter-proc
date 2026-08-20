@@ -4,7 +4,11 @@ from docx import Document
 from docx.oxml.ns import qn
 from PIL import Image, ImageDraw
 
-from plotter_processor.document_models import SourceRasterImageElement, SourceTextElement
+from plotter_processor.document_models import (
+    SourceRasterImageElement,
+    SourceTableElement,
+    SourceTextElement,
+)
 from plotter_processor.structured_document_reader import read_structured_document
 
 
@@ -35,8 +39,9 @@ def test_docx_inline_image_preserves_run_order_and_table_image(tmp_path: Path) -
     assert isinstance(elements[2], SourceTextElement)
     assert elements[0].paragraphs == ("before",)
     assert elements[2].paragraphs == ("after",)
-    assert sum(isinstance(item, SourceRasterImageElement) for item in elements) == 2
-    assert "docx_table_layout_simplified" in result.warnings
+    assert sum(isinstance(item, SourceRasterImageElement) for item in elements) == 1
+    assert any(isinstance(item, SourceTableElement) for item in elements)
+    assert "docx_table_embedded_object_not_supported" in result.warnings
 
 
 def test_docx_anchor_is_not_ignored(tmp_path: Path) -> None:

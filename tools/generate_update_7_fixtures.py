@@ -37,6 +37,9 @@ def main() -> int:
         type=Path,
         default=Path("examples/update_7/block_2"),
     )
+    parser.add_argument(
+        "--block-3-examples-output", type=Path, default=Path("examples/update_7/block_3")
+    )
     args = parser.parse_args()
     root = args.output
     latex = root / "latex"
@@ -86,6 +89,15 @@ def main() -> int:
         block_2_examples / "image-right-square-wrap.docx", png, "right", "square"
     )
     _write_image_pdf(block_2_examples / "pdf-image-right.pdf", png, "right")
+
+    block_3_examples = args.block_3_examples_output
+    block_3_examples.mkdir(parents=True, exist_ok=True)
+    _write_underlines_docx(block_3_examples / "underlines.docx")
+    _write_arrows_pdf(block_3_examples / "arrows.pdf")
+    _write_table_docx(block_3_examples / "simple-table.docx", rows=3, columns=3)
+    _write_merged_table_docx(block_3_examples / "merged-table.docx")
+    _write_table_docx(block_3_examples / "multipage-table.docx", rows=36, columns=3)
+    _write_table_pdf(block_3_examples / "pdf-table.pdf")
     return 0
 
 

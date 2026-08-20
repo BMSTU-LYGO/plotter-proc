@@ -9,12 +9,19 @@ import pymupdf
 from PIL import Image, UnidentifiedImageError
 
 from plotter_processor.document_models import (
+    SourceArrowElement,
     SourceBBox,
     SourceDocument,
+    SourceLineElement,
     SourceMathElement,
     SourcePage,
+    SourceParagraph,
+    SourcePoint,
     SourceRasterImageElement,
+    SourceTableCell,
+    SourceTableElement,
     SourceTextElement,
+    SourceTextRun,
     SourceVectorElement,
 )
 from plotter_processor.models import PlotterStroke, Point
@@ -145,6 +152,20 @@ def read_pdf_document(
                         + "\n",
                         encoding="utf-8",
                     )
+            table, table_blocks, table_drawings = _detect_pdf_table(
+                blocks, drawings, page_index, order
+            )
+            if table is not None:
+                elements.append(table)
+                order += 1
+                absorbed_blocks.update(table_blocks)
+                absorbed_drawings.update(table_drawings)
+            arrows, arrow_drawings = _detect_pdf_arrows(
+                drawings, page_index, order, absorbed_drawings
+            )
+            elements.extend(arrows)
+            order += len(arrows)
+            absorbed_drawings.update(arrow_drawings)
             ordered_blocks = sorted(
                 enumerate(blocks),
                 key=lambda item: (
@@ -208,6 +229,24 @@ def read_pdf_document(
 
             for drawing_index, drawing in enumerate(drawings):
                 if drawing_index in absorbed_drawings:
+                    continue
+                line = _single_pdf_line(drawing)
+                if line is not None:
+                    start, end = line
+                    role, confidence = _classify_pdf_line(start, end, blocks)
+                    elements.append(SourceLineElement(
+                        f"page-{page_index + 1:03d}-line-{drawing_index + 1:03d}",
+                        order,
+                        page_index,
+                        SourcePoint(start.x * PT_TO_MM, start.y * PT_TO_MM),
+                        SourcePoint(end.x * PT_TO_MM, end.y * PT_TO_MM),
+                        float(drawing.get("width", 1.0)) * PT_TO_MM,
+                        None,
+                        _bbox(drawing.get("rect")),
+                        role,
+                        confidence,
+                    ))
+                    order += 1
                     continue
                 if _drawing_requires_raster(drawing):
                     rect = drawing.get("rect")
@@ -392,3 +431,112 @@ def _coverage(frame: SourceBBox, content: SourceBBox) -> float:
     intersection_height = max(0.0, min(frame.y1, content.y1) - max(frame.y0, content.y0))
     content_area = content.width * content.height
     return intersection_width * intersection_height / content_area if content_area else 0.0
+
+
+def _single_pdf_line(drawing: dict[str, object]):
+    items = drawing.get("items", [])
+    if len(items) == 1 and items[0][0] == "l":
+        return items[0][1], items[0][2]
+    return None
+
+
+def _classify_pdf_line(start: object, end: object, blocks: list[dict[str, object]]) -> tuple[str, float]:
+    if abs(float(start.y) - float(end.y)) > 0.5:
+        return "line", 0.2
+    line_y = float(start.y)
+    line_x0, line_x1 = sorted((float(start.x), float(end.x)))
+    for block in blocks:
+        if block.get("type") != 0:
+            continue
+        x0, _y0, x1, y1 = (float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+        overlap = max(0.0, min(x1, line_x1) - max(x0, line_x0))
+        ratio = overlap / max(1.0, min(x1 - x0, line_x1 - line_x0))
+        if -2 <= line_y - y1 <= 5 and ratio >= 0.7:
+            return "underline", 0.95
+    return "line", 0.4
+
+
+def _detect_pdf_arrows(
+    drawings: list[dict[str, object]], page_index: int, order: int, claimed: set[int]
+) -> tuple[list[SourceArrowElement], set[int]]:
+    result: list[SourceArrowElement] = []
+    used: set[int] = set()
+    for shaft_index, shaft in enumerate(drawings):
+        if shaft_index in claimed or (line := _single_pdf_line(shaft)) is None:
+            continue
+        start, end = line
+        shaft_length = math.hypot(end.x - start.x, end.y - start.y) * PT_TO_MM
+        if shaft_length < 2:
+            continue
+        for head_index, head in enumerate(drawings):
+            if head_index in claimed or head_index == shaft_index:
+                continue
+            head_items = head.get("items", [])
+            if len(head_items) not in {2, 3} or any(item[0] != "l" for item in head_items):
+                continue
+            head_points = [point for item in head_items for point in item[1:3]]
+            matched_end = next((tip for tip in (start, end) if any(math.hypot(tip.x - point.x, tip.y - point.y) * PT_TO_MM <= 1.2 for point in head_points)), None)
+            if matched_end is None:
+                continue
+            result.append(SourceArrowElement(
+                f"page-{page_index + 1:03d}-arrow-{len(result) + 1:03d}",
+                order + len(result), page_index,
+                (SourcePoint(start.x * PT_TO_MM, start.y * PT_TO_MM), SourcePoint(end.x * PT_TO_MM, end.y * PT_TO_MM)),
+                matched_end is start, matched_end is end, "open",
+                _bbox(shaft.get("rect")), 0.95,
+            ))
+            used.update({shaft_index, head_index})
+            break
+    return result, used
+
+
+def _detect_pdf_table(
+    blocks: list[dict[str, object]], drawings: list[dict[str, object]], page_index: int, order: int
+) -> tuple[SourceTableElement | None, set[int], set[int]]:
+    horizontal: list[tuple[int, float, float, float]] = []
+    vertical: list[tuple[int, float, float, float]] = []
+    for index, drawing in enumerate(drawings):
+        if (line := _single_pdf_line(drawing)) is None:
+            continue
+        start, end = line
+        if abs(start.y - end.y) <= 0.5:
+            horizontal.append((index, float(start.y), min(start.x, end.x), max(start.x, end.x)))
+        elif abs(start.x - end.x) <= 0.5:
+            vertical.append((index, float(start.x), min(start.y, end.y), max(start.y, end.y)))
+    xs = sorted({round(item[1], 2) for item in vertical})
+    ys = sorted({round(item[1], 2) for item in horizontal})
+    if len(xs) < 3 or len(ys) < 3:
+        return None, set(), set()
+    left, right, top, bottom = xs[0], xs[-1], ys[0], ys[-1]
+    used_drawings = {
+        index for index, y, x0, x1 in horizontal if top <= y <= bottom and x0 <= left + 1 and x1 >= right - 1
+    } | {
+        index for index, x, y0, y1 in vertical if left <= x <= right and y0 <= top + 1 and y1 >= bottom - 1
+    }
+    if len(used_drawings) < len(xs) + len(ys):
+        return None, set(), set()
+    texts: dict[tuple[int, int], list[str]] = {}
+    used_blocks: set[int] = set()
+    for block_index, block in enumerate(blocks):
+        if block.get("type") != 0:
+            continue
+        bx0, by0, bx1, by1 = (float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+        cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
+        if not (left <= cx <= right and top <= cy <= bottom):
+            continue
+        column = min(len(xs) - 2, max(0, next((i for i in range(len(xs) - 1) if xs[i] <= cx <= xs[i + 1]), 0)))
+        row = min(len(ys) - 2, max(0, next((i for i in range(len(ys) - 1) if ys[i] <= cy <= ys[i + 1]), 0)))
+        text = " ".join("".join(span.get("text", "") for span in line.get("spans", [])) for line in block.get("lines", []))
+        texts.setdefault((row, column), []).append(text)
+        used_blocks.add(block_index)
+    cells = tuple(
+        SourceTableCell(row, column, 1, 1, (SourceParagraph((SourceTextRun(" ".join(texts.get((row, column), []))),)),))
+        for row in range(len(ys) - 1) for column in range(len(xs) - 1)
+    )
+    return SourceTableElement(
+        f"page-{page_index + 1:03d}-table-{order + 1:03d}", order, page_index,
+        len(ys) - 1, len(xs) - 1, cells,
+        tuple((xs[index + 1] - xs[index]) * PT_TO_MM for index in range(len(xs) - 1)),
+        SourceBBox(left * PT_TO_MM, top * PT_TO_MM, right * PT_TO_MM, bottom * PT_TO_MM),
+        source_kind="pdf-table",
+    ), used_blocks, used_drawings

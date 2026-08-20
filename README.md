@@ -89,6 +89,18 @@ anchored-рисунка и обтекает его текстом, а `preserve`
 `target-layout.svg`, `placement-overlay.svg` и `placement.json`. В отчёте раздел
 `document_layout` содержит displacement, scale, wrapping, overlap и overflow.
 
+## Семантические линии, стрелки и таблицы
+
+DOCX сохраняет single/double/words-only underline, VML-стрелки и структуру
+простых таблиц, включая horizontal/vertical merged cells и повтор header-row.
+Для PDF консервативно классифицируются line-based tables, стрелки,
+подчёркивания и обычные линии — один primitive может принадлежать только одному
+semantic object. Табличные shared borders строятся один раз.
+
+Флаг `--semantic-debug` создаёт `semantic-debug/classification.json` и SVG для
+исходных primitives, таблиц, стрелок и подчёркиваний. Счётчики находятся в
+разделе `semantic_objects` файла `report.json`.
+
 ## Профили скорости
 
 `safe` повторяет прежние Z и скорости и остаётся профилем по умолчанию.

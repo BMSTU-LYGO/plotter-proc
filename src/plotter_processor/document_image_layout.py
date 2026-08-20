@@ -6,9 +6,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from plotter_processor.document_models import (
+    SourceArrowElement,
     SourceDocument,
+    SourceLineElement,
     SourceMathElement,
     SourceRasterImageElement,
+    SourceTableElement,
     SourceTextElement,
     SourceVectorElement,
 )
@@ -206,6 +209,32 @@ def save_document_structure(
                             else {}
                         ),
                         **(
+                            {"semantic_role": element.semantic_role}
+                            if isinstance(element, SourceLineElement)
+                            else {}
+                        ),
+                        **(
+                            {
+                                "head_at_start": element.head_at_start,
+                                "head_at_end": element.head_at_end,
+                                "head_style": element.head_style,
+                                "confidence": element.confidence,
+                            }
+                            if isinstance(element, SourceArrowElement)
+                            else {}
+                        ),
+                        **(
+                            {
+                                "rows": element.rows,
+                                "columns": element.columns,
+                                "cells": len(element.cells),
+                                "repeat_header_rows": element.repeat_header_rows,
+                                "source_kind": element.source_kind,
+                            }
+                            if isinstance(element, SourceTableElement)
+                            else {}
+                        ),
+                        **(
                             {
                                 "expression": element.expression,
                                 "display_mode": element.display_mode,
@@ -286,6 +315,12 @@ def _element_type(element: object) -> str:
         return "raster-image"
     if isinstance(element, SourceMathElement):
         return "latex"
+    if isinstance(element, SourceLineElement):
+        return "line"
+    if isinstance(element, SourceArrowElement):
+        return "arrow"
+    if isinstance(element, SourceTableElement):
+        return "table"
     return "pdf-vector"
 
 

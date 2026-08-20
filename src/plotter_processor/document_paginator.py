@@ -5,9 +5,12 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from plotter_processor.document_models import (
+    SourceArrowElement,
     SourceDocument,
+    SourceLineElement,
     SourceMathElement,
     SourceRasterImageElement,
+    SourceTableElement,
     SourceTextElement,
     SourceVectorElement,
 )
@@ -29,6 +32,9 @@ from plotter_processor.layout_models import (
     rect_payload,
 )
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.shape_layout import arrow_strokes, line_strokes
+from plotter_processor.table_layout import layout_table_fragment, table_row_height
+from plotter_processor.text_decorations import build_underlines
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
 
@@ -66,6 +72,7 @@ class _PageState:
     exclusion_zones: list[ExclusionZone] = field(default_factory=list)
     line_boxes: list[RectMM] = field(default_factory=list)
     placements: list[dict[str, object]] = field(default_factory=list)
+    table_fragments: list[dict[str, object]] = field(default_factory=list)
 
     @property
     def has_content(self) -> bool:
@@ -127,6 +134,8 @@ def paginate_document(
     warnings = list(document.warnings)
     details: dict[str, dict[str, object]] = {}
     image_found = image_vectorized = image_strokes = image_points = vector_count = 0
+    underline_count = line_count_semantic = arrow_count = table_count = table_cells = 0
+    table_pages: set[tuple[str, int]] = set()
     formula_index = 0
     rendered_formulas: list[FormulaInfo] = []
     placement_records: list[dict[str, object]] = []
@@ -175,6 +184,7 @@ def paginate_document(
                 "formulas": [asdict(formula) for formula in state.formulas],
                 "placements": list(state.placements),
                 "line_boxes": [rect_payload(box) for box in state.line_boxes],
+                "table_fragments": list(state.table_fragments),
             },
         ))
         all_line_boxes.extend(
@@ -287,6 +297,7 @@ def paginate_document(
                     normalized_paragraphs.extend(normalized.split("\n"))
                 normalized_paragraphs = _merge_multiline_math_blocks(normalized_paragraphs)
                 for paragraph_index, paragraph in enumerate(normalized_paragraphs):
+                    paragraph_glyph_start = len(state.glyphs)
                     if not paragraph:
                         ensure_height(line_advance)
                         state.cursor_y += line_advance
@@ -449,6 +460,21 @@ def paginate_document(
                                 line_right - line_left,
                                 line_advance,
                             ))
+                    if paragraph_index < len(element.styled_paragraphs):
+                        decorations = build_underlines(
+                            element.styled_paragraphs[paragraph_index],
+                            state.glyphs[paragraph_glyph_start:],
+                            element_id=element.id,
+                            em_size_mm=em_size,
+                            **dict(_optional_mapping(
+                                _optional_mapping(layout_config, "text_decorations"),
+                                "underline",
+                            )),
+                        )
+                        for decoration in decorations:
+                            decoration.id = len(state.graphics)
+                            state.graphics.append(decoration)
+                        underline_count += len(decorations)
                         add_source_id(element.id)
                     if any(
                         _text_width(token, font, scale) > usable_width
@@ -468,6 +494,106 @@ def paginate_document(
                     "type": "text",
                     "characters": sum(map(len, element.paragraphs)),
                     "formulas": [asdict(formula) for formula in element_formulas],
+                }
+                continue
+
+            if isinstance(element, SourceTableElement):
+                if state.has_content:
+                    state.cursor_y += spacing_before
+                table_count += 1
+                table_cells += len(element.cells)
+                next_row = 0
+                fragment_index = 0
+                row_height = table_row_height(dict(size_options))
+                while next_row < element.rows:
+                    available = content_bottom - state.cursor_y
+                    rows_fit = int(available // row_height)
+                    if rows_fit <= 0:
+                        if not enabled:
+                            raise ValueError(OVERFLOW_ERROR)
+                        finish_page()
+                        continue
+                    headers = (
+                        list(range(element.repeat_header_rows))
+                        if next_row > 0 and element.repeat_header_rows
+                        else []
+                    )
+                    data_capacity = rows_fit - len(headers)
+                    if data_capacity <= 0:
+                        raise ValueError("Table header leaves no room for a data row")
+                    selected = headers + list(
+                        range(next_row, min(element.rows, next_row + data_capacity))
+                    )
+                    fragment = layout_table_fragment(
+                        element, selected, font, x=left, y=state.cursor_y,
+                        width=usable_width, size_options=dict(size_options),
+                    )
+                    for glyph in fragment.glyphs:
+                        state.glyphs.append(replace(
+                            glyph, glyph_index=len(state.glyphs),
+                            line_index=state.line_count + glyph.line_index,
+                        ))
+                    for stroke in fragment.strokes:
+                        state.graphics.append(replace(stroke, id=len(state.graphics)))
+                    state.line_count += max(1, len(selected))
+                    state.cursor_y += fragment.height_mm + spacing_after
+                    add_source_id(element.id)
+                    fragment_index += 1
+                    state.table_fragments.append({
+                        "table_id": element.id,
+                        "rows": selected,
+                        "continued_from_previous": next_row > 0,
+                        "continues_next": selected[-1] < element.rows - 1,
+                        "border_strokes": fragment.border_count,
+                    })
+                    table_pages.add((element.id, len(pages)))
+                    data_rows = [row for row in selected if row >= next_row]
+                    next_row = data_rows[-1] + 1
+                    if next_row < element.rows:
+                        finish_page()
+                details[element.id] = {
+                    "type": "table", "rows": element.rows, "columns": element.columns,
+                    "cells": len(element.cells),
+                    "merged_cells": sum(
+                        cell.row_span > 1 or cell.column_span > 1 for cell in element.cells
+                    ),
+                    "pages": sum(table_id == element.id for table_id, _ in table_pages),
+                }
+                continue
+
+            if isinstance(element, (SourceLineElement, SourceArrowElement)):
+                required_before = spacing_before if state.has_content else 0.0
+                source_strokes = (
+                    line_strokes(element) if isinstance(element, SourceLineElement)
+                    else arrow_strokes(element)
+                )
+                if not source_strokes:
+                    continue
+                xs = [point.x for stroke in source_strokes for point in stroke.points]
+                ys = [point.y for stroke in source_strokes for point in stroke.points]
+                width = max(xs) - min(xs)
+                height = max(ys) - min(ys)
+                ensure_height(required_before + max(height, 0.5))
+                state.cursor_y += required_before
+                x_offset = left - min(xs)
+                y_offset = state.cursor_y - min(ys)
+                for stroke in source_strokes:
+                    state.graphics.append(replace(
+                        stroke, id=len(state.graphics),
+                        points=[Point(point.x + x_offset, point.y + y_offset) for point in stroke.points],
+                    ))
+                state.cursor_y += max(height, 0.5) + spacing_after
+                add_source_id(element.id)
+                if isinstance(element, SourceLineElement):
+                    if element.semantic_role == "underline":
+                        underline_count += 1
+                    else:
+                        line_count_semantic += 1
+                else:
+                    arrow_count += 1
+                details[element.id] = {
+                    "type": "line" if isinstance(element, SourceLineElement) else "arrow",
+                    "strokes": len(source_strokes),
                 }
                 continue
 
@@ -800,6 +926,12 @@ def paginate_document(
         "images_skipped": image_found - image_vectorized,
         "image_strokes": image_strokes,
         "image_points": image_points,
+        "underlines": underline_count,
+        "generic_lines": line_count_semantic,
+        "arrows": arrow_count,
+        "tables": table_count,
+        "table_cells": table_cells,
+        "table_pages": len(table_pages),
     }
     latex_stats = {
         "enabled": renderer is not None,

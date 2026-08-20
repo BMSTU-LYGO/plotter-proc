@@ -37,6 +37,7 @@ from plotter_processor.multipage_gcode_exporter import generate_job_gcode
 from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import simplify_path_document
+from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.validator import validate_page_spec, validate_path_document
@@ -65,6 +66,7 @@ class PipelineOptions:
     pdf_layout: str | None = None
     document_layout: str | None = None
     layout_debug: bool = False
+    semantic_debug: bool = False
     paginate: bool | None = None
     page_numbers: bool | None = None
     page_pause_seconds: float | None = None
@@ -430,6 +432,12 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         handwriting = (
             handwriting_reports[0] if page_count == 1 else _aggregate_handwriting(handwriting_reports)
         )
+        if options.semantic_debug:
+            export_semantic_debug(
+                output_dir / "semantic-debug",
+                page,
+                [stroke for page_job in page_jobs for stroke in page_job.path_document.strokes],
+            )
         report = {
             "status": "ok",
             "pipeline": "ttf-centerline" if options.font_mode == "centerline" else "ttf-vector",
@@ -443,6 +451,16 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "layout_mode": document_layout_mode,
             },
             "document_layout": paginated.layout_statistics,
+            "semantic_objects": {
+                "underlines": paginated.import_statistics.get("underlines", 0),
+                "generic_lines": paginated.import_statistics.get("generic_lines", 0),
+                "arrows": paginated.import_statistics.get("arrows", 0),
+                "tables": paginated.import_statistics.get("tables", 0),
+                "table_cells": paginated.import_statistics.get("table_cells", 0),
+                "table_pages": paginated.import_statistics.get("table_pages", 0),
+                "classification_conflicts": 0,
+                "duplicate_primitives_suppressed": 0,
+            },
             "latex": {
                 **paginated.latex_statistics,
                 "requested_mode": options.latex,

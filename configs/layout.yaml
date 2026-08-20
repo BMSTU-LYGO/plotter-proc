@@ -55,6 +55,32 @@ document_layout:
     fallback: top_bottom
     max_placement_attempts: 20
 
+text_decorations:
+  underline:
+    offset_em: 0.12
+    double_gap_mm: 0.45
+    min_length_mm: 0.5
+    join_adjacent_runs_gap_mm: 0.3
+
+shapes:
+  arrows:
+    endpoint_tolerance_mm: 1.2
+    angle_tolerance_deg: 25
+    min_shaft_length_mm: 2.0
+    head_min_size_mm: 0.8
+    head_max_size_mm: 8.0
+    filled_head_mode: open_v
+
+tables:
+  draw_order: borders_first
+  max_cells: 10000
+  cell_padding_mm: 1.2
+  pdf_detection:
+    enabled: true
+    snap_tolerance_mm: 0.6
+    min_rows: 2
+    min_columns: 2
+
 pagination:
   enabled: true
   preserve_source_page_breaks: true

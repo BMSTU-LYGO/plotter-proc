@@ -4,9 +4,9 @@ import pymupdf
 from PIL import Image, ImageDraw
 
 from plotter_processor.document_models import (
+    SourceLineElement,
     SourceRasterImageElement,
     SourceTextElement,
-    SourceVectorElement,
 )
 from plotter_processor.structured_document_reader import read_structured_document
 
@@ -37,8 +37,8 @@ def test_pdf_extracts_text_two_image_placements_and_vector_line(tmp_path: Path) 
     images = [item for item in elements if isinstance(item, SourceRasterImageElement)]
     assert len(images) == 2
     assert images[0].image_path == images[1].image_path
-    vectors = [item for item in elements if isinstance(item, SourceVectorElement)]
-    assert vectors and vectors[0].strokes[0].segment_types == ("pdf-line",)
+    lines = [item for item in elements if isinstance(item, SourceLineElement)]
+    assert lines and lines[0].semantic_role == "line"
 
 
 def test_complex_pdf_fill_is_rasterized_with_warning(tmp_path: Path) -> None:

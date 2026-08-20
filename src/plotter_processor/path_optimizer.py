@@ -48,6 +48,8 @@ def _nearest_variant(
 
 def _orient(stroke: PlotterStroke, previous: Point) -> PlotterStroke:
     candidate = _copy_stroke(stroke)
+    if candidate.preserve_order:
+        return candidate
     if candidate.closed:
         start = min(
             range(len(candidate.points)),
