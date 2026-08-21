@@ -28,6 +28,17 @@ class SourceTextRun:
 class SourceParagraph:
     runs: tuple[SourceTextRun, ...]
     alignment: str | None = None
+    first_line_indent_mm: float | None = None
+    hanging_indent_mm: float | None = None
+    left_indent_mm: float | None = None
+    right_indent_mm: float | None = None
+    space_before_mm: float | None = None
+    space_after_mm: float | None = None
+    line_spacing: float | None = None
+    tab_stops_mm: tuple[float, ...] = ()
+    style_id: str | None = None
+    style_name: str | None = None
+    semantic_role: str | None = None
     bbox: SourceBBox | None = None
 
     @property

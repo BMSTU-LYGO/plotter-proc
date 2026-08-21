@@ -15,6 +15,7 @@ def export_layout_debug(
     *,
     trace_records: list[dict[str, object]] | None = None,
     content_rect: RectMM | None = None,
+    paragraph_records: list[dict[str, object]] | None = None,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -22,6 +23,7 @@ def export_layout_debug(
         "content_rect": _rect_payload(content_rect),
         "elements": placements,
         "text_line_boxes": line_boxes,
+        "paragraphs": paragraph_records or [],
     }
     (output_dir / "placement.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

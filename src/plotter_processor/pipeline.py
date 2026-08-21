@@ -160,6 +160,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         vector = _mapping(layout_config, "vector")
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
+        paragraph_options = _mapping(layout_config, "paragraphs")
         image_options = _mapping(layout_config, "images")
         latex_options = _mapping(layout_config, "latex")
         pagination_options = dict(_mapping(layout_config, "pagination"))
@@ -215,6 +216,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     strict_latex_quality=options.strict_latex_quality,
                     document_layout_mode=document_layout_mode,
                     document_layout_options=document_layout_options,
+                    paragraph_options=paragraph_options,
                     layout_debug_dir=(
                         output_dir / "layout-debug" if options.layout_debug else None
                     ),

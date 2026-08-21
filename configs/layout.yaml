@@ -153,6 +153,22 @@ layout:
   direction: ltr
   features: []
 
+paragraphs:
+  default_tab_interval_mm: 12.5
+  preserve_relative_font_size: true
+  source_body_font_size_pt: 12.0
+  min_font_scale: 0.80
+  max_font_scale: 1.60
+  max_extra_space_per_word_mm: 4.0
+  max_space_before_mm: 12.0
+  max_space_after_mm: 12.0
+  semantic_scale:
+    title: 1.35
+    heading_1: 1.25
+    heading_2: 1.15
+    heading_3: 1.08
+    body: 1.00
+
 centerline:
   algorithm_version: 6
   render:

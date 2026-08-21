@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
-from plotter_processor.document_models import SourceParagraph, SourceTableElement
+from plotter_processor.document_models import SourceTableElement
 from plotter_processor.font_loader import LoadedFont
-from plotter_processor.models import PageSpec, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.models import PlotterStroke, Point, PositionedGlyph
+from plotter_processor.paragraph_layout import layout_paragraph
 from plotter_processor.text_decorations import build_underlines
-from plotter_processor.vector_layout import layout_text
 
 
 @dataclass(slots=True)
@@ -31,6 +32,7 @@ def layout_table_fragment(
     y: float,
     width: float,
     size_options: dict[str, object],
+    paragraph_options: Mapping[str, object] | None = None,
 ) -> TableFragment:
     source_widths = list(table.column_widths_mm)
     if not source_widths or sum(source_widths) <= 0:
@@ -55,37 +57,47 @@ def layout_table_fragment(
                 continue
             for cc in range(cell.column, min(table.columns, cell.column + cell.column_span)):
                 occupied[(row_positions[rr], cc)] = cell_id
-        text = "\n".join(paragraph.text for paragraph in cell.paragraphs)
-        if not text:
+        if not any(paragraph.text for paragraph in cell.paragraphs):
             continue
         cell_x = x_edges[cell.column]
         cell_width = sum(columns[cell.column : cell.column + cell.column_span])
-        cell_height = row_height * min(cell.row_span, len(row_indices) - local_row)
-        result = layout_text(
-            text.splitlines() or [text],
-            font,
-            PageSpec("table-cell", cell_width, max(cell_height, 1000)),
-            {"left": 1.2, "right": 1.2, "top": 0.8, "bottom": 0.8},
-            size_options,
-        )
-        cell_glyphs: list[PositionedGlyph] = []
-        for glyph in result.glyphs:
-            positioned = PositionedGlyph(
-                glyph.char, glyph.codepoint, glyph.glyph_name,
-                cell_x + glyph.x_mm, y_edges[local_row] + glyph.baseline_y_mm,
-                glyph.advance_mm, glyph.scale_mm_per_font_unit, glyph.line_index,
-                len(glyphs), cell_index, glyph.cluster_index, glyph.font_id,
-                glyph.font_sha256, glyph.x_offset_font_units, glyph.y_offset_font_units,
+        cursor_y = y_edges[local_row] + 0.8
+        for paragraph in cell.paragraphs:
+            if not paragraph.text:
+                continue
+            result = layout_paragraph(
+                paragraph,
+                font,
+                content_left_mm=cell_x + 1.2,
+                content_right_mm=cell_x + cell_width - 1.2,
+                base_size_options=size_options,
+                paragraph_options=paragraph_options or {},
             )
-            glyphs.append(positioned)
-            cell_glyphs.append(positioned)
-        combined = SourceParagraph(tuple(
-            run for paragraph in cell.paragraphs for run in paragraph.runs
-        ))
-        decorations.extend(build_underlines(
-            combined, cell_glyphs, element_id=f"{table.id}-cell-{cell.row}-{cell.column}",
-            em_size_mm=float(size_options["em_size_mm"]),
-        ))
+            cursor_y += result.space_before_mm
+            paragraph_glyphs: list[PositionedGlyph] = []
+            for line_index, line in enumerate(result.lines):
+                line_scale = float(size_options["em_size_mm"]) / font.metrics.units_per_em
+                line_scale *= result.font_scale
+                baseline = cursor_y + font.metrics.ascent * line_scale
+                for glyph in line.glyphs:
+                    positioned = PositionedGlyph(
+                        glyph.char, glyph.codepoint, glyph.glyph_name,
+                        glyph.x_mm, baseline,
+                        glyph.advance_mm, glyph.scale_mm_per_font_unit, line_index,
+                        len(glyphs), cell_index, glyph.cluster_index, glyph.font_id,
+                        glyph.font_sha256, glyph.x_offset_font_units,
+                        glyph.y_offset_font_units,
+                    )
+                    glyphs.append(positioned)
+                    paragraph_glyphs.append(positioned)
+                cursor_y += line.advance_mm
+            cursor_y += result.space_after_mm
+            decorations.extend(build_underlines(
+                paragraph,
+                paragraph_glyphs,
+                element_id=f"{table.id}-cell-{cell.row}-{cell.column}",
+                em_size_mm=float(size_options["em_size_mm"]) * result.font_scale,
+            ))
     strokes: list[PlotterStroke] = []
     for boundary in range(table.columns + 1):
         active_start: int | None = None

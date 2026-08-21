@@ -5,7 +5,9 @@ from pathlib import Path
 from plotter_processor.document_models import (
     SourceDocument,
     SourcePage,
+    SourceParagraph,
     SourceTextElement,
+    SourceTextRun,
 )
 
 SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".txt"}
@@ -53,5 +55,12 @@ def _read_txt(path: Path) -> SourceDocument:
         raise ValueError(f"Cannot read TXT document: {path}") from error
     if not text.strip():
         raise ValueError(f"TXT document contains no usable text: {path}")
-    element = SourceTextElement("page-001-text-001", 0, 0, tuple(text.splitlines()))
+    paragraphs = tuple(text.splitlines())
+    styled = tuple(
+        SourceParagraph((SourceTextRun(paragraph),), semantic_role="body")
+        for paragraph in paragraphs
+    )
+    element = SourceTextElement(
+        "page-001-text-001", 0, 0, paragraphs, styled_paragraphs=styled
+    )
     return SourceDocument(path, (SourcePage(0, None, None, (element,)),))

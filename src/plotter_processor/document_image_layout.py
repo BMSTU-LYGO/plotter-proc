@@ -204,7 +204,26 @@ def save_document_structure(
                         "type": _element_type(element),
                         "source_bbox_mm": _bbox_payload(element.bbox),
                         **(
-                            {"paragraphs": list(element.paragraphs)}
+                            {
+                                "paragraphs": list(element.paragraphs),
+                                "paragraph_formatting": [
+                                    {
+                                        "alignment": paragraph.alignment,
+                                        "first_line_indent_mm": paragraph.first_line_indent_mm,
+                                        "hanging_indent_mm": paragraph.hanging_indent_mm,
+                                        "left_indent_mm": paragraph.left_indent_mm,
+                                        "right_indent_mm": paragraph.right_indent_mm,
+                                        "space_before_mm": paragraph.space_before_mm,
+                                        "space_after_mm": paragraph.space_after_mm,
+                                        "line_spacing": paragraph.line_spacing,
+                                        "tab_stops_mm": list(paragraph.tab_stops_mm),
+                                        "style_id": paragraph.style_id,
+                                        "style_name": paragraph.style_name,
+                                        "semantic_role": paragraph.semantic_role,
+                                    }
+                                    for paragraph in element.styled_paragraphs
+                                ],
+                            }
                             if isinstance(element, SourceTextElement)
                             else {}
                         ),

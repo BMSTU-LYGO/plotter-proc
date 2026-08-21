@@ -12,9 +12,11 @@ from plotter_processor.document_models import (
     SourceDocument,
     SourceLineElement,
     SourceMathElement,
+    SourceParagraph,
     SourceRasterImageElement,
     SourceTableElement,
     SourceTextElement,
+    SourceTextRun,
     SourceVectorElement,
 )
 from plotter_processor.font_loader import LoadedFont
@@ -35,6 +37,7 @@ from plotter_processor.layout_models import (
     rect_payload,
 )
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.paragraph_layout import layout_paragraph
 from plotter_processor.performance import StageTimings
 from plotter_processor.shape_layout import arrow_strokes, line_strokes
 from plotter_processor.table_layout import layout_table_fragment, table_row_height
@@ -114,6 +117,7 @@ def paginate_document(
     strict_latex_quality: bool | None = None,
     document_layout_mode: str = "reflow",
     document_layout_options: Mapping[str, object] | None = None,
+    paragraph_options: Mapping[str, object] | None = None,
     layout_debug_dir: Path | None = None,
     preserve_source_page_breaks: bool = True,
     tab_spaces: int = 4,
@@ -159,7 +163,9 @@ def paginate_document(
     placement_records: list[dict[str, object]] = []
     all_line_boxes: list[dict[str, object]] = []
     trace_records: list[dict[str, object]] = []
+    paragraph_records: list[dict[str, object]] = []
     layout_config = dict(document_layout_options or {})
+    paragraph_config = dict(paragraph_options or {})
     preserve_config = dict(_optional_mapping(layout_config, "preserve"))
     hybrid_config = dict(_optional_mapping(layout_config, "hybrid"))
     latex_config = dict(latex_options or {})
@@ -386,12 +392,32 @@ def paginate_document(
         for element in source_page.elements:
             if isinstance(element, SourceTextElement):
                 normalized_paragraphs: list[str] = []
-                for raw_paragraph in element.paragraphs:
+                normalized_models: list[SourceParagraph] = []
+                for raw_index, raw_paragraph in enumerate(element.paragraphs):
                     normalized, normalization_warnings = normalize_text(raw_paragraph)
                     warnings.extend(normalization_warnings)
-                    normalized_paragraphs.extend(normalized.split("\n"))
+                    pieces = normalized.split("\n")
+                    normalized_paragraphs.extend(pieces)
+                    source_model = (
+                        element.styled_paragraphs[raw_index]
+                        if raw_index < len(element.styled_paragraphs)
+                        else SourceParagraph((SourceTextRun(raw_paragraph),), semantic_role="body")
+                    )
+                    for piece in pieces:
+                        if piece == source_model.text:
+                            normalized_models.append(source_model)
+                        else:
+                            style = source_model.runs[0].style if source_model.runs else None
+                            run = SourceTextRun(piece, style) if style is not None else SourceTextRun(piece)
+                            normalized_models.append(replace(source_model, runs=(run,)))
                 normalized_paragraphs = _merge_multiline_math_blocks(normalized_paragraphs)
+                if len(normalized_models) != len(normalized_paragraphs):
+                    normalized_models = [
+                        SourceParagraph((SourceTextRun(text),), semantic_role="body")
+                        for text in normalized_paragraphs
+                    ]
                 for paragraph_index, paragraph in enumerate(normalized_paragraphs):
+                    paragraph_model = normalized_models[paragraph_index]
                     cursor_before = state.cursor_y
                     zones_before = _zone_payloads(state.exclusion_zones)
                     paragraph_glyph_start = len(state.glyphs)
@@ -581,15 +607,19 @@ def paginate_document(
                             zones_before,
                         )
                         continue
-                    tall_page = PageSpec("flow", page.width_mm, 1_000_000.0)
-                    tall_margins = dict(margins)
-                    tall_margins["top"] = 0.0
-                    tall_margins["bottom"] = 0.0
                     try:
-                        flowed = layout_text(
-                            [paragraph], font, tall_page, tall_margins, size_options,
-                            tab_spaces=tab_spaces, engine=engine, language=language,
-                            script=script, direction=direction, features=features,
+                        flowed = layout_paragraph(
+                            paragraph_model,
+                            font,
+                            content_left_mm=left,
+                            content_right_mm=left + usable_width,
+                            base_size_options=size_options,
+                            paragraph_options=paragraph_config,
+                            engine=engine,
+                            language=language,
+                            script=script,
+                            direction=direction,
+                            features=features,
                         )
                     except ValueError as error:
                         too_wide = next(
@@ -605,37 +635,60 @@ def paginate_document(
                                 f'Glyph "{too_wide}" is wider than the usable page width'
                             ) from error
                         raise
-                    line_groups: dict[int, list[PositionedGlyph]] = {}
-                    for glyph in flowed.glyphs:
-                        line_groups.setdefault(glyph.line_index, []).append(glyph)
-                    for line_index in range(flowed.line_count):
-                        ensure_height(glyph_height)
-                        source_line = line_groups.get(line_index, [])
-                        baseline = state.cursor_y + font.metrics.ascent * scale
+                    if flowed.space_before_mm:
+                        ensure_height(flowed.space_before_mm + flowed.lines[0].advance_mm)
+                        state.cursor_y += flowed.space_before_mm
+                    first_page_index = len(pages)
+                    first_line_left = flowed.lines[0].left_mm
+                    for source_line in flowed.lines:
+                        ensure_height(source_line.advance_mm)
+                        line_scale = scale * flowed.font_scale
+                        baseline = state.cursor_y + font.metrics.ascent * line_scale
                         global_line = state.line_count
-                        for glyph in source_line:
+                        for glyph in source_line.glyphs:
                             state.glyphs.append(replace(
                                 glyph,
                                 baseline_y_mm=baseline,
                                 line_index=global_line,
                                 glyph_index=len(state.glyphs),
                             ))
-                        state.cursor_y += line_advance
+                        state.cursor_y += source_line.advance_mm
                         state.line_count += 1
-                        if source_line:
-                            line_left = min(glyph.x_mm for glyph in source_line)
-                            line_right = max(
-                                glyph.x_mm + glyph.advance_mm for glyph in source_line
-                            )
+                        if source_line.glyphs:
                             state.line_boxes.append(RectMM(
-                                line_left,
-                                state.cursor_y - line_advance,
-                                line_right - line_left,
-                                line_advance,
+                                source_line.used_left_mm,
+                                state.cursor_y - source_line.advance_mm,
+                                source_line.used_right_mm - source_line.used_left_mm,
+                                source_line.advance_mm,
                             ))
-                    if paragraph_index < len(element.styled_paragraphs):
+                    paragraph_records.append({
+                        "paragraph_id": f"{element.id}-paragraph-{paragraph_index + 1:03d}",
+                        "source_element_id": element.id,
+                        "source_page_index": element.source_page_index,
+                        "target_page_start": first_page_index,
+                        "target_page_end": len(pages),
+                        "content_left_mm": round(left, 6),
+                        "paragraph_left_mm": round(flowed.lines[-1].left_mm, 6),
+                        "first_line_left_mm": round(first_line_left, 6),
+                        "paragraph_right_mm": round(flowed.lines[0].right_mm, 6),
+                        "baseline_mm": round(
+                            state.cursor_y - flowed.lines[-1].advance_mm
+                            + font.metrics.ascent * scale * flowed.font_scale,
+                            6,
+                        ),
+                        "semantic_role": paragraph_model.semantic_role or "body",
+                        "alignment": paragraph_model.alignment or "left",
+                        "left_indent_mm": paragraph_model.left_indent_mm or 0.0,
+                        "right_indent_mm": paragraph_model.right_indent_mm or 0.0,
+                        "first_line_indent_mm": paragraph_model.first_line_indent_mm or 0.0,
+                        "hanging_indent_mm": paragraph_model.hanging_indent_mm or 0.0,
+                        "tab_stops_mm": [round(value, 6) for value in flowed.tab_stops_mm],
+                        "line_count": len(flowed.lines),
+                        "font_scale": round(flowed.font_scale, 6),
+                    })
+                    if paragraph_model.runs:
                         decorations = build_underlines(
-                            element.styled_paragraphs[paragraph_index],
+                            paragraph_model,
                             state.glyphs[paragraph_glyph_start:],
                             element_id=element.id,
                             em_size_mm=em_size,
@@ -657,8 +710,13 @@ def paginate_document(
                     state.text_fragments.append(paragraph)
                     if paragraph_index < len(normalized_paragraphs) - 1:
                         state.text_fragments.append("\n")
-                    if state.cursor_y + paragraph_spacing <= content_bottom + 1e-9:
-                        state.cursor_y += paragraph_spacing
+                    effective_after = (
+                        flowed.space_after_mm
+                        if paragraph_model.space_after_mm is not None
+                        else paragraph_spacing
+                    )
+                    if state.cursor_y + effective_after <= content_bottom + 1e-9:
+                        state.cursor_y += effective_after
                     record_trace(
                         element, "text", cursor_before, "normal_flow", zones_before,
                     )
@@ -670,6 +728,10 @@ def paginate_document(
                     "type": "text",
                     "characters": sum(map(len, element.paragraphs)),
                     "formulas": [asdict(formula) for formula in element_formulas],
+                    "paragraphs": [
+                        item for item in paragraph_records
+                        if item["source_element_id"] == element.id
+                    ],
                 }
                 continue
 
@@ -703,6 +765,7 @@ def paginate_document(
                     fragment = layout_table_fragment(
                         element, selected, font, x=left, y=state.cursor_y,
                         width=usable_width, size_options=dict(size_options),
+                        paragraph_options=paragraph_config,
                     )
                     for glyph in fragment.glyphs:
                         state.glyphs.append(replace(
@@ -1240,6 +1303,7 @@ def paginate_document(
             all_line_boxes,
             trace_records=trace_records,
             content_rect=content_rect,
+            paragraph_records=paragraph_records,
         )
     return PaginatedLayout(
         pages,

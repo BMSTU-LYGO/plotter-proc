@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 
 from docx import Document
@@ -25,6 +26,27 @@ from plotter_processor.document_models import (
 from plotter_processor.omml_parser import parse_omml
 
 EMU_PER_MM = 36000.0
+TWIP_TO_MM = 25.4 / 1440.0
+
+
+@dataclass(frozen=True, slots=True)
+class _ParagraphFormat:
+    alignment: str | None = None
+    first_line_indent_mm: float | None = None
+    hanging_indent_mm: float | None = None
+    left_indent_mm: float | None = None
+    right_indent_mm: float | None = None
+    space_before_mm: float | None = None
+    space_after_mm: float | None = None
+    line_spacing: float | None = None
+    tab_stops_mm: tuple[float, ...] | None = None
+
+
+_ALIGNMENTS = {
+    "left": "left", "start": "left",
+    "right": "right", "end": "right",
+    "center": "center", "both": "justify", "distribute": "justify",
+}
 
 
 def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
@@ -40,6 +62,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         | SourceTableElement
     ] = []
     warnings: list[str] = []
+    paragraph_resolver = _ParagraphFormatResolver(document, warnings)
     asset_cache: dict[str, Path] = {}
     body = document.element.body
     section = document.sections[0]
@@ -220,7 +243,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             nonlocal emitted
             if not runs:
                 return
-            styled = SourceParagraph(tuple(runs), _paragraph_alignment(paragraph))
+            styled = paragraph_resolver.resolve(paragraph, tuple(runs))
             add_text(styled.text, styled=styled)
             runs.clear()
             emitted = True
@@ -253,7 +276,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
                 runs.append(SourceTextRun(run_text, _run_style(child, warnings)))
         flush()
         if not emitted:
-            add_text("", styled=SourceParagraph(()))
+            add_text("", styled=paragraph_resolver.resolve(paragraph, ()))
 
     def walk_container(container: object, *, table: bool = False) -> None:
         for child in container.iterchildren():
@@ -261,7 +284,9 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             if local == "p":
                 walk_paragraph(child, table=table)
             elif local == "tbl":
-                elements.append(_parse_table(child, len(elements), warnings))
+                elements.append(
+                    _parse_table(child, len(elements), warnings, paragraph_resolver)
+                )
 
     walk_container(body)
     return SourceDocument(
@@ -366,9 +391,164 @@ def _run_style(run: object, warnings: list[str]) -> SourceTextStyle:
     )
 
 
-def _paragraph_alignment(paragraph: object) -> str | None:
-    values = paragraph.xpath("./*[local-name()='pPr']/*[local-name()='jc']/@*[local-name()='val']")
-    return str(values[0]) if values else None
+class _ParagraphFormatResolver:
+    """Resolve effective DOCX paragraph properties without leaking Word styles downstream."""
+
+    def __init__(self, document: object, warnings: list[str]) -> None:
+        self.warnings = warnings
+        styles_root = document.styles.element
+        defaults = styles_root.xpath(
+            "./*[local-name()='docDefaults']/*[local-name()='pPrDefault']/*[local-name()='pPr']"
+        )
+        self.defaults = _read_paragraph_properties(defaults[0], warnings) if defaults else _ParagraphFormat()
+        self.styles: dict[str, object] = {}
+        for style in styles_root.xpath("./*[local-name()='style']"):
+            style_id = style.get(qn("w:styleId"))
+            if style_id:
+                self.styles[str(style_id)] = style
+
+    def resolve(self, paragraph: object, runs: tuple[SourceTextRun, ...]) -> SourceParagraph:
+        ppr = paragraph.find(qn("w:pPr"))
+        style_id = None
+        if ppr is not None:
+            style_node = ppr.find(qn("w:pStyle"))
+            if style_node is not None:
+                style_id = style_node.get(qn("w:val"))
+        style_chain = self._style_chain(style_id)
+        effective = self.defaults
+        style_name = None
+        for style in style_chain:
+            names = style.xpath("./*[local-name()='name']/@*[local-name()='val']")
+            if names:
+                style_name = str(names[0])
+            properties = style.xpath("./*[local-name()='pPr']")
+            if properties:
+                effective = _merge_paragraph_format(
+                    effective, _read_paragraph_properties(properties[0], self.warnings)
+                )
+        if ppr is not None:
+            effective = _merge_paragraph_format(
+                effective, _read_paragraph_properties(ppr, self.warnings)
+            )
+        role = _semantic_role(style_id, style_name)
+        return SourceParagraph(
+            runs=runs,
+            alignment=effective.alignment,
+            first_line_indent_mm=effective.first_line_indent_mm,
+            hanging_indent_mm=effective.hanging_indent_mm,
+            left_indent_mm=effective.left_indent_mm,
+            right_indent_mm=effective.right_indent_mm,
+            space_before_mm=effective.space_before_mm,
+            space_after_mm=effective.space_after_mm,
+            line_spacing=effective.line_spacing,
+            tab_stops_mm=effective.tab_stops_mm or (),
+            style_id=style_id,
+            style_name=style_name,
+            semantic_role=role,
+        )
+
+    def _style_chain(self, style_id: str | None) -> list[object]:
+        chain: list[object] = []
+        seen: set[str] = set()
+        current = style_id
+        while current and current not in seen and current in self.styles:
+            seen.add(current)
+            style = self.styles[current]
+            chain.append(style)
+            based_on = style.xpath("./*[local-name()='basedOn']/@*[local-name()='val']")
+            current = str(based_on[0]) if based_on else None
+        if current in seen:
+            self.warnings.append(f"docx_paragraph_style_cycle:{current}")
+        chain.reverse()
+        return chain
+
+
+def _read_paragraph_properties(properties: object, warnings: list[str]) -> _ParagraphFormat:
+    alignment_values = properties.xpath("./*[local-name()='jc']/@*[local-name()='val']")
+    alignment = None
+    if alignment_values:
+        raw_alignment = str(alignment_values[0])
+        alignment = _ALIGNMENTS.get(raw_alignment, "left")
+        if raw_alignment not in _ALIGNMENTS:
+            warnings.append(f"docx_paragraph_alignment_approximated:{raw_alignment}")
+
+    indent_nodes = properties.xpath("./*[local-name()='ind']")
+    indent = indent_nodes[0] if indent_nodes else None
+    spacing_nodes = properties.xpath("./*[local-name()='spacing']")
+    spacing = spacing_nodes[0] if spacing_nodes else None
+    tabs: list[float] | None = None
+    tab_nodes = properties.xpath("./*[local-name()='tabs']/*[local-name()='tab']")
+    if tab_nodes:
+        tabs = []
+        for tab in tab_nodes:
+            kind = tab.get(qn("w:val"), "left")
+            position = tab.get(qn("w:pos"))
+            if kind == "clear":
+                if position is not None:
+                    cleared = float(position) * TWIP_TO_MM
+                    tabs = [value for value in tabs if abs(value - cleared) > 1e-6]
+                continue
+            if kind != "left":
+                warnings.append(f"docx_tab_stop_approximated:{kind}")
+            if position is not None and kind != "bar":
+                tabs.append(float(position) * TWIP_TO_MM)
+
+    line_spacing = None
+    if spacing is not None and spacing.get(qn("w:line")) is not None:
+        raw_line = float(spacing.get(qn("w:line")))
+        rule = spacing.get(qn("w:lineRule"), "auto")
+        if rule == "auto":
+            line_spacing = raw_line / 240.0
+        else:
+            warnings.append(f"docx_line_spacing_approximated:{rule}")
+            line_spacing = max(1.0, raw_line / 240.0)
+
+    return _ParagraphFormat(
+        alignment=alignment,
+        first_line_indent_mm=_twip_attribute(indent, "firstLine"),
+        hanging_indent_mm=_twip_attribute(indent, "hanging"),
+        left_indent_mm=_twip_attribute(indent, "left", "start"),
+        right_indent_mm=_twip_attribute(indent, "right", "end"),
+        space_before_mm=_twip_attribute(spacing, "before"),
+        space_after_mm=_twip_attribute(spacing, "after"),
+        line_spacing=line_spacing,
+        tab_stops_mm=tuple(sorted(set(tabs))) if tabs is not None else None,
+    )
+
+
+def _twip_attribute(node: object | None, *names: str) -> float | None:
+    if node is None:
+        return None
+    for name in names:
+        value = node.get(qn(f"w:{name}"))
+        if value is not None:
+            return float(value) * TWIP_TO_MM
+    return None
+
+
+def _merge_paragraph_format(
+    base: _ParagraphFormat, override: _ParagraphFormat
+) -> _ParagraphFormat:
+    values = {
+        field: getattr(override, field)
+        if getattr(override, field) is not None
+        else getattr(base, field)
+        for field in _ParagraphFormat.__dataclass_fields__
+    }
+    return _ParagraphFormat(**values)
+
+
+def _semantic_role(style_id: str | None, style_name: str | None) -> str:
+    normalized = " ".join(filter(None, (style_id, style_name))).casefold().replace("_", " ")
+    if "title" in normalized or "назван" in normalized:
+        return "title"
+    for level in (1, 2, 3):
+        if any(
+            marker in normalized
+            for marker in (f"heading {level}", f"heading{level}", f"заголовок {level}")
+        ):
+            return f"heading_{level}"
+    return "body"
 
 
 def _vml_point(value: str) -> SourcePoint:
@@ -386,7 +566,12 @@ def _vml_length(value: str) -> float:
     return float(value) * 25.4 / 72
 
 
-def _parse_table(table: object, order: int, warnings: list[str]) -> SourceTableElement:
+def _parse_table(
+    table: object,
+    order: int,
+    warnings: list[str],
+    paragraph_resolver: _ParagraphFormatResolver,
+) -> SourceTableElement:
     grid_values = table.xpath(
         "./*[local-name()='tblGrid']/*[local-name()='gridCol']/@*[local-name()='w']"
     )
@@ -419,7 +604,7 @@ def _parse_table(table: object, order: int, warnings: list[str]) -> SourceTableE
                 column += column_span
                 continue
             paragraphs = tuple(
-                _xml_paragraph_model(paragraph, warnings)
+                _xml_paragraph_model(paragraph, warnings, paragraph_resolver)
                 for paragraph in cell.xpath("./*[local-name()='p']")
             ) or (SourceParagraph(()),)
             width_values = cell.xpath(
@@ -457,12 +642,25 @@ def _parse_table(table: object, order: int, warnings: list[str]) -> SourceTableE
     )
 
 
-def _xml_paragraph_model(paragraph: object, warnings: list[str]) -> SourceParagraph:
+def _xml_paragraph_model(
+    paragraph: object,
+    warnings: list[str],
+    paragraph_resolver: _ParagraphFormatResolver,
+) -> SourceParagraph:
     runs: list[SourceTextRun] = []
     for run in paragraph.xpath("./*[local-name()='r']"):
-        text = "".join(run.xpath(".//*[local-name()='t']/text()"))
+        parts: list[str] = []
+        for child in run.iterchildren():
+            local = child.tag.rsplit("}", 1)[-1]
+            if local == "t":
+                parts.append(child.text or "")
+            elif local == "tab":
+                parts.append("\t")
+            elif local == "br":
+                parts.append("\n")
+        text = "".join(parts)
         if text:
             runs.append(SourceTextRun(text, _run_style(run, warnings)))
         if run.xpath(".//*[local-name()='drawing' or local-name()='pict']"):
             warnings.append("docx_table_embedded_object_not_supported")
-    return SourceParagraph(tuple(runs), _paragraph_alignment(paragraph))
+    return paragraph_resolver.resolve(paragraph, tuple(runs))

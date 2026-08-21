@@ -22,6 +22,7 @@ from plotter_processor.document_models import (
     SourceTableElement,
     SourceTextElement,
     SourceTextRun,
+    SourceTextStyle,
     SourceVectorElement,
 )
 from plotter_processor.models import PlotterStroke, Point
@@ -56,6 +57,17 @@ def read_pdf_document(
             ] = []
             order = 0
             blocks = page.get_text("dict", sort=False).get("blocks", [])
+            page_font_sizes = [
+                float(span.get("size", 0.0))
+                for block in blocks
+                for line in block.get("lines", [])
+                for span in line.get("spans", [])
+                if float(span.get("size", 0.0)) > 0
+            ]
+            body_font_size = (
+                sorted(page_font_sizes)[len(page_font_sizes) // 2]
+                if page_font_sizes else None
+            )
             drawings = page.get_drawings()
             options = math_options or {}
             drawing_rects = [
@@ -179,10 +191,11 @@ def read_pdf_document(
                     continue
                 bbox = _bbox(block.get("bbox"))
                 if block.get("type") == 0:
-                    paragraphs = tuple(
-                        "".join(span.get("text", "") for span in line.get("spans", []))
+                    styled_paragraphs = tuple(
+                        _pdf_paragraph_model(line, page.rect.width, body_font_size)
                         for line in block.get("lines", [])
                     )
+                    paragraphs = tuple(item.text for item in styled_paragraphs)
                     if any(item.strip() for item in paragraphs):
                         elements.append(
                             SourceTextElement(
@@ -191,6 +204,7 @@ def read_pdf_document(
                                 page_index,
                                 paragraphs,
                                 bbox,
+                                styled_paragraphs,
                             )
                         )
                         order += 1
@@ -308,6 +322,51 @@ def read_pdf_document(
     finally:
         document.close()
     return SourceDocument(path, tuple(pages), tuple(dict.fromkeys(warnings)))
+
+
+def _pdf_paragraph_model(
+    line: dict[str, object], page_width_pt: float, body_font_size: float | None
+) -> SourceParagraph:
+    spans = line.get("spans", [])
+    if not isinstance(spans, list):
+        spans = []
+    runs = tuple(
+        SourceTextRun(
+            str(span.get("text", "")),
+            SourceTextStyle(
+                bold="bold" in str(span.get("font", "")).casefold(),
+                italic="italic" in str(span.get("font", "")).casefold(),
+                font_size_pt=float(span["size"]) if span.get("size") else None,
+            ),
+        )
+        for span in spans
+        if span.get("text")
+    )
+    raw_bbox = line.get("bbox")
+    bbox = _bbox(raw_bbox)
+    alignment = None
+    if isinstance(raw_bbox, (list, tuple)) and len(raw_bbox) == 4:
+        x0, _, x1, _ = map(float, raw_bbox)
+        line_width = x1 - x0
+        center_error = abs((x0 + x1) / 2.0 - page_width_pt / 2.0)
+        if line_width < page_width_pt * 0.80 and center_error <= 8.5:  # about 3 mm
+            alignment = "center"
+    sizes = [run.style.font_size_pt for run in runs if run.style.font_size_pt]
+    average_size = sum(sizes) / len(sizes) if sizes else None
+    semantic_role = "body"
+    if (
+        body_font_size
+        and average_size
+        and average_size >= body_font_size * 1.5
+        and len("".join(run.text for run in runs)) <= 120
+    ):
+        semantic_role = "heading_1"
+    return SourceParagraph(
+        runs,
+        alignment=alignment,
+        semantic_role=semantic_role,
+        bbox=bbox,
+    )
 
 
 def _convert_drawing(
