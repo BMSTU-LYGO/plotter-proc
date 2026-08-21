@@ -157,7 +157,7 @@ npx draw-your-font make page-1.jpg page-2.jpg --name "My Hand"
 ```
 
 При первом запуске уникальные глифы компилируются в
-`.plotter-cache/font-cache`. Этот постоянный кеш отделён от результатов в
+`1-font-cache`. Этот постоянный кеш отделён от результатов в
 `build`, поэтому очистка старых заданий его не удаляет.
 Последующие запуски используют частичный кеш. Отдельная предварительная
 компиляция:
@@ -182,6 +182,39 @@ Centerline — автоматическое приближение. Сложны
 настройки `configs/layout.yaml`; качество результата ограничено качеством TTF.
 Перед печатью обязательно проверьте `font-preview.svg`,
 `centerline-font-preview.svg`, `plotter-preview.svg` и предупреждения отчёта.
+
+### Постоянный centerline cache
+
+Canonical cache хранится в `1-font-cache`, отдельно от job artifacts
+в `build/`. Namespace имеет вид
+`<font-sha256>/<centerline-config-fingerprint>/centerlines.json`; рядом атомарно
+записывается `metadata.json`. В identity входят содержимое TTF, версия алгоритма,
+render/skeleton/routing/stroke/quality settings, glyph/font overrides и содержимое
+glyph patch. Формат страницы, margins, pagination, machine и G-code settings cache
+не инвалидируют.
+
+```bash
+make clean                         # удаляет только build
+make cache-clean                   # явно удаляет весь reusable cache
+make font-cache-rebuild FONT=assets/1.ttf
+make font-cache-status FONT=assets/1.ttf
+```
+
+`font-cache-rebuild` компилирует воспроизводимый corpus из
+`assets/font-cache-corpus.txt`. Другой corpus можно передать через
+`FONT_CACHE_CORPUS=assets/custom-corpus.txt`. Rebuild одного TTF обновляет только
+его namespace и не удаляет кеши других шрифтов.
+
+При обычном `run --force-centerline-rebuild` принудительно пересобираются только
+глифы текущего документа. `compile-centerline-font --force` пересобирает весь
+переданный `--text-file`/`--chars`, сохраняя прочие валидные entries того же
+namespace. Без `--force` компилируются только misses. Изменение алгоритма или
+релевантного fingerprint автоматически выбирает новый namespace, поэтому ручная
+очистка для корректности не требуется.
+
+Если менялся только layout, достаточно `make test`. После изменений skeleton,
+routing, threshold, smoothing, cache schema или overrides выполните
+`make font-cache-rebuild FONT=assets/1.ttf`.
 
 Quality v3 сравнивает `skeletonize` и `medial_axis` по геометрии и
 топологии, нормализует junction-кластеры и удаляет spur относительно

@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
+from plotter_processor.centerline_font.cache import cache_status
 from plotter_processor.centerline_font.compiler import compile_centerline_font
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.glyph_tuner import tune_glyphs
@@ -187,6 +189,8 @@ def _compare_jobs(args: argparse.Namespace) -> int:
 def _compile_centerline(args: argparse.Namespace) -> int:
     try:
         config = load_centerline_config(load_yaml(args.layout_config))
+        if args.cache_directory is not None:
+            config = replace(config, cache_directory=args.cache_directory)
         chars = set(args.chars or "")
         if args.text_file:
             chars.update(args.text_file.read_text(encoding="utf-8"))
@@ -211,6 +215,19 @@ def _compile_centerline(args: argparse.Namespace) -> int:
         f"Compiled {len(compiled.glyphs)} glyphs to {output}; "
         f"cache hits={compiled.cache_hits}, misses={compiled.cache_misses}; preview={preview}"
     )
+    return 0
+
+
+def _font_cache_info(args: argparse.Namespace) -> int:
+    try:
+        config = load_centerline_config(load_yaml(args.layout_config))
+        if args.cache_directory is not None:
+            config = replace(config, cache_directory=args.cache_directory)
+        result = cache_status(args.font, config)
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -331,9 +348,20 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--preview", type=Path)
     compile_parser.add_argument("--debug-dir", type=Path)
     compile_parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
+    compile_parser.add_argument("--cache-directory", type=Path)
     compile_parser.add_argument("--force", action="store_true")
     compile_parser.add_argument("--strict-quality", action="store_true")
     compile_parser.set_defaults(handler=_compile_centerline)
+
+    cache_info_parser = commands.add_parser(
+        "font-cache-info", help="Inspect the reusable centerline cache for one TTF font."
+    )
+    cache_info_parser.add_argument("font", type=Path)
+    cache_info_parser.add_argument(
+        "--layout-config", type=Path, default=Path("configs/layout.yaml")
+    )
+    cache_info_parser.add_argument("--cache-directory", type=Path)
+    cache_info_parser.set_defaults(handler=_font_cache_info)
 
     tune_parser = commands.add_parser(
         "tune-centerline-glyphs", help="Search a bounded centerline parameter grid."

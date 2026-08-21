@@ -105,7 +105,7 @@ def compose_manifest(
                     formula_count = latex_expressions - previous_formula_index
                 else:
                     added, used_fallbacks, connection_metrics = _text_strokes(
-                        document, element, page, layout_config, output_dir, connections
+                        document, element, page, layout_config, connections
                     )
                     formula_count = 0
                     if contains_latex(element.text):
@@ -194,7 +194,7 @@ def compose_manifest(
         return CompositionResult("error", report_path, str(error))
 
 
-def _text_strokes(document, element, page, layout_config, output_dir, connections):
+def _text_strokes(document, element, page, layout_config, connections):
     sizes = layout_config["sizes"]
     if element.size not in sizes:
         raise ValueError(f"Unknown text size: {element.size}")
@@ -246,7 +246,6 @@ def _text_strokes(document, element, page, layout_config, output_dir, connection
                     source.path,
                     {glyph.char for glyph in glyphs},
                     config,
-                    cache_path=output_dir / f".{source.sha256}.centerline-cache.json",
                 )
                 paths = build_centerline_paths(compiled, glyphs, page)
             else:
@@ -363,7 +362,6 @@ def _latex_text_strokes(
                 document.primary_font,
                 {glyph.char for glyph in glyphs},
                 config,
-                cache_path=output_dir / ".latex-centerline-cache.json",
             )
             paths = build_centerline_paths(compiled, glyphs, page)
         else:

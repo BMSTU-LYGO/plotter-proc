@@ -9,7 +9,7 @@ from plotter_processor.config import load_yaml
 def test_loads_project_centerline_config() -> None:
     config = load_centerline_config(load_yaml(Path("configs/layout.yaml")))
     assert config.em_resolution_px == 2048
-    assert config.cache_directory == Path(".plotter-cache/font-cache")
+    assert config.cache_directory == Path("1-font-cache")
 
 
 def test_rejects_low_render_resolution() -> None:
