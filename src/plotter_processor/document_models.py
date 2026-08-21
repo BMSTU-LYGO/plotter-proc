@@ -197,6 +197,10 @@ class SourceTableElement:
     bbox: SourceBBox | None = None
     repeat_header_rows: int = 0
     source_kind: str = "docx-table"
+    alignment: str | None = None
+    left_indent_mm: float | None = None
+    preferred_width_mm: float | None = None
+    row_heights_mm: tuple[float | None, ...] = ()
 
 
 SourceElement: TypeAlias = (
@@ -216,6 +220,7 @@ class SourcePage:
     width_pt: float | None
     height_pt: float | None
     elements: tuple[SourceElement, ...]
+    content_bbox: SourceBBox | None = None
 
     @property
     def width_mm(self) -> float | None:

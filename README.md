@@ -317,3 +317,33 @@ Cold/warm benchmark конвертации также вынесен из pytest
 
 В JSON сохраняются отдельный cold run, warm runs, median, stage timings и
 cache hits/misses. Тесты работают без сети, принтера и системных TTF.
+
+## Абзацное форматирование
+
+DOCX-абзацы сохраняют выравнивание `left`, `center`, `right` и `justify`,
+красную строку, левые/правые отступы и пользовательские tab stops. Стили
+Title и Heading переносятся как семантические роли, а не как пробелы.
+
+## Centerline cache
+
+Постоянный cache глифов лежит в `1-font-cache` в корне проекта.
+
+```bash
+make font-cache-rebuild FONT=assets/1.ttf
+make font-cache-status FONT=assets/1.ttf
+make cache-clean
+```
+
+`make clean` удаляет только build-артефакты и не удаляет `1-font-cache`.
+
+## A4/A5 document scaling
+
+При изменении формата листа единый `PageTransform` равномерно сопоставляет source
+content box с target content box. Рисунки сохраняют пропорции, поворот и
+left/center/right affinity. Таблицы сохраняют пропорции колонок, автоматически
+увеличивают строки и делятся между строками при переносе на следующую страницу.
+
+- `reflow` — переверстать текст и блочные объекты.
+- `hybrid` — reflow текста с сохранением логической позиции floating-объектов.
+- `preserve` — перенести source geometry через `PageTransform`.
+- `auto` — выбрать безопасный режим по типу входного документа.

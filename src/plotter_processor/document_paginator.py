@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field, replace
@@ -28,19 +29,23 @@ from plotter_processor.latex_renderer import math_renderer_from_options, render_
 from plotter_processor.layout_debug import export_layout_debug
 from plotter_processor.layout_models import (
     ExclusionZone,
+    PageTransform,
     RectMM,
     available_intervals,
     center_displacement,
     choose_widest_interval,
     intersection_area,
-    map_source_rect,
     rect_payload,
 )
 from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.paragraph_layout import layout_paragraph
 from plotter_processor.performance import StageTimings
 from plotter_processor.shape_layout import arrow_strokes, line_strokes
-from plotter_processor.table_layout import layout_table_fragment, table_row_height
+from plotter_processor.table_layout import (
+    layout_table_fragment,
+    plan_table_layout,
+    protected_row_end,
+)
 from plotter_processor.text_decorations import build_underlines
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
@@ -118,6 +123,7 @@ def paginate_document(
     document_layout_mode: str = "reflow",
     document_layout_options: Mapping[str, object] | None = None,
     paragraph_options: Mapping[str, object] | None = None,
+    table_options: Mapping[str, object] | None = None,
     layout_debug_dir: Path | None = None,
     preserve_source_page_breaks: bool = True,
     tab_spaces: int = 4,
@@ -164,8 +170,10 @@ def paginate_document(
     all_line_boxes: list[dict[str, object]] = []
     trace_records: list[dict[str, object]] = []
     paragraph_records: list[dict[str, object]] = []
+    page_transform_records: list[dict[str, object]] = []
     layout_config = dict(document_layout_options or {})
     paragraph_config = dict(paragraph_options or {})
+    table_config = dict(table_options or {})
     preserve_config = dict(_optional_mapping(layout_config, "preserve"))
     hybrid_config = dict(_optional_mapping(layout_config, "hybrid"))
     latex_config = dict(latex_options or {})
@@ -293,6 +301,31 @@ def paginate_document(
     for source_page_position, source_page in enumerate(document.pages):
         if source_page_position and preserve_source_page_breaks and state.has_content:
             finish_page()
+        source_width = source_page.width_mm or page.width_mm
+        source_height = source_page.height_mm or page.height_mm
+        source_content = (
+            RectMM(
+                source_page.content_bbox.x0,
+                source_page.content_bbox.y0,
+                source_page.content_bbox.width,
+                source_page.content_bbox.height,
+            )
+            if source_page.content_bbox is not None
+            else None
+        )
+        page_transform = PageTransform.create(
+            source_width,
+            source_height,
+            content_rect,
+            source_content_rect=source_content,
+            max_upscale=float(preserve_config.get("max_upscale", 1.10)),
+        )
+        transform_payload = page_transform.payload()
+        transform_payload["target_width_mm"] = page.width_mm
+        transform_payload["target_height_mm"] = page.height_mm
+        transform_payload["source_page_index"] = source_page.source_page_index
+        transform_payload["target_page_start"] = len(pages)
+        page_transform_records.append(transform_payload)
         preplacements: dict[str, AnchoredPlacement] = {}
         if document_layout_mode != "reflow":
             provisional: list[dict[str, object]] = []
@@ -313,13 +346,13 @@ def paginate_document(
                         content_bottom - top,
                         default_width_ratio,
                         max_height_ratio,
+                        page_transform.scale,
                     )
                     candidate_mapped = _mapped_element_rect(
-                        candidate.bbox,
-                        source_page.width_mm,
-                        source_page.height_mm,
-                        content_rect,
-                        float(preserve_config.get("max_upscale", 1.10)),
+                        candidate.bbox, page_transform
+                    )
+                    candidate_width, candidate_height = _rotated_size(
+                        candidate_width, candidate_height, candidate.rotation_deg
                     )
                     candidate_rect, candidate_wrap, candidate_warnings = _place_raster(
                         candidate,
@@ -335,14 +368,13 @@ def paginate_document(
                     )
                 elif isinstance(candidate, SourceVectorElement):
                     candidate_width, candidate_height = _vector_size(
-                        candidate, usable_width, content_bottom - top
+                        candidate,
+                        usable_width,
+                        content_bottom - top,
+                        page_transform.scale,
                     )
                     candidate_mapped = _mapped_element_rect(
-                        candidate.bbox,
-                        source_page.width_mm,
-                        source_page.height_mm,
-                        content_rect,
-                        float(preserve_config.get("max_upscale", 1.10)),
+                        candidate.bbox, page_transform
                     )
                     candidate_rect, candidate_wrap, candidate_warnings = _place_vector(
                         candidate,
@@ -740,33 +772,93 @@ def paginate_document(
                     state.cursor_y += spacing_before
                 table_count += 1
                 table_cells += len(element.cells)
+                table_plan = plan_table_layout(
+                    element,
+                    font,
+                    available_width_mm=usable_width,
+                    page_scale=page_transform.scale,
+                    size_options=size_options,
+                    paragraph_options=paragraph_config,
+                    table_options=table_config,
+                )
+                state.warnings.extend(table_plan.warnings)
+                table_x, table_affinity = _table_x(
+                    element,
+                    table_plan.width_mm,
+                    content_rect,
+                    page_transform,
+                )
+                mapped_table = _mapped_element_rect(element.bbox, page_transform)
+                if (
+                    document_layout_mode == "preserve"
+                    and mapped_table is not None
+                    and not state.has_content
+                ):
+                    state.cursor_y = max(top, mapped_table.y)
                 next_row = 0
                 fragment_index = 0
-                row_height = table_row_height(dict(size_options))
                 while next_row < element.rows:
                     available = content_bottom - state.cursor_y
-                    rows_fit = int(available // row_height)
-                    if rows_fit <= 0:
-                        if not enabled:
-                            raise ValueError(OVERFLOW_ERROR)
-                        finish_page()
-                        continue
                     headers = (
                         list(range(element.repeat_header_rows))
                         if next_row > 0 and element.repeat_header_rows
                         else []
                     )
-                    data_capacity = rows_fit - len(headers)
-                    if data_capacity <= 0:
-                        raise ValueError("Table header leaves no room for a data row")
-                    selected = headers + list(
-                        range(next_row, min(element.rows, next_row + data_capacity))
+                    header_height = sum(
+                        table_plan.row_heights_mm[row] for row in headers
                     )
+                    selected = list(headers)
+                    used_height = header_height
+                    candidate = next_row
+                    while candidate < element.rows:
+                        group_end = protected_row_end(element, candidate)
+                        group_rows = list(range(candidate, group_end))
+                        group_height = sum(
+                            table_plan.row_heights_mm[row] for row in group_rows
+                        )
+                        if selected and used_height + group_height > available + 1e-9:
+                            break
+                        if not selected and group_height > available + 1e-9:
+                            break
+                        selected.extend(group_rows)
+                        used_height += group_height
+                        candidate = group_end
+                    data_rows = [row for row in selected if row >= next_row]
+                    if not data_rows:
+                        if not enabled:
+                            raise ValueError(OVERFLOW_ERROR)
+                        full_available = content_bottom - top
+                        group_end = protected_row_end(element, next_row)
+                        group_height = sum(
+                            table_plan.row_heights_mm[row]
+                            for row in range(next_row, group_end)
+                        )
+                        if state.has_content or state.cursor_y > top + 1e-9:
+                            finish_page()
+                            continue
+                        if header_height + group_height > full_available + 1e-9:
+                            state.warnings.append(
+                                f"table_row_span_group_taller_than_page:{element.id}:{next_row}"
+                            )
+                            selected = headers + list(range(next_row, group_end))
+                            data_rows = list(range(next_row, group_end))
+                        else:
+                            finish_page()
+                            continue
                     fragment = layout_table_fragment(
-                        element, selected, font, x=left, y=state.cursor_y,
-                        width=usable_width, size_options=dict(size_options),
+                        element,
+                        selected,
+                        font,
+                        x=table_x,
+                        y=state.cursor_y,
+                        size_options=dict(size_options),
                         paragraph_options=paragraph_config,
+                        table_options=table_config,
+                        page_scale=page_transform.scale,
+                        plan=table_plan,
                     )
+                    state.warnings.extend(fragment.warnings)
+                    fragment_top = state.cursor_y
                     for glyph in fragment.glyphs:
                         state.glyphs.append(replace(
                             glyph, glyph_index=len(state.glyphs),
@@ -776,17 +868,47 @@ def paginate_document(
                         state.graphics.append(replace(stroke, id=len(state.graphics)))
                     state.line_count += max(1, len(selected))
                     state.cursor_y += fragment.height_mm + spacing_after
+                    if state.cursor_y > content_bottom + spacing_after + 1e-9:
+                        state.warnings.append(f"table_fragment_overflow:{element.id}")
                     add_source_id(element.id)
                     fragment_index += 1
+                    target_table = RectMM(
+                        table_x, fragment_top, table_plan.width_mm, fragment.height_mm
+                    )
+                    placement = {
+                        "id": element.id,
+                        "type": "semantic-table",
+                        "source_page_index": element.source_page_index,
+                        "target_page_index": len(pages),
+                        "source_bbox_mm": (
+                            {
+                                "x": element.bbox.x0,
+                                "y": element.bbox.y0,
+                                "width": element.bbox.width,
+                                "height": element.bbox.height,
+                            }
+                            if element.bbox is not None else None
+                        ),
+                        "mapped_bbox_mm": rect_payload(mapped_table),
+                        "output_bbox_mm": rect_payload(target_table),
+                        "scale": round(table_plan.scale, 6),
+                        "page_scale": round(page_transform.scale, 6),
+                        "placement_mode": document_layout_mode,
+                        "anchor_affinity": table_affinity,
+                    }
+                    state.placements.append(placement)
+                    placement_records.append(placement)
                     state.table_fragments.append({
                         "table_id": element.id,
                         "rows": selected,
+                        "row_heights_mm": list(fragment.row_heights_mm),
+                        "column_widths_mm": list(table_plan.column_widths_mm),
                         "continued_from_previous": next_row > 0,
-                        "continues_next": selected[-1] < element.rows - 1,
+                        "continues_next": data_rows[-1] < element.rows - 1,
                         "border_strokes": fragment.border_count,
+                        "target_bbox": rect_payload(target_table),
                     })
                     table_pages.add((element.id, len(pages)))
-                    data_rows = [row for row in selected if row >= next_row]
                     next_row = data_rows[-1] + 1
                     if next_row < element.rows:
                         finish_page()
@@ -797,6 +919,14 @@ def paginate_document(
                         cell.row_span > 1 or cell.column_span > 1 for cell in element.cells
                     ),
                     "pages": sum(table_id == element.id for table_id, _ in table_pages),
+                    "source_width_mm": element.preferred_width_mm
+                    or sum(element.column_widths_mm),
+                    "target_width_mm": table_plan.width_mm,
+                    "scale": table_plan.scale,
+                    "column_widths_mm": list(table_plan.column_widths_mm),
+                    "row_heights_mm": list(table_plan.row_heights_mm),
+                    "auto_height_rows": table_plan.auto_height_rows,
+                    "warnings": list(table_plan.warnings),
                 }
                 continue
 
@@ -949,9 +1079,13 @@ def paginate_document(
                     warnings.append(f"image_skipped_images_off: {element.id}")
                     details[element.id] = {"type": "raster-image", "mode": "off", "skipped": True}
                     continue
-                width, height = _image_size(
+                display_width, display_height = _image_size(
                     element, usable_width, content_bottom - top,
                     default_width_ratio, max_height_ratio,
+                    page_transform.scale,
+                )
+                width, height = _rotated_size(
+                    display_width, display_height, element.rotation_deg
                 )
                 paragraph_relative = (
                     document_layout_mode == "hybrid"
@@ -969,13 +1103,7 @@ def paginate_document(
                     cursor_before = state.cursor_y
                     zones_before = _zone_payloads(state.exclusion_zones)
                     required_before = 0.0
-                mapped = _mapped_element_rect(
-                    element.bbox,
-                    source_page.width_mm,
-                    source_page.height_mm,
-                    content_rect,
-                    float(preserve_config.get("max_upscale", 1.10)),
-                )
+                mapped = _mapped_element_rect(element.bbox, page_transform)
                 if (
                     document_layout_mode == "hybrid"
                     and mapped is not None
@@ -1045,8 +1173,8 @@ def paginate_document(
                         prepared,
                         image_options,
                         mode=image_mode,
-                        width_mm=output_rect.width,
-                        height_mm=output_rect.height,
+                        width_mm=display_width,
+                        height_mm=display_height,
                         element_id=element.id,
                         source_path=str(element.image_path),
                     )
@@ -1054,7 +1182,13 @@ def paginate_document(
                     state.graphics.append(replace(
                         stroke, id=len(state.graphics),
                         points=[
-                            Point(point.x + output_rect.x, point.y + output_rect.y)
+                            _rotate_image_point(
+                                point,
+                                output_rect,
+                                display_width,
+                                display_height,
+                                element.rotation_deg,
+                            )
                             for point in stroke.points
                         ],
                     ))
@@ -1063,16 +1197,27 @@ def paginate_document(
                 elif effective_wrap == "top_bottom":
                     state.cursor_y = max(state.cursor_y, output_rect.bottom + spacing_after)
                 elif effective_wrap == "square" and not zone_was_active:
+                    padding_default = _scaled_padding(
+                        float(hybrid_config.get("image_padding_mm", 2.0)),
+                        page_transform.scale,
+                        image_options,
+                    )
                     state.exclusion_zones.append(ExclusionZone(
                         output_rect,
                         element.wrap_side,
                         element.id,
-                        element.distance_left_mm
-                        or float(hybrid_config.get("image_padding_mm", 2.0)),
-                        element.distance_right_mm
-                        or float(hybrid_config.get("image_padding_mm", 2.0)),
-                        element.distance_top_mm,
-                        element.distance_bottom_mm,
+                        _scaled_padding(
+                            element.distance_left_mm, page_transform.scale, image_options
+                        ) or padding_default,
+                        _scaled_padding(
+                            element.distance_right_mm, page_transform.scale, image_options
+                        ) or padding_default,
+                        _scaled_padding(
+                            element.distance_top_mm, page_transform.scale, image_options
+                        ),
+                        _scaled_padding(
+                            element.distance_bottom_mm, page_transform.scale, image_options
+                        ),
                     ))
                 add_source_id(element.id)
                 image_vectorized += int(bool(vectorized.strokes))
@@ -1119,14 +1264,10 @@ def paginate_document(
                 cursor_before = state.cursor_y
                 zones_before = _zone_payloads(state.exclusion_zones)
                 vector_count += 1
-                width, height = _vector_size(element, usable_width, content_bottom - top)
-                mapped = _mapped_element_rect(
-                    element.bbox,
-                    source_page.width_mm,
-                    source_page.height_mm,
-                    content_rect,
-                    float(preserve_config.get("max_upscale", 1.10)),
+                width, height = _vector_size(
+                    element, usable_width, content_bottom - top, page_transform.scale
                 )
+                mapped = _mapped_element_rect(element.bbox, page_transform)
                 was_preplaced = element.id in preplacements
                 zone_was_active = False
                 if was_preplaced:
@@ -1295,6 +1436,33 @@ def paginate_document(
         trace_records,
         line_advance,
     )
+    layout_stats["page_transform"] = (
+        page_transform_records[0] if len(page_transform_records) == 1 else page_transform_records
+    )
+    layout_stats["layout_objects"] = {
+        "images_scaled": len({
+            str(item["id"])
+            for item in placement_records
+            if item.get("element_type") in {"raster-image", "pdf-vector"}
+            and abs(float(item.get("scale", 1.0)) - 1.0) > 1e-9
+        }),
+        "tables_scaled": len({
+            str(item["id"])
+            for item in placement_records
+            if item.get("type") == "semantic-table"
+            and abs(float(item.get("scale", 1.0)) - 1.0) > 1e-9
+        }),
+        "tables_paginated": sum(
+            detail.get("type") == "table" and int(detail.get("pages", 1)) > 1
+            for detail in details.values()
+        ),
+        "table_rows_auto_height": sum(
+            int(detail.get("auto_height_rows", 0)) for detail in details.values()
+        ),
+        "object_overflow_count": sum(
+            "overflow" in warning for warning in [*warnings, *state.warnings]
+        ),
+    }
     if layout_debug_dir is not None:
         export_layout_debug(
             layout_debug_dir,
@@ -1304,6 +1472,7 @@ def paginate_document(
             trace_records=trace_records,
             content_rect=content_rect,
             paragraph_records=paragraph_records,
+            page_transforms=page_transform_records,
         )
     return PaginatedLayout(
         pages,
@@ -1367,10 +1536,18 @@ def add_page_numbers(
 
 def _image_size(
     element: SourceRasterImageElement, usable_width: float, usable_height: float,
-    default_width_ratio: float, max_height_ratio: float,
+    default_width_ratio: float, max_height_ratio: float, page_scale: float = 1.0,
 ) -> tuple[float, float]:
-    width = element.displayed_width or usable_width * default_width_ratio
-    height = element.displayed_height or width * element.height_px / max(1, element.width_px)
+    aspect = element.width_px / max(1, element.height_px)
+    if element.displayed_width is not None:
+        width = element.displayed_width * page_scale
+        height = width / max(aspect, 1e-9)
+    elif element.displayed_height is not None:
+        height = element.displayed_height * page_scale
+        width = height * aspect
+    else:
+        width = usable_width * default_width_ratio
+        height = width / max(aspect, 1e-9)
     scale = min(1.0, usable_width / width, usable_height * max_height_ratio / height)
     return width * scale, height * scale
 
@@ -1404,12 +1581,19 @@ def _place_formula_infos(
 
 
 def _vector_size(
-    element: SourceVectorElement, usable_width: float, usable_height: float
+    element: SourceVectorElement,
+    usable_width: float,
+    usable_height: float,
+    page_scale: float = 1.0,
 ) -> tuple[float, float]:
     points = [point for stroke in element.strokes for point in stroke.points]
     width = max(point.x for point in points) - min(point.x for point in points)
     height = max(point.y for point in points) - min(point.y for point in points)
-    scale = min(1.0, usable_width / max(width, 1e-9), usable_height * 0.6 / max(height, 1e-9))
+    scale = min(
+        page_scale,
+        usable_width / max(width, 1e-9),
+        usable_height * 0.6 / max(height, 1e-9),
+    )
     return max(width * scale, 0.1), max(height * scale, 0.1)
 
 
@@ -1475,19 +1659,75 @@ def _optional_mapping(values: Mapping[str, object], key: str) -> Mapping[str, ob
 
 def _mapped_element_rect(
     bbox: object,
-    source_width: float | None,
-    source_height: float | None,
-    content_rect: RectMM,
-    max_upscale: float,
+    transform: PageTransform,
 ) -> RectMM | None:
-    if bbox is None or source_width is None or source_height is None:
+    if bbox is None:
         return None
     source_rect = RectMM(bbox.x0, bbox.y0, bbox.width, bbox.height)
-    return map_source_rect(
-        source_rect,
-        (source_width, source_height),
-        content_rect,
-        max_upscale=max_upscale,
+    return transform.map_rect(source_rect)
+
+
+def _table_x(
+    table: SourceTableElement,
+    width: float,
+    content: RectMM,
+    transform: PageTransform,
+) -> tuple[float, str]:
+    alignment = table.alignment
+    if alignment is None and table.bbox is not None:
+        source_center = table.bbox.x0 + table.bbox.width / 2
+        relative = (
+            source_center - transform.source_content_rect.x
+        ) / transform.source_content_rect.width
+        alignment = "left" if relative < 0.4 else "right" if relative > 0.6 else "center"
+    alignment = alignment or "left"
+    if alignment == "right":
+        x = content.right - width
+    elif alignment == "center":
+        x = content.x + (content.width - width) / 2
+    else:
+        x = content.x + transform.scale_length(table.left_indent_mm or 0.0)
+    return min(content.right - width, max(content.x, x)), alignment
+
+
+def _rotated_size(width: float, height: float, rotation_deg: float) -> tuple[float, float]:
+    angle = math.radians(rotation_deg % 360)
+    cosine = abs(math.cos(angle))
+    sine = abs(math.sin(angle))
+    return width * cosine + height * sine, width * sine + height * cosine
+
+
+def _rotate_image_point(
+    point: Point,
+    target_bbox: RectMM,
+    width: float,
+    height: float,
+    rotation_deg: float,
+) -> Point:
+    if abs(rotation_deg % 360) < 1e-9:
+        return Point(target_bbox.x + point.x, target_bbox.y + point.y)
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    local_x, local_y = point.x - width / 2, point.y - height / 2
+    rotated_x = local_x * cosine - local_y * sine
+    rotated_y = local_x * sine + local_y * cosine
+    return Point(
+        target_bbox.x + target_bbox.width / 2 + rotated_x,
+        target_bbox.y + target_bbox.height / 2 + rotated_y,
+    )
+
+
+def _scaled_padding(
+    value: float,
+    page_scale: float,
+    image_options: Mapping[str, object],
+) -> float:
+    if value <= 0:
+        return 0.0
+    scaled = value * page_scale
+    return min(
+        float(image_options.get("max_wrap_padding_mm", 8.0)),
+        max(float(image_options.get("min_wrap_padding_mm", 0.7)), scaled),
     )
 
 
@@ -1833,14 +2073,19 @@ def _layout_statistics(
     trace_records: list[dict[str, object]],
     line_advance: float,
 ) -> dict[str, object]:
+    graphics = [
+        item
+        for item in placements
+        if item.get("element_type") in {"raster-image", "pdf-vector"}
+    ]
     displacements = [
         float(value)
-        for item in placements
+        for item in graphics
         if (value := item.get("center_displacement_mm")) is not None
     ]
-    scales = [float(item.get("scale", 1.0)) for item in placements]
+    scales = [float(item.get("scale", 1.0)) for item in graphics]
     overlaps = 0.0
-    for item in placements:
+    for item in graphics:
         image = _payload_rect(item.get("output_bbox_mm"))
         if image is None:
             continue
@@ -1888,20 +2133,20 @@ def _layout_statistics(
                 unexplained_gaps.append(gap)
     return {
         "mode": mode,
-        "images": len(placements),
+        "images": len(graphics),
         "images_with_source_bbox": sum(
-            item.get("source_bbox_mm") is not None for item in placements
+            item.get("source_bbox_mm") is not None for item in graphics
         ),
-        "images_wrapped": sum(item.get("wrap_mode") == "square" for item in placements),
+        "images_wrapped": sum(item.get("wrap_mode") == "square" for item in graphics),
         "images_top_bottom": sum(
-            item.get("wrap_mode") == "top_bottom" for item in placements
+            item.get("wrap_mode") == "top_bottom" for item in graphics
         ),
         "position_preserved": sum(
             item.get("center_displacement_mm") is not None
             and float(item["center_displacement_mm"]) <= threshold
-            for item in placements
+            for item in graphics
         ),
-        "position_fallbacks": sum(bool(item.get("fallbacks")) for item in placements),
+        "position_fallbacks": sum(bool(item.get("fallbacks")) for item in graphics),
         "mean_center_displacement_mm": round(
             sum(displacements) / len(displacements), 6
         ) if displacements else None,
@@ -1909,7 +2154,7 @@ def _layout_statistics(
         "mean_scale_factor": round(sum(scales) / len(scales), 6) if scales else None,
         "overlaps_remaining": round(overlaps, 6),
         "page_overflow_area_mm2": round(
-            sum(float(item.get("page_overflow_area_mm2", 0.0)) for item in placements), 6
+            sum(float(item.get("page_overflow_area_mm2", 0.0)) for item in graphics), 6
         ),
         "max_unexplained_vertical_gap_mm": round(max(unexplained_gaps), 6)
         if unexplained_gaps else 0.0,

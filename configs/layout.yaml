@@ -143,6 +143,8 @@ images:
   spacing_after_mm: 2.0
   default_width_ratio: 0.75
   max_height_ratio: 0.60
+  min_wrap_padding_mm: 0.7
+  max_wrap_padding_mm: 8.0
 
 layout:
   missing_glyph_policy: error
@@ -168,6 +170,14 @@ paragraphs:
     heading_2: 1.15
     heading_3: 1.08
     body: 1.00
+
+tables:
+  min_column_width_mm: 8.0
+  cell_padding_mm: 1.2
+  min_cell_padding_mm: 0.7
+  max_cell_padding_mm: 2.0
+  scale_padding_with_page: true
+  min_text_scale: 0.75
 
 centerline:
   algorithm_version: 6

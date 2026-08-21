@@ -71,6 +71,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
     margin_left_mm = float(section.left_margin) / EMU_PER_MM
     margin_right_mm = float(section.right_margin) / EMU_PER_MM
     margin_top_mm = float(section.top_margin) / EMU_PER_MM
+    margin_bottom_mm = float(section.bottom_margin) / EMU_PER_MM
 
     def add_text(text: str, *, styled: SourceParagraph | None = None) -> None:
         element_id = f"page-001-text-{len(elements) + 1:03d}"
@@ -291,7 +292,20 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
     walk_container(body)
     return SourceDocument(
         path,
-        (SourcePage(0, page_width_mm, page_height_mm, tuple(elements)),),
+        (
+            SourcePage(
+                0,
+                page_width_mm,
+                page_height_mm,
+                tuple(elements),
+                SourceBBox(
+                    margin_left_mm,
+                    margin_top_mm,
+                    page_width_mm - margin_right_mm,
+                    page_height_mm - margin_bottom_mm,
+                ),
+            ),
+        ),
         tuple(dict.fromkeys(warnings)),
     )
 
@@ -577,11 +591,32 @@ def _parse_table(
     )
     column_widths = tuple(float(value) * 25.4 / 1440 for value in grid_values)
     rows = table.xpath("./*[local-name()='tr']")
+    properties = table.xpath("./*[local-name()='tblPr']")
+    properties = properties[0] if properties else None
+    preferred_width = _table_width_mm(properties, "tblW")
+    alignment_values = (
+        properties.xpath("./*[local-name()='jc']/@*[local-name()='val']")
+        if properties is not None else []
+    )
+    alignment = str(alignment_values[0]) if alignment_values else None
+    if alignment in {"start"}:
+        alignment = "left"
+    elif alignment in {"end"}:
+        alignment = "right"
+    elif alignment not in {None, "left", "center", "right"}:
+        warnings.append(f"docx_table_alignment_approximated:{alignment}")
+        alignment = "left"
+    left_indent = _table_width_mm(properties, "tblInd")
+    row_heights: list[float | None] = []
     columns = len(column_widths)
     mutable_cells: list[dict[str, object]] = []
     active_vertical: dict[int, dict[str, object]] = {}
     repeat_headers = 0
     for row_index, row in enumerate(rows):
+        height_values = row.xpath(
+            "./*[local-name()='trPr']/*[local-name()='trHeight']/@*[local-name()='val']"
+        )
+        row_heights.append(float(height_values[0]) * TWIP_TO_MM if height_values else None)
         if (
             row.xpath("./*[local-name()='trPr']/*[local-name()='tblHeader']")
             and row_index == repeat_headers
@@ -617,6 +652,8 @@ def _parse_table(
                 "column_span": column_span,
                 "paragraphs": paragraphs,
                 "width_mm": float(width_values[0]) * 25.4 / 1440 if width_values else None,
+                "height_mm": row_heights[-1],
+                "vertical_alignment": _cell_vertical_alignment(cell, warnings),
             }
             mutable_cells.append(entry)
             if merge_value == "restart":
@@ -639,7 +676,39 @@ def _parse_table(
         cells,
         column_widths,
         repeat_header_rows=repeat_headers,
+        alignment=alignment,
+        left_indent_mm=left_indent,
+        preferred_width_mm=preferred_width,
+        row_heights_mm=tuple(row_heights),
     )
+
+
+def _table_width_mm(properties: object | None, local_name: str) -> float | None:
+    if properties is None:
+        return None
+    nodes = properties.xpath(f"./*[local-name()='{local_name}']")
+    if not nodes:
+        return None
+    kind = nodes[0].get(qn("w:type"), "dxa")
+    value = nodes[0].get(qn("w:w"))
+    if value is None or kind in {"auto", "nil"}:
+        return None
+    if kind == "pct":
+        return None
+    return float(value) * TWIP_TO_MM
+
+
+def _cell_vertical_alignment(cell: object, warnings: list[str]) -> str | None:
+    values = cell.xpath(
+        "./*[local-name()='tcPr']/*[local-name()='vAlign']/@*[local-name()='val']"
+    )
+    if not values:
+        return None
+    value = str(values[0])
+    if value in {"top", "center", "bottom"}:
+        return value
+    warnings.append(f"docx_cell_vertical_alignment_approximated:{value}")
+    return "top"
 
 
 def _xml_paragraph_model(

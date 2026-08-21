@@ -29,6 +29,91 @@ class RectMM:
 
 
 @dataclass(frozen=True, slots=True)
+class PageTransform:
+    source_page_width_mm: float
+    source_page_height_mm: float
+    source_content_rect: RectMM
+    target_content_rect: RectMM
+    scale: float
+    offset_x_mm: float
+    offset_y_mm: float
+
+    @classmethod
+    def create(
+        cls,
+        source_page_width_mm: float,
+        source_page_height_mm: float,
+        target_content_rect: RectMM,
+        *,
+        source_content_rect: RectMM | None = None,
+        max_upscale: float = 1.10,
+    ) -> PageTransform:
+        if source_page_width_mm <= 0 or source_page_height_mm <= 0:
+            raise ValueError("Source page dimensions must be positive")
+        source_content = source_content_rect or RectMM(
+            0.0, 0.0, source_page_width_mm, source_page_height_mm
+        )
+        if source_content.width <= 0 or source_content.height <= 0:
+            raise ValueError("Source content rectangle must be positive")
+        scale = min(
+            target_content_rect.width / source_content.width,
+            target_content_rect.height / source_content.height,
+            max_upscale,
+        )
+        mapped_width = source_content.width * scale
+        mapped_height = source_content.height * scale
+        offset_x = (
+            target_content_rect.x
+            + (target_content_rect.width - mapped_width) / 2
+            - source_content.x * scale
+        )
+        offset_y = (
+            target_content_rect.y
+            + (target_content_rect.height - mapped_height) / 2
+            - source_content.y * scale
+        )
+        return cls(
+            source_page_width_mm,
+            source_page_height_mm,
+            source_content,
+            target_content_rect,
+            scale,
+            offset_x,
+            offset_y,
+        )
+
+    def map_point(self, x_mm: float, y_mm: float) -> tuple[float, float]:
+        return (
+            self.offset_x_mm + x_mm * self.scale,
+            self.offset_y_mm + y_mm * self.scale,
+        )
+
+    def map_rect(self, rect: RectMM) -> RectMM:
+        x, y = self.map_point(rect.x, rect.y)
+        return RectMM(x, y, self.scale_length(rect.width), self.scale_length(rect.height))
+
+    def scale_length(self, value_mm: float) -> float:
+        return value_mm * self.scale
+
+    def map_relative_x(self, fraction: float) -> float:
+        return self.target_content_rect.x + self.target_content_rect.width * fraction
+
+    def map_relative_y(self, fraction: float) -> float:
+        return self.target_content_rect.y + self.target_content_rect.height * fraction
+
+    def payload(self) -> dict[str, object]:
+        return {
+            "source_width_mm": round(self.source_page_width_mm, 6),
+            "source_height_mm": round(self.source_page_height_mm, 6),
+            "source_content_rect": rect_payload(self.source_content_rect),
+            "target_content_rect": rect_payload(self.target_content_rect),
+            "scale": round(self.scale, 6),
+            "offset_x_mm": round(self.offset_x_mm, 6),
+            "offset_y_mm": round(self.offset_y_mm, 6),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class SourcePlacement:
     source_page_index: int
     source_bbox: RectMM | None
@@ -65,26 +150,13 @@ def map_source_rect(
     *,
     max_upscale: float = 1.10,
 ) -> RectMM:
-    source_width, source_height = source_page_size
-    if source_width <= 0 or source_height <= 0:
-        raise ValueError("Source page dimensions must be positive")
     if source_rect.width < 0 or source_rect.height < 0:
         raise ValueError("Source rectangle dimensions cannot be negative")
-    scale = min(
-        target_content_rect.width / source_width,
-        target_content_rect.height / source_height,
-        max_upscale,
-    )
-    mapped_page_width = source_width * scale
-    mapped_page_height = source_height * scale
-    offset_x = target_content_rect.x + (target_content_rect.width - mapped_page_width) / 2
-    offset_y = target_content_rect.y + (target_content_rect.height - mapped_page_height) / 2
-    return RectMM(
-        offset_x + source_rect.x * scale,
-        offset_y + source_rect.y * scale,
-        source_rect.width * scale,
-        source_rect.height * scale,
-    )
+    return PageTransform.create(
+        *source_page_size,
+        target_content_rect,
+        max_upscale=max_upscale,
+    ).map_rect(source_rect)
 
 
 def available_intervals(

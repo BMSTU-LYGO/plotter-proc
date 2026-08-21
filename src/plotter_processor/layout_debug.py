@@ -16,6 +16,7 @@ def export_layout_debug(
     trace_records: list[dict[str, object]] | None = None,
     content_rect: RectMM | None = None,
     paragraph_records: list[dict[str, object]] | None = None,
+    page_transforms: list[dict[str, object]] | None = None,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -24,6 +25,7 @@ def export_layout_debug(
         "elements": placements,
         "text_line_boxes": line_boxes,
         "paragraphs": paragraph_records or [],
+        "page_transforms": page_transforms or [],
     }
     (output_dir / "placement.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -37,9 +39,18 @@ def export_layout_debug(
         + "\n",
         encoding="utf-8",
     )
-    _write_svg(output_dir / "source-layout.svg", page, placements, [], "source", content_rect)
     _write_svg(
-        output_dir / "target-layout.svg", page, placements, line_boxes, "output", content_rect
+        output_dir / "source-layout.svg",
+        page,
+        placements,
+        [],
+        "source",
+        content_rect,
+        page_transforms or [],
+    )
+    _write_svg(
+        output_dir / "target-layout.svg", page, placements, line_boxes, "output", content_rect,
+        page_transforms or [],
     )
     _write_svg(
         output_dir / "placement-overlay.svg",
@@ -48,6 +59,7 @@ def export_layout_debug(
         line_boxes,
         "overlay",
         content_rect,
+        page_transforms or [],
     )
 
 
@@ -58,6 +70,7 @@ def _write_svg(
     line_boxes: list[dict[str, object]],
     mode: str,
     content_rect: RectMM | None,
+    page_transforms: list[dict[str, object]],
 ) -> None:
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -69,6 +82,16 @@ def _write_svg(
     ]
     if content_rect is not None:
         lines.append(_rect_svg(content_rect, "#8e24aa", "0.20", "none", "4 1"))
+    if page_transforms:
+        transform = page_transforms[0]
+        label = (
+            f"source {transform.get('source_width_mm')}×{transform.get('source_height_mm')} mm "
+            f"→ target {page.width_mm}×{page.height_mm} mm; "
+            f"scale={transform.get('scale')}"
+        )
+        lines.append(
+            f'<text x="2" y="4" font-size="2.2" fill="#8e24aa">{_escape(label)}</text>'
+        )
     if mode in {"output", "overlay"}:
         for item in line_boxes:
             rect = _rect(item.get("bbox"))

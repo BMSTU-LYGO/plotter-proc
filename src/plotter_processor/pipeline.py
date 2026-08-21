@@ -11,7 +11,10 @@ from plotter_processor.centerline_path_builder import build_centerline_paths
 from plotter_processor.config import load_yaml
 from plotter_processor.document_image_layout import save_document_structure
 from plotter_processor.document_models import (
+    SourceDocument,
+    SourceParagraph,
     SourceRasterImageElement,
+    SourceTableElement,
     SourceTextElement,
     SourceVectorElement,
 )
@@ -161,6 +164,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
         paragraph_options = _mapping(layout_config, "paragraphs")
+        table_options = _mapping(layout_config, "tables")
         image_options = _mapping(layout_config, "images")
         latex_options = _mapping(layout_config, "latex")
         pagination_options = dict(_mapping(layout_config, "pagination"))
@@ -217,6 +221,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     document_layout_mode=document_layout_mode,
                     document_layout_options=document_layout_options,
                     paragraph_options=paragraph_options,
+                    table_options=table_options,
                     layout_debug_dir=(
                         output_dir / "layout-debug" if options.layout_debug else None
                     ),
@@ -496,6 +501,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "layout_mode": document_layout_mode,
             },
             "document_layout": paginated.layout_statistics,
+            "paragraph_formatting": _paragraph_formatting_report(document),
+            "page_transform": paginated.layout_statistics.get("page_transform", {}),
+            "layout_objects": paginated.layout_statistics.get("layout_objects", {}),
             "semantic_objects": {
                 "underlines": paginated.import_statistics.get("underlines", 0),
                 "generic_lines": paginated.import_statistics.get("generic_lines", 0),
@@ -546,8 +554,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "warnings": list(dict.fromkeys(warnings)),
             "cache": {
                 "font": {
+                    "directory": str(centerline_config.cache_directory),
                     "hits": compiled.cache_hits if compiled is not None else 0,
                     "misses": compiled.cache_misses if compiled is not None else 0,
+                    "rebuilt": compiled.cache_misses if compiled is not None else 0,
+                    "algorithm_version": centerline_config.algorithm_version,
                 },
                 "images": {
                     "hits": paginated.import_statistics.get("image_cache_hits", 0),
@@ -626,6 +637,39 @@ def _apply_page_change_overrides(
         park = _mapping(page_change, "park")
         park["mode"] = "corner"
         park["corner"] = options.park_corner
+
+
+def _paragraph_formatting_report(document: SourceDocument) -> dict[str, int]:
+    paragraphs: list[SourceParagraph] = []
+    for element in document.elements:
+        if isinstance(element, SourceTextElement):
+            paragraphs.extend(element.styled_paragraphs)
+        elif isinstance(element, SourceTableElement):
+            paragraphs.extend(
+                paragraph
+                for cell in element.cells
+                for paragraph in cell.paragraphs
+            )
+    return {
+        "paragraphs_total": len(paragraphs),
+        "titles": sum(paragraph.semantic_role == "title" for paragraph in paragraphs),
+        "headings": sum(
+            (paragraph.semantic_role or "").startswith("heading")
+            for paragraph in paragraphs
+        ),
+        "first_line_indents": sum(
+            bool(paragraph.first_line_indent_mm)
+            for paragraph in paragraphs
+        ),
+        "centered": sum(paragraph.alignment == "center" for paragraph in paragraphs),
+        "right_aligned": sum(
+            paragraph.alignment == "right" for paragraph in paragraphs
+        ),
+        "justified": sum(
+            paragraph.alignment == "justify" for paragraph in paragraphs
+        ),
+        "custom_tab_stops": sum(bool(paragraph.tab_stops_mm) for paragraph in paragraphs),
+    }
 
 
 def _centerline_report(compiled: object, cache_path: Path | None) -> dict[str, object]:
