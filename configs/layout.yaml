@@ -37,12 +37,8 @@ preview:
   plotter_stroke_width_mm: 0.20
   show_page_border: true
 
-document_import:
-  pdf_layout: reflow
-  preserve_source_page_breaks: true
-
 document_layout:
-  mode: reflow
+  mode: auto
   preserve:
     fit: contain
     max_upscale: 1.10
@@ -200,7 +196,7 @@ centerline:
     fail_on_low_quality: false
   cache:
     enabled: true
-    directory: build/font-cache
+    directory: .plotter-cache/font-cache
   debug:
     enabled: false
   glyph_overrides: {}
@@ -231,14 +227,6 @@ centerline:
   glyph_patch_file:
 
 handwriting:
-  joining:
-    enabled: false
-    max_join_gap_mm: 3.0
-    max_join_angle_deg: 105.0
-    connector_step_mm: 0.20
-    do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]
-    do_not_join_after: ["(", "«", "-"]
-    lift_between_words: true
   variation:
     enabled: false
     seed: 1
@@ -250,13 +238,15 @@ handwriting:
 connections:
   enabled: false
   mode: safe
-  max_distance_mm: 3.0
-  max_vertical_offset_mm: 3.0
-  max_tangent_mismatch_deg: 170.0
+  max_distance_mm: 2.5
+  max_vertical_offset_mm: 2.0
+  max_tangent_mismatch_deg: 135.0
   connector_step_mm: 0.20
-  min_corridor_inside_ratio: 0.55
+  min_corridor_inside_ratio: 0.75
   allow_connector_outside_ink: true
   outside_ink_margin_mm: 0.35
+  contact_epsilon_mm: 0.08
+  collision_clearance_mm: 0.10
   connect_letters_only: true
   connect_across_punctuation: false
   do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]

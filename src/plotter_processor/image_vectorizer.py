@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
@@ -20,6 +23,13 @@ class VectorizedImage:
     mode: str
     point_count: int
     warnings: tuple[str, ...]
+    cache_hit: bool = False
+
+
+_PIXEL_STROKE_CACHE: OrderedDict[tuple[str, str, str], tuple[np.ndarray, ...]] = (
+    OrderedDict()
+)
+_PIXEL_STROKE_CACHE_LIMIT = 64
 
 
 def vectorize_image(
@@ -44,19 +54,33 @@ def vectorize_image(
         image.working_size[1] / max(height_mm, 1e-9),
     )
     tolerance_px = max(0.0, tolerance_mm * scale)
-    if selected == "outline":
-        edge = options.get("edge", {})
-        if not isinstance(edge, Mapping):
-            raise TypeError("images.edge must be a mapping")
-        edges = canny(
-            image.grayscale,
-            sigma=float(edge.get("sigma", 1.2)),
-            low_threshold=float(edge.get("low_threshold", 0.08)),
-            high_threshold=float(edge.get("high_threshold", 0.20)),
-        )
-        pixel_strokes = [contour[:, ::-1] for contour in find_contours(edges, 0.5)]
+    edge = options.get("edge", {})
+    if not isinstance(edge, Mapping):
+        raise TypeError("images.edge must be a mapping")
+    image_digest = hashlib.sha256()
+    image_digest.update(image.grayscale.tobytes())
+    image_digest.update(image.binary.tobytes())
+    edge_key = json.dumps(dict(edge), sort_keys=True, separators=(",", ":"))
+    cache_key = (image_digest.hexdigest(), selected, edge_key)
+    cache_hit = cache_key in _PIXEL_STROKE_CACHE
+    if cache_hit:
+        cached = _PIXEL_STROKE_CACHE.pop(cache_key)
+        _PIXEL_STROKE_CACHE[cache_key] = cached
+        pixel_strokes = list(cached)
     else:
-        pixel_strokes = _trace_skeleton(skeletonize(image.binary))
+        if selected == "outline":
+            edges = canny(
+                image.grayscale,
+                sigma=float(edge.get("sigma", 1.2)),
+                low_threshold=float(edge.get("low_threshold", 0.08)),
+                high_threshold=float(edge.get("high_threshold", 0.20)),
+            )
+            pixel_strokes = [contour[:, ::-1] for contour in find_contours(edges, 0.5)]
+        else:
+            pixel_strokes = _trace_skeleton(skeletonize(image.binary))
+        _PIXEL_STROKE_CACHE[cache_key] = tuple(pixel_strokes)
+        if len(_PIXEL_STROKE_CACHE) > _PIXEL_STROKE_CACHE_LIMIT:
+            _PIXEL_STROKE_CACHE.popitem(last=False)
     strokes: list[PlotterStroke] = []
     minimum_length = float(vector.get("min_stroke_length_mm", 0.35))
     sx = width_mm / max(1, image.working_size[0] - 1)
@@ -82,7 +106,9 @@ def vectorize_image(
     warnings = list(image.warnings)
     if not strokes and "blank_image" not in warnings:
         warnings.append("image_produced_no_strokes")
-    return VectorizedImage(tuple(strokes), selected, point_count, tuple(warnings))
+    return VectorizedImage(
+        tuple(strokes), selected, point_count, tuple(warnings), cache_hit
+    )
 
 
 def choose_vector_mode(image: PreprocessedImage) -> str:

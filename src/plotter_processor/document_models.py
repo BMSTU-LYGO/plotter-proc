@@ -88,6 +88,8 @@ class SourceRasterImageElement:
     behind_text: bool = False
     z_order: int = 0
     rotation_deg: float = 0.0
+    anchor_offset_x_mm: float = 0.0
+    anchor_offset_y_mm: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

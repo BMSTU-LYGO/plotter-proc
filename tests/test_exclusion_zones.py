@@ -17,3 +17,9 @@ def test_top_bottom_blocks_the_whole_line() -> None:
     zone = ExclusionZone(RectMM(50, 20, 30, 30), "top_bottom", "image")
 
     assert available_intervals(10, 130, 25, 30, [zone]) == []
+
+
+def test_zone_above_current_line_no_longer_affects_intervals() -> None:
+    zone = ExclusionZone(RectMM(90, 20, 40, 30), "both", "image")
+
+    assert available_intervals(10, 130, 50, 55, [zone]) == [(10, 130)]

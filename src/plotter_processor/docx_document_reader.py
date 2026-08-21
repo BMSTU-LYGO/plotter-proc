@@ -98,6 +98,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         wrap_side = "both"
         distances = {"L": 0.0, "R": 0.0, "T": 0.0, "B": 0.0}
         relative_to_h = relative_to_v = None
+        anchor_offset_x_mm = anchor_offset_y_mm = 0.0
         behind_text = False
         z_order = 0
         if anchors:
@@ -112,6 +113,10 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             y_values = anchor.xpath(
                 "./*[local-name()='positionV']/*[local-name()='posOffset']/text()"
             )
+            if x_values:
+                anchor_offset_x_mm = float(x_values[0]) / EMU_PER_MM
+            if y_values:
+                anchor_offset_y_mm = float(y_values[0]) / EMU_PER_MM
             h_align = anchor.xpath(
                 "./*[local-name()='positionH']/*[local-name()='align']/text()"
             )
@@ -155,6 +160,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             anchor_type, wrap_mode, wrap_side,
             distances["L"], distances["R"], distances["T"], distances["B"],
             relative_to_h, relative_to_v, behind_text, z_order, rotation,
+            anchor_offset_x_mm, anchor_offset_y_mm,
         ))
 
     def add_math(math: object) -> None:

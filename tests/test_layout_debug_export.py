@@ -21,3 +21,5 @@ def test_layout_debug_exports_overlay_and_machine_readable_placement(tmp_path: P
     assert "image-1" in (tmp_path / "placement-overlay.svg").read_text()
     assert (tmp_path / "source-layout.svg").is_file()
     assert (tmp_path / "target-layout.svg").is_file()
+    trace = json.loads((tmp_path / "trace.json").read_text())
+    assert trace == {"coordinate_unit": "mm", "events": []}

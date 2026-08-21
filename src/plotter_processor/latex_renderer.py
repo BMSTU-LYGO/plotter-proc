@@ -5,6 +5,7 @@ import io
 import json
 import math
 import os
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from itertools import pairwise
@@ -27,6 +28,8 @@ from plotter_processor.raster_centerline import (
 )
 
 PT_TO_MM = 25.4 / 72.0
+_RENDER_CACHE: OrderedDict[tuple[object, ...], RenderedMath] = OrderedDict()
+_RENDER_CACHE_LIMIT = 128
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +119,8 @@ class MathTextRenderer:
         self.fallback_to_outline = fallback_to_outline
         self.strict_quality = strict_quality
         self.source_kind = source_kind
+        self.cache_hits = 0
+        self.cache_misses = 0
 
     def measure(self, expression: str, size_mm: float) -> MathMetrics:
         rendered = self.render(expression, size_mm)
@@ -126,19 +131,46 @@ class MathTextRenderer:
             raise ValueError("Cannot render an empty LaTeX formula")
         if size_mm <= 0 or not math.isfinite(size_mm):
             raise ValueError("Formula size must be finite and positive")
+        key = (
+            expression,
+            round(size_mm, 9),
+            self.stroke_mode,
+            self.curve_tolerance_mm,
+            self.render_ppmm,
+            self.supersample,
+            self.threshold,
+            self.closing_radius_px,
+            self.min_component_length_mm,
+            self.max_render_pixels,
+            self.max_components,
+            self.max_points,
+            self.fallback_to_outline,
+            self.strict_quality,
+            self.source_kind,
+        )
+        if key in _RENDER_CACHE:
+            self.cache_hits += 1
+            rendered = _RENDER_CACHE.pop(key)
+            _RENDER_CACHE[key] = rendered
+            return rendered
+        self.cache_misses += 1
         if self.stroke_mode == "outline":
-            return self._render_outline(expression, size_mm)
-        try:
-            return self._render_centerline(expression, size_mm)
-        except ValueError as error:
-            if not self.fallback_to_outline:
-                raise
             rendered = self._render_outline(expression, size_mm)
-            return replace(
-                rendered,
-                warnings=("latex_centerline_outline_fallback", str(error)),
-                quality={"needs_review": True, "outline_fallback": True},
-            )
+        else:
+            try:
+                rendered = self._render_centerline(expression, size_mm)
+            except ValueError as error:
+                if not self.fallback_to_outline:
+                    raise
+                rendered = replace(
+                    self._render_outline(expression, size_mm),
+                    warnings=("latex_centerline_outline_fallback", str(error)),
+                    quality={"needs_review": True, "outline_fallback": True},
+                )
+        _RENDER_CACHE[key] = rendered
+        if len(_RENDER_CACHE) > _RENDER_CACHE_LIMIT:
+            _RENDER_CACHE.popitem(last=False)
+        return rendered
 
     def _render_outline(self, expression: str, size_mm: float) -> RenderedMath:
         mathtext_expression = " ".join(expression.split())

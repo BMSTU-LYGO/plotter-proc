@@ -12,15 +12,41 @@ def export_layout_debug(
     page: PageSpec,
     placements: list[dict[str, object]],
     line_boxes: list[dict[str, object]],
+    *,
+    trace_records: list[dict[str, object]] | None = None,
+    content_rect: RectMM | None = None,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"coordinate_unit": "mm", "elements": placements, "text_line_boxes": line_boxes}
+    payload = {
+        "coordinate_unit": "mm",
+        "content_rect": _rect_payload(content_rect),
+        "elements": placements,
+        "text_line_boxes": line_boxes,
+    }
     (output_dir / "placement.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    _write_svg(output_dir / "source-layout.svg", page, placements, [], "source")
-    _write_svg(output_dir / "target-layout.svg", page, placements, line_boxes, "output")
-    _write_svg(output_dir / "placement-overlay.svg", page, placements, line_boxes, "overlay")
+    (output_dir / "trace.json").write_text(
+        json.dumps(
+            {"coordinate_unit": "mm", "events": trace_records or []},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_svg(output_dir / "source-layout.svg", page, placements, [], "source", content_rect)
+    _write_svg(
+        output_dir / "target-layout.svg", page, placements, line_boxes, "output", content_rect
+    )
+    _write_svg(
+        output_dir / "placement-overlay.svg",
+        page,
+        placements,
+        line_boxes,
+        "overlay",
+        content_rect,
+    )
 
 
 def _write_svg(
@@ -29,6 +55,7 @@ def _write_svg(
     placements: list[dict[str, object]],
     line_boxes: list[dict[str, object]],
     mode: str,
+    content_rect: RectMM | None,
 ) -> None:
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -38,6 +65,8 @@ def _write_svg(
             'fill="white" stroke="#222" stroke-width="0.25"/>'
         ),
     ]
+    if content_rect is not None:
+        lines.append(_rect_svg(content_rect, "#8e24aa", "0.20", "none", "4 1"))
     if mode in {"output", "overlay"}:
         for item in line_boxes:
             rect = _rect(item.get("bbox"))
@@ -50,6 +79,13 @@ def _write_svg(
             lines.append(_rect_svg(source, "#777", "0.25", "none", "2 1"))
         if mode in {"output", "overlay"} and output is not None:
             lines.append(_rect_svg(output, "#1565c0", "0.35", "#1565c018", None))
+            if item.get("wrap_mode") in {"square", "top_bottom"}:
+                lines.append(_rect_svg(output, "#ef6c00", "0.22", "none", "1 1"))
+            anchor_x, anchor_y = output.center
+            lines.append(
+                f'<circle cx="{anchor_x:.4f}" cy="{anchor_y:.4f}" r="0.8" '
+                'fill="#d32f2f"/>'
+            )
         if mode == "overlay" and source is not None and output is not None:
             sx, sy = source.center
             ox, oy = output.center
@@ -79,6 +115,17 @@ def _rect(value: object) -> RectMM | None:
         )
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _rect_payload(rect: RectMM | None) -> dict[str, float] | None:
+    if rect is None:
+        return None
+    return {
+        "x": round(rect.x, 6),
+        "y": round(rect.y, 6),
+        "width": round(rect.width, 6),
+        "height": round(rect.height, 6),
+    }
 
 
 def _rect_svg(

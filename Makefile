@@ -7,7 +7,7 @@ BUILD ?= build
 
 PROFILE ?= safe
 
-.PHONY: install test lint run demo extract calibrate benchmark clean
+.PHONY: install test lint run demo extract calibrate benchmark smoke clean
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -48,3 +48,6 @@ clean:
 	rm -rf "$(BUILD)"
 	mkdir -p "$(BUILD)"
 	printf '\n' > "$(BUILD)/.gitkeep"
+smoke:
+	$(PYTHON) tools/smoke_full_pipeline.py tests/fixtures/layout/mixed_layout_demo.docx \
+		--font assets/1.ttf --layout-debug

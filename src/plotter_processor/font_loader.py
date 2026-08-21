@@ -10,7 +10,7 @@ from fontTools.ttLib import TTFont, TTLibError
 from plotter_processor.models import FontMetrics
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class LoadedFont:
     path: Path
     font: TTFont

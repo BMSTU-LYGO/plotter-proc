@@ -156,7 +156,9 @@ npx draw-your-font make page-1.jpg page-2.jpg --name "My Hand"
   --output-dir build/centerline-job
 ```
 
-При первом запуске уникальные глифы компилируются в `build/font-cache`.
+При первом запуске уникальные глифы компилируются в
+`.plotter-cache/font-cache`. Этот постоянный кеш отделён от результатов в
+`build`, поэтому очистка старых заданий его не удаляет.
 Последующие запуски используют частичный кеш. Отдельная предварительная
 компиляция:
 
@@ -187,9 +189,19 @@ Quality v3 сравнивает `skeletonize` и `medial_axis` по геомет
 `centerline.glyph_overrides`. Полный отчёт и regression-корпус описаны в
 `docs/centerline-quality-v3.md`.
 
-Флаг `--join-writing` включает безопасные рукописные переходы между
-буквами одного слова. Подробные правила, метрики и debug-preview описаны
-в `docs/word-joining.md`.
+`--connections off|safe|aggressive` управляет рукописными переходами между
+буквами одного слова. `safe` использует entry/exit anchors, проверяет distance,
+vertical offset, tangent, backtracking, corridor и collisions; сомнительная
+пара остаётся с подъёмом пера. `aggressive` расширяет геометрические допуски,
+но не отключает collision validation. Точки `ё`, дуга `й` и другая диакритика
+остаются отдельными strokes. `--join-writing` сохранён как compatibility-флаг
+для safe-поведения.
+
+Canonical-настройки находятся только в секции `connections` файла
+`configs/layout.yaml`. Флаг `--connection-debug` создаёт
+`connection-debug.svg` и `connection-debug.json`; в `report.json` доступны
+`pairs_total`, `accepted`, причины отказов, `snapped_existing_contact` и
+`connector_length_mm`.
 
 ### Один непрерывный маршрут на компонент
 
@@ -228,7 +240,11 @@ Centerline cache version 2 строит topology-aware граф с crossing numb
 - `output.gcode` — движения XY/Z без нагрева, extrusion и G28 по умолчанию;
 - `report.json` — статус, предупреждения, статистика и пути артефактов.
 
-Один запуск создаёт одну страницу. OCR, восстановление порядка рукописных штрихов и полный OpenType shaping/GPOS не поддерживаются. Если в TTF отсутствует требуемый глиф или текст не помещается, команда завершается с кодом 1, сохраняет error-report и не оставляет `output.gcode`.
+Один job может содержать несколько страниц с page-level `paths.json`, preview
+и G-code, а также общие `job.json`, `plotter-preview.svg` и `output.gcode`.
+OCR и восстановление порядка рукописных штрихов не поддерживаются. Если в TTF
+отсутствует требуемый глиф или geometry не проходит safety validation, команда
+завершается с кодом 1, сохраняет error-report и не оставляет G-code.
 
 ## Безопасность
 
@@ -251,4 +267,20 @@ make lint
 make demo FONT=assets/handwriting.ttf
 ```
 
-Тесты работают без сети, принтера и системных TTF.
+Обычный `pytest` содержит только component tests. Полную конвертацию перед
+релизом запускайте отдельно:
+
+```bash
+make smoke
+```
+
+Cold/warm benchmark конвертации также вынесен из pytest:
+
+```bash
+.venv/bin/python tools/benchmark_conversion.py \
+  tests/fixtures/layout/mixed_layout_demo.docx \
+  --font assets/1.ttf --runs 3 --output build/benchmark-conversion.json
+```
+
+В JSON сохраняются отдельный cold run, warm runs, median, stage timings и
+cache hits/misses. Тесты работают без сети, принтера и системных TTF.
