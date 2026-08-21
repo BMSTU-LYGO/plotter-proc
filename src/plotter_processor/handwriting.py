@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
 import math
 import random
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from pathlib import Path
 
+from plotter_processor.centerline_font.anchors import entry_exit_anchors
 from plotter_processor.centerline_font.stroke_roles import classify_strokes
+from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
 
 
@@ -23,6 +27,11 @@ class JoiningConfig:
     mode: str = "safe"
     max_vertical_offset_mm: float = 1.2
     connect_letters_only: bool = True
+    min_corridor_inside_ratio: float = 0.75
+    allow_connector_outside_ink: bool = True
+    outside_ink_margin_mm: float = 0.35
+    contact_epsilon_mm: float = 0.08
+    collision_clearance_mm: float = 0.10
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +42,20 @@ class VariationConfig:
     rotation_deg: float
     scale_percent: float
     spacing_jitter_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class _GlyphRoute:
+    glyph: PositionedGlyph
+    main: PlotterStroke | None
+    entry: StrokeAnchor | None
+    exit: StrokeAnchor | None
+
+
+@dataclass(frozen=True, slots=True)
+class _StrokeObstacle:
+    stroke: PlotterStroke
+    bounds: tuple[float, float, float, float]
 
 
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
@@ -90,6 +113,9 @@ def apply_variation(
 
 
 def export_handwriting_debug(document: PathDocument, output: Path) -> None:
+    candidates = document.metadata.get("connection_debug", [])
+    if not isinstance(candidates, list):
+        candidates = []
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {document.page_width_mm} {document.page_height_mm}">',
         '<rect width="100%" height="100%" fill="white"/>',
@@ -99,22 +125,42 @@ def export_handwriting_debug(document: PathDocument, output: Path) -> None:
         points = " ".join(f"{point.x},{point.y}" for point in stroke.points)
         color = "#d22" if stroke.char and len(stroke.char) > 1 else "#111"
         lines.append(f'<polyline points="{points}" stroke="{color}"/>')
-    lines.append('</g><g id="entry-exit" fill="#06c">')
-    for stroke in document.strokes:
-        lines.append(f'<circle cx="{stroke.points[0].x}" cy="{stroke.points[0].y}" r="0.35"/>')
-        lines.append(
-            f'<circle cx="{stroke.points[-1].x}" cy="{stroke.points[-1].y}" r="0.35" fill="#090"/>'
-        )
+    lines.append('</g><g id="candidate-curves" fill="none" stroke-width="0.16">')
+    for candidate in candidates:
+        curve = candidate.get("curve", [])
+        if not curve:
+            continue
+        points = " ".join(f"{point[0]},{point[1]}" for point in curve)
+        color = "#0a0" if candidate.get("accepted") else "#d22"
+        dash = "" if candidate.get("accepted") else ' stroke-dasharray="0.6 0.4"'
+        lines.append(f'<polyline points="{points}" stroke="{color}"{dash}/>')
+    lines.append('</g><g id="entry-exit" stroke="none">')
+    for candidate in candidates:
+        left = candidate.get("left_exit")
+        right = candidate.get("right_entry")
+        if left:
+            lines.append(f'<circle cx="{left[0]}" cy="{left[1]}" r="0.35" fill="#06c"/>')
+        if right:
+            lines.append(f'<circle cx="{right[0]}" cy="{right[1]}" r="0.35" fill="#090"/>')
+    lines.append('</g><g id="collisions" fill="#f0f">')
+    for candidate in candidates:
+        for point in candidate.get("collision_points", []):
+            lines.append(f'<circle cx="{point[0]}" cy="{point[1]}" r="0.28"/>')
     lines.append(
-        '</g><g id="travel" fill="none" stroke="#999" stroke-width="0.1" stroke-dasharray="0.5 0.5">'
+        '</g><g id="travel" fill="none" stroke="#999" stroke-width="0.1" '
+        'stroke-dasharray="0.5 0.5">'
     )
     for left, right in pairwise(document.strokes):
         lines.append(
-            f'<line x1="{left.points[-1].x}" y1="{left.points[-1].y}" x2="{right.points[0].x}" y2="{right.points[0].y}"/>'
+            f'<line x1="{left.points[-1].x}" y1="{left.points[-1].y}" '
+            f'x2="{right.points[0].x}" y2="{right.points[0].y}"/>'
         )
     lines.append("</g></svg>")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output.with_suffix(".json").write_text(
+        json.dumps(candidates, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def load_joining_config(
@@ -124,6 +170,11 @@ def load_joining_config(
     if not isinstance(values, Mapping):
         handwriting = _mapping(root, "handwriting")
         values = _mapping(handwriting, "joining")
+        warnings.warn(
+            "handwriting.joining is deprecated; use the canonical connections section",
+            UserWarning,
+            stacklevel=2,
+        )
     configured = _boolean(values, "enabled")
     selected_mode = mode or str(values.get("mode", "safe"))
     if selected_mode not in {"off", "safe", "aggressive"}:
@@ -146,6 +197,11 @@ def load_joining_config(
         selected_mode,
         vertical,
         bool(values.get("connect_letters_only", True)),
+        _ratio(values, "min_corridor_inside_ratio", 0.75),
+        bool(values.get("allow_connector_outside_ink", True)),
+        _nonnegative_default(values, "outside_ink_margin_mm", 0.35),
+        _positive_default(values, "contact_epsilon_mm", 0.08),
+        _positive_default(values, "collision_clearance_mm", 0.10),
     )
 
 
@@ -167,49 +223,84 @@ def route_words(
                 "rejections_by_reason": {"mode_off": pairs},
             }
         )
+        metrics.update(_required_metrics(pairs, 0, pairs, 0, 0.0, {"mode_off": pairs}))
         return document, metrics
-    positioned = {glyph.glyph_index: glyph for glyph in glyphs}
     by_glyph: dict[int, list[PlotterStroke]] = {}
     for stroke in document.strokes:
         if stroke.glyph_index is not None:
             by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
     words = _words(glyphs)
+    obstacle_index = [
+        _StrokeObstacle(stroke, _stroke_bounds(stroke)) for stroke in document.strokes
+    ]
     output: list[PlotterStroke] = []
-    candidates = created = rejected = 0
+    candidates = created = rejected = snapped = 0
     connector_length = 0.0
     gaps: list[float] = []
     rejection_reasons: dict[str, int] = {}
     connection_id = 0
     per_word: list[dict[str, object]] = []
+    debug_candidates: list[dict[str, object]] = []
     for word in words:
         word_created = 0
         word_rejected: list[str] = []
-        mains: list[PlotterStroke] = []
         secondary: list[PlotterStroke] = []
+        routes: list[_GlyphRoute] = []
         for glyph in word:
             strokes = by_glyph.get(glyph.glyph_index, [])
             classified = classify_strokes(strokes, glyph.baseline_y_mm)
             main = classified.main if classified.confidence >= 0.35 else None
             if main is not None:
-                mains.append(replace(main, points=list(main.points)))
+                routed = _orient_for_anchors(main, glyph)
+                anchors = entry_exit_anchors(routed, glyph.baseline_y_mm)
+                routes.append(
+                    _GlyphRoute(
+                        glyph,
+                        routed,
+                        anchors[0] if anchors else None,
+                        anchors[1] if anchors else None,
+                    )
+                )
+            else:
+                routes.append(_GlyphRoute(glyph, None, None, None))
             secondary.extend(stroke for stroke in strokes if stroke is not main)
-        oriented = _orient_word(mains)
-        if oriented:
-            combined = replace(oriented[0], points=list(oriented[0].points))
-            for right in oriented[1:]:
+        combined = (
+            replace(routes[0].main, points=list(routes[0].main.points))
+            if routes and routes[0].main
+            else None
+        )
+        if routes:
+            for left_route, right_route in pairwise(routes):
                 candidates += 1
-                left_glyph = (
-                    positioned.get(combined.glyph_index)
-                    if combined.glyph_index is not None
-                    else None
+                right = right_route.main
+                if (
+                    combined is None
+                    or left_route.main is None
+                    or right is None
+                    or left_route.exit is None
+                    or right_route.entry is None
+                ):
+                    reason = "missing_main_stroke"
+                    if combined is not None:
+                        output.append(combined)
+                    combined = replace(right, points=list(right.points)) if right else None
+                    rejected += 1
+                    rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                    word_rejected.append(reason)
+                    continue
+                candidate, connector, collision_points, snap_point = _connection_candidate(
+                    left_route,
+                    right_route,
+                    config,
+                    obstacle_index,
                 )
-                right_glyph = (
-                    positioned.get(right.glyph_index) if right.glyph_index is not None else None
+                reason = candidate.rejection_reason
+                debug_candidates.append(
+                    _debug_candidate(
+                        left_route, right_route, candidate, connector, collision_points, snap_point
+                    )
                 )
-                connector, reason = _connector(
-                    combined.points, right.points, config, left_glyph, right_glyph
-                )
-                if connector is None:
+                if not candidate.accepted:
                     output.append(combined)
                     combined = replace(right, points=list(right.points))
                     rejected += 1
@@ -218,22 +309,32 @@ def route_words(
                     )
                     word_rejected.append(reason or "unknown")
                     continue
-                gap = _distance(combined.points[-1], right.points[0])
-                combined.points.extend(connector[1:])
-                combined.points.extend(right.points[1:])
+                gap = candidate.distance_mm
+                right_points = list(right.points)
+                if snap_point is not None:
+                    combined.points[-1] = snap_point
+                    right_points[0] = snap_point
+                    combined.points.extend(right_points[1:])
+                    snapped += 1
+                    segment_kind = "snap"
+                else:
+                    combined.points.extend(_dedupe_boundary(combined.points[-1], connector[1:]))
+                    combined.points.extend(_dedupe_boundary(combined.points[-1], right_points[1:]))
+                    connector_length += sum(_distance(a, b) for a, b in pairwise(connector))
+                    segment_kind = "connector"
                 combined.char = f"{combined.char or ''}{right.char or ''}"
                 combined.source_glyph_indices = (
                     combined.source_glyph_indices + right.source_glyph_indices
                 )
                 combined.source_chars += right.source_chars or right.char or ""
-                combined.segment_types += ("connector",) + right.segment_types
+                combined.segment_types += (segment_kind,) + right.segment_types
                 combined.connection_ids += (connection_id,)
                 connection_id += 1
-                connector_length += sum(_distance(a, b) for a, b in pairwise(connector))
                 gaps.append(gap)
                 created += 1
                 word_created += 1
-            output.append(combined)
+            if combined is not None:
+                output.append(combined)
         output.extend(secondary)
         per_word.append(
             {
@@ -251,12 +352,18 @@ def route_words(
         stroke.id = index
     result = replace(document, strokes=output, metadata=dict(document.metadata))
     result.metadata["word_joining"] = True
+    result.metadata["connection_debug"] = debug_candidates
     metrics = _metrics(
         len(words), candidates, created, before, len(output), connector_length, gaps, rejected,
         rejection_reasons,
         per_word,
     )
     metrics["mode"] = config.mode
+    metrics.update(
+        _required_metrics(
+            candidates, created, rejected, snapped, connector_length, rejection_reasons
+        )
+    )
     return result, metrics
 
 
@@ -287,54 +394,261 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     return words
 
 
-def _orient_word(strokes: list[PlotterStroke]) -> list[PlotterStroke]:
-    # Cursive LTR writing needs a stable left entry and right exit. A global
-    # nearest-neighbour orientation can reduce travel while reversing a letter.
-    directions = [int(stroke.points[0].x > stroke.points[-1].x) for stroke in strokes]
-    return [
-        replace(stroke, points=list(reversed(stroke.points)) if direction else list(stroke.points))
-        for stroke, direction in zip(strokes, directions)
-    ]
+def _orient_for_anchors(stroke: PlotterStroke, glyph: PositionedGlyph) -> PlotterStroke:
+    routed = replace(stroke, points=list(stroke.points))
+    anchors = entry_exit_anchors(routed, glyph.baseline_y_mm)
+    if anchors is not None and anchors[0].point == routed.points[-1]:
+        routed.points.reverse()
+    return routed
 
 
-def _connector(
-    left: list[Point],
-    right: list[Point],
+def _connection_candidate(
+    left: _GlyphRoute,
+    right: _GlyphRoute,
     config: JoiningConfig,
-    left_glyph: PositionedGlyph | None,
-    right_glyph: PositionedGlyph | None,
-) -> tuple[list[Point] | None, str | None]:
-    if not left_glyph or not right_glyph or left_glyph.line_index != right_glyph.line_index:
-        return None, "different_line"
-    if left_glyph.char in config.do_not_join_after or right_glyph.char in config.do_not_join_before:
-        return None, "punctuation_rule"
-    if config.connect_letters_only and not (
-        left_glyph.char.isalpha() and right_glyph.char.isalpha()
-    ):
-        return None, "not_letters"
-    start, end = left[-1], right[0]
+    obstacles: list[_StrokeObstacle],
+) -> tuple[GlyphConnectionCandidate, list[Point], list[Point], Point | None]:
+    assert left.main is not None and right.main is not None
+    assert left.exit is not None and right.entry is not None
+    start, end = left.exit.point, right.entry.point
     gap = _distance(start, end)
-    if gap > config.max_join_gap_mm:
-        return None, "distance"
-    if abs(end.y - start.y) > config.max_vertical_offset_mm:
-        return None, "vertical_offset"
-    if end.x + 1e-9 < start.x:
-        return None, "backward_motion"
-    left_angle = math.atan2(start.y - left[-2].y, start.x - left[-2].x)
-    right_angle = math.atan2(right[1].y - end.y, right[1].x - end.x)
+    vertical = abs(end.y - start.y)
+    left_angle = math.atan2(left.exit.tangent.y, left.exit.tangent.x)
+    right_angle = math.atan2(right.entry.tangent.y, right.entry.tangent.x)
     target = math.atan2(end.y - start.y, end.x - start.x)
-    if max(_angle_diff(left_angle, target), _angle_diff(target, right_angle)) > math.radians(
-        config.max_join_angle_deg
-    ):
-        return None, "tangent_mismatch"
+    tangent_mismatch = math.degrees(
+        max(_angle_diff(left_angle, target), _angle_diff(target, right_angle))
+    )
+    routeable_anchors = (
+        _distance(start, left.main.points[-1]) <= 1e-6
+        and _distance(end, right.main.points[0]) <= 1e-6
+    )
+    contact = _contact_point(left.main, right.main, config.contact_epsilon_mm)
+    if contact is not None:
+        candidate = GlyphConnectionCandidate(
+            left.glyph.glyph_index,
+            right.glyph.glyph_index,
+            left.exit,
+            right.entry,
+            gap,
+            tangent_mismatch,
+            vertical,
+            1.0,
+            0,
+            0.0,
+            True,
+            None,
+        )
+        return candidate, [start, contact, end], [], contact
     handle = gap / 3
     c1 = Point(start.x + math.cos(left_angle) * handle, start.y + math.sin(left_angle) * handle)
     c2 = Point(end.x - math.cos(right_angle) * handle, end.y - math.sin(right_angle) * handle)
     count = max(2, math.ceil(gap / config.connector_step_mm))
-    points = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
-    if any(b.x < a.x - 0.35 for a, b in pairwise(points)):
-        return None, "connector_backtracking"
-    return points, None
+    curve = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
+    backtracking = any(b.x < a.x - 0.15 for a, b in pairwise(curve))
+    corridor_ratio = _corridor_inside_ratio(
+        curve, start, end, config.outside_ink_margin_mm
+    )
+    collision_points = _collision_points(
+        curve,
+        obstacles,
+        left.main,
+        right.main,
+        start,
+        end,
+        config.collision_clearance_mm,
+    )
+    reason: str | None = None
+    if left.glyph.line_index != right.glyph.line_index:
+        reason = "different_line"
+    elif left.glyph.char in config.do_not_join_after or right.glyph.char in config.do_not_join_before:
+        reason = "punctuation_rule"
+    elif config.connect_letters_only and not (
+        left.glyph.char.isalpha() and right.glyph.char.isalpha()
+    ):
+        reason = "not_letters"
+    elif not routeable_anchors:
+        reason = "anchor_not_routeable"
+    elif gap > config.max_join_gap_mm:
+        reason = "distance"
+    elif vertical > config.max_vertical_offset_mm:
+        reason = "vertical_offset"
+    elif end.x + 1e-9 < start.x or backtracking:
+        reason = "backward_motion"
+    elif tangent_mismatch > config.max_join_angle_deg:
+        reason = "tangent_mismatch"
+    elif collision_points:
+        reason = "collision"
+    elif corridor_ratio < (
+        config.min_corridor_inside_ratio if config.allow_connector_outside_ink else 1.0
+    ):
+        reason = "corridor"
+    score = (
+        gap
+        + vertical * 0.75
+        + tangent_mismatch / 45.0
+        + (1.0 - corridor_ratio) * 10.0
+        + len(collision_points) * 100.0
+        + (100.0 if backtracking else 0.0)
+    )
+    candidate = GlyphConnectionCandidate(
+        left.glyph.glyph_index,
+        right.glyph.glyph_index,
+        left.exit,
+        right.entry,
+        gap,
+        tangent_mismatch,
+        vertical,
+        corridor_ratio,
+        len(collision_points),
+        score,
+        reason is None,
+        reason,
+    )
+    return candidate, curve, collision_points, None
+
+
+def _contact_point(
+    left: PlotterStroke, right: PlotterStroke, epsilon: float
+) -> Point | None:
+    if _distance(left.points[-1], right.points[0]) <= epsilon:
+        return Point(
+            (left.points[-1].x + right.points[0].x) / 2,
+            (left.points[-1].y + right.points[0].y) / 2,
+        )
+    return _segment_intersection(
+        left.points[-2], left.points[-1], right.points[0], right.points[1]
+    )
+
+
+def _segment_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
+    denominator = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x)
+    if abs(denominator) <= 1e-12:
+        return None
+    first = a.x * b.y - a.y * b.x
+    second = c.x * d.y - c.y * d.x
+    point = Point(
+        (first * (c.x - d.x) - (a.x - b.x) * second) / denominator,
+        (first * (c.y - d.y) - (a.y - b.y) * second) / denominator,
+    )
+    if _point_on_segment(point, a, b) and _point_on_segment(point, c, d):
+        return point
+    return None
+
+
+def _point_on_segment(point: Point, start: Point, end: Point) -> bool:
+    epsilon = 1e-9
+    return (
+        min(start.x, end.x) - epsilon <= point.x <= max(start.x, end.x) + epsilon
+        and min(start.y, end.y) - epsilon <= point.y <= max(start.y, end.y) + epsilon
+    )
+
+
+def _corridor_inside_ratio(
+    curve: list[Point], start: Point, end: Point, margin: float
+) -> float:
+    if not curve:
+        return 0.0
+    radius = max(margin, 1e-6)
+    inside = sum(_point_segment_distance(point, start, end) <= radius for point in curve)
+    return inside / len(curve)
+
+
+def _collision_points(
+    curve: list[Point],
+    obstacles: list[_StrokeObstacle],
+    left: PlotterStroke,
+    right: PlotterStroke,
+    start: Point,
+    end: Point,
+    clearance: float,
+) -> list[Point]:
+    collisions: list[Point] = []
+    boundary_ignore = max(clearance * 4, 0.35)
+    curve_bounds = (
+        min(point.x for point in curve) - clearance,
+        min(point.y for point in curve) - clearance,
+        max(point.x for point in curve) + clearance,
+        max(point.y for point in curve) + clearance,
+    )
+    for point in curve[1:-1]:
+        collided = False
+        for obstacle in obstacles:
+            if not _bounds_overlap(curve_bounds, obstacle.bounds):
+                continue
+            stroke = obstacle.stroke
+            for first, second in pairwise(stroke.points):
+                if stroke.id == left.id and min(
+                    _distance(first, start), _distance(second, start)
+                ) <= boundary_ignore:
+                    continue
+                if stroke.id == right.id and min(
+                    _distance(first, end), _distance(second, end)
+                ) <= boundary_ignore:
+                    continue
+                if not (
+                    min(first.x, second.x) - clearance
+                    <= point.x
+                    <= max(first.x, second.x) + clearance
+                    and min(first.y, second.y) - clearance
+                    <= point.y
+                    <= max(first.y, second.y) + clearance
+                ):
+                    continue
+                if _point_segment_distance(point, first, second) <= clearance:
+                    collisions.append(point)
+                    collided = True
+                    break
+            if collided:
+                break
+    return _dedupe_points(collisions, clearance)
+
+
+def _stroke_bounds(stroke: PlotterStroke) -> tuple[float, float, float, float]:
+    return (
+        min(point.x for point in stroke.points),
+        min(point.y for point in stroke.points),
+        max(point.x for point in stroke.points),
+        max(point.y for point in stroke.points),
+    )
+
+
+def _bounds_overlap(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> bool:
+    return not (
+        left[2] < right[0]
+        or right[2] < left[0]
+        or left[3] < right[1]
+        or right[3] < left[1]
+    )
+
+
+def _point_segment_distance(point: Point, start: Point, end: Point) -> float:
+    dx, dy = end.x - start.x, end.y - start.y
+    length_squared = dx * dx + dy * dy
+    if length_squared <= 1e-18:
+        return _distance(point, start)
+    position = ((point.x - start.x) * dx + (point.y - start.y) * dy) / length_squared
+    position = min(1.0, max(0.0, position))
+    projection = Point(start.x + position * dx, start.y + position * dy)
+    return _distance(point, projection)
+
+
+def _dedupe_points(points: list[Point], epsilon: float) -> list[Point]:
+    result: list[Point] = []
+    for point in points:
+        if not result or _distance(result[-1], point) > epsilon:
+            result.append(point)
+    return result
+
+
+def _dedupe_boundary(boundary: Point, points: list[Point]) -> list[Point]:
+    index = 0
+    while index < len(points) and _distance(boundary, points[index]) <= 1e-9:
+        index += 1
+    return points[index:]
 
 
 def _bezier(a: Point, b: Point, c: Point, d: Point, t: float) -> Point:
@@ -381,8 +695,54 @@ def _metrics(
     }
 
 
-def _stroke_length(stroke: PlotterStroke) -> float:
-    return sum(_distance(a, b) for a, b in zip(stroke.points, stroke.points[1:]))
+def _required_metrics(
+    pairs: int,
+    accepted: int,
+    rejected: int,
+    snapped: int,
+    connector_length: float,
+    reasons: dict[str, int],
+) -> dict[str, object]:
+    return {
+        "pairs_total": pairs,
+        "accepted": accepted,
+        "rejected": rejected,
+        "rejected_distance": reasons.get("distance", 0),
+        "rejected_tangent": reasons.get("tangent_mismatch", 0),
+        "rejected_collision": reasons.get("collision", 0),
+        "rejected_corridor": reasons.get("corridor", 0),
+        "snapped_existing_contact": snapped,
+        "connector_length_mm": round(connector_length, 6),
+    }
+
+
+def _debug_candidate(
+    left: _GlyphRoute,
+    right: _GlyphRoute,
+    candidate: GlyphConnectionCandidate,
+    curve: list[Point],
+    collision_points: list[Point],
+    snap_point: Point | None,
+) -> dict[str, object]:
+    return {
+        "left": left.glyph.char,
+        "right": right.glyph.char,
+        "left_glyph_index": candidate.left_glyph_index,
+        "right_glyph_index": candidate.right_glyph_index,
+        "accepted": candidate.accepted,
+        "reason": candidate.rejection_reason,
+        "distance_mm": round(candidate.distance_mm, 6),
+        "vertical_offset_mm": round(candidate.vertical_offset_mm, 6),
+        "tangent_mismatch_deg": round(candidate.tangent_mismatch_deg, 6),
+        "corridor_inside_ratio": round(candidate.corridor_inside_ratio, 6),
+        "collision_count": candidate.collision_count,
+        "score": round(candidate.score, 6),
+        "snapped_existing_contact": snap_point is not None,
+        "left_exit": [candidate.left_exit.point.x, candidate.left_exit.point.y],
+        "right_entry": [candidate.right_entry.point.x, candidate.right_entry.point.y],
+        "curve": [[point.x, point.y] for point in curve],
+        "collision_points": [[point.x, point.y] for point in collision_points],
+    }
 
 
 def _distance(a: Point, b: Point) -> float:
@@ -406,7 +766,6 @@ def _positive(values: Mapping[str, object], key: str) -> float:
         raise ValueError(f"Invalid handwriting value: {key}")
     return float(value)
 
-
 def _nonnegative(values: Mapping[str, object], key: str) -> float:
     value = values.get(key)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
@@ -421,8 +780,26 @@ def _boolean(values: Mapping[str, object], key: str) -> bool:
     return value
 
 
-def _strings(values: Mapping[str, object], key: str) -> list[str]:
-    value = values.get(key)
-    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-        raise TypeError(f"Invalid handwriting list: {key}")
-    return value
+def _positive_default(values: Mapping[str, object], key: str, default: float) -> float:
+    value = values.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"Invalid handwriting value: {key}")
+    return float(value)
+
+
+def _nonnegative_default(values: Mapping[str, object], key: str, default: float) -> float:
+    value = values.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"Invalid handwriting value: {key}")
+    return float(value)
+
+
+def _ratio(values: Mapping[str, object], key: str, default: float) -> float:
+    value = values.get(key, default)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 0 <= value <= 1
+    ):
+        raise ValueError(f"Invalid handwriting ratio: {key}")
+    return float(value)

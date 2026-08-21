@@ -91,6 +91,11 @@ def save_path_document(document: PathDocument, output_path: str | Path) -> None:
                 "font_role": stroke.font_role,
                 "font_sha256": stroke.font_sha256,
                 "source_path": stroke.source_path,
+                "source_page_index": stroke.source_page_index,
+                "semantic_role": stroke.semantic_role,
+                "layout_group": stroke.layout_group,
+                "preserve_order": stroke.preserve_order,
+                "z_order": stroke.z_order,
                 "points": [[point.x, point.y] for point in stroke.points],
             }
             for stroke in document.strokes
@@ -128,6 +133,11 @@ def load_path_document(input_path: str | Path) -> PathDocument:
                 font_role=item.get("font_role"),
                 font_sha256=item.get("font_sha256"),
                 source_path=item.get("source_path"),
+                source_page_index=item.get("source_page_index"),
+                semantic_role=item.get("semantic_role"),
+                layout_group=item.get("layout_group"),
+                preserve_order=bool(item.get("preserve_order", False)),
+                z_order=int(item.get("z_order", 0)),
             )
             for item in payload["strokes"]
         ]

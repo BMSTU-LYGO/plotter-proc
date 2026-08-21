@@ -1,0 +1,5 @@
+Inline $x_i + \alpha \leq \beta$.
+
+$$\int_0^1 f(x)\,dx = \frac{1}{3}$$
+
+$$\sum_{i=1}^{n} i + \sqrt{x^2 + 1}$$

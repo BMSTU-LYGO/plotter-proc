@@ -114,6 +114,11 @@ class PlotterStroke:
     font_role: str | None = None
     font_sha256: str | None = None
     source_path: str | None = None
+    source_page_index: int | None = None
+    semantic_role: str | None = None
+    layout_group: str | None = None
+    preserve_order: bool = False
+    z_order: int = 0
 
 
 @dataclass(slots=True)

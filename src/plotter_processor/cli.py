@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
+from plotter_processor.centerline_font.cache import cache_status
 from plotter_processor.centerline_font.compiler import compile_centerline_font
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.glyph_tuner import tune_glyphs
@@ -44,12 +46,20 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         motion_profile=args.motion_profile,
         latex=args.latex,
         latex_debug=args.latex_debug,
+        latex_stroke_mode=args.latex_stroke_mode,
+        strict_latex_quality=args.strict_latex_quality,
+        pdf_math=args.pdf_math,
+        math_debug=args.math_debug,
         join_writing=args.join_writing,
         layout_engine=args.layout_engine,
         connections=args.connections,
+        connection_debug=args.connection_debug,
         images=args.images,
         image_debug=args.image_debug,
         pdf_layout=args.pdf_layout,
+        document_layout=args.document_layout,
+        layout_debug=args.layout_debug,
+        semantic_debug=args.semantic_debug,
         paginate=args.paginate,
         page_numbers=args.page_numbers,
         page_pause_seconds=args.page_pause_seconds,
@@ -179,6 +189,8 @@ def _compare_jobs(args: argparse.Namespace) -> int:
 def _compile_centerline(args: argparse.Namespace) -> int:
     try:
         config = load_centerline_config(load_yaml(args.layout_config))
+        if args.cache_directory is not None:
+            config = replace(config, cache_directory=args.cache_directory)
         chars = set(args.chars or "")
         if args.text_file:
             chars.update(args.text_file.read_text(encoding="utf-8"))
@@ -203,6 +215,19 @@ def _compile_centerline(args: argparse.Namespace) -> int:
         f"Compiled {len(compiled.glyphs)} glyphs to {output}; "
         f"cache hits={compiled.cache_hits}, misses={compiled.cache_misses}; preview={preview}"
     )
+    return 0
+
+
+def _font_cache_info(args: argparse.Namespace) -> int:
+    try:
+        config = load_centerline_config(load_yaml(args.layout_config))
+        if args.cache_directory is not None:
+            config = replace(config, cache_directory=args.cache_directory)
+        result = cache_status(args.font, config)
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -234,6 +259,8 @@ def _compose(args: argparse.Namespace) -> int:
         motion_profile=args.motion_profile,
         latex=args.latex,
         latex_debug=args.latex_debug,
+        latex_stroke_mode=args.latex_stroke_mode,
+        strict_latex_quality=args.strict_latex_quality,
     )
     if result.status == "error":
         print(f"Error: {result.error}\nReport: {result.report_path}")
@@ -261,9 +288,13 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--layout-engine", choices=("legacy", "harfbuzz"))
     parser.add_argument("--connections", choices=("off", "safe", "aggressive"))
+    parser.add_argument("--connection-debug", action="store_true")
     parser.add_argument("--images", choices=("auto", "outline", "centerline", "off"), default="auto")
     parser.add_argument("--image-debug", action="store_true")
-    parser.add_argument("--pdf-layout", choices=("reflow", "preserve"), default="reflow")
+    parser.add_argument("--pdf-layout", choices=("reflow", "preserve"))
+    parser.add_argument("--document-layout", choices=("reflow", "hybrid", "preserve"))
+    parser.add_argument("--layout-debug", action="store_true")
+    parser.add_argument("--semantic-debug", action="store_true")
     parser.add_argument("--paginate", dest="paginate", action="store_true")
     parser.add_argument("--no-paginate", dest="paginate", action="store_false")
     parser.add_argument("--page-numbers", dest="page_numbers", action="store_true")
@@ -275,6 +306,10 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
     parser.add_argument("--latex-debug", action="store_true")
+    parser.add_argument("--latex-stroke-mode", choices=("centerline", "outline"))
+    parser.add_argument("--strict-latex-quality", action="store_true")
+    parser.add_argument("--pdf-math", choices=("auto", "visual", "off"), default="auto")
+    parser.add_argument("--math-debug", action="store_true")
     parser.set_defaults(paginate=None, page_numbers=None)
 
 
@@ -313,9 +348,20 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--preview", type=Path)
     compile_parser.add_argument("--debug-dir", type=Path)
     compile_parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
+    compile_parser.add_argument("--cache-directory", type=Path)
     compile_parser.add_argument("--force", action="store_true")
     compile_parser.add_argument("--strict-quality", action="store_true")
     compile_parser.set_defaults(handler=_compile_centerline)
+
+    cache_info_parser = commands.add_parser(
+        "font-cache-info", help="Inspect the reusable centerline cache for one TTF font."
+    )
+    cache_info_parser.add_argument("font", type=Path)
+    cache_info_parser.add_argument(
+        "--layout-config", type=Path, default=Path("configs/layout.yaml")
+    )
+    cache_info_parser.add_argument("--cache-directory", type=Path)
+    cache_info_parser.set_defaults(handler=_font_cache_info)
 
     tune_parser = commands.add_parser(
         "tune-centerline-glyphs", help="Search a bounded centerline parameter grid."
@@ -341,6 +387,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compose_parser.add_argument("--latex", choices=("auto", "mathtext", "off"), default="auto")
     compose_parser.add_argument("--latex-debug", action="store_true")
+    compose_parser.add_argument("--latex-stroke-mode", choices=("centerline", "outline"))
+    compose_parser.add_argument("--strict-latex-quality", action="store_true")
     compose_parser.set_defaults(handler=_compose)
 
     gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")

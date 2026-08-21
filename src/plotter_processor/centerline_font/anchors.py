@@ -12,6 +12,35 @@ def entry_exit_anchors(
     if len(stroke.points) < 2:
         return None
     points = stroke.points
+    if not stroke.closed:
+        sample = min(5, len(points) - 1)
+        if points[0].x <= points[-1].x:
+            entry_index, entry_next = 0, sample
+            exit_previous, exit_index = len(points) - 1 - sample, len(points) - 1
+        else:
+            entry_index, entry_next = len(points) - 1, len(points) - 1 - sample
+            exit_previous, exit_index = sample, 0
+        entry = StrokeAnchor(
+            points[entry_index],
+            _unit(points[entry_index], points[entry_next]),
+            "left",
+            "entry",
+            1.0,
+            stroke.id,
+            entry_index,
+            points[entry_index].y - baseline_y,
+        )
+        exit = StrokeAnchor(
+            points[exit_index],
+            _unit(points[exit_previous], points[exit_index]),
+            "right",
+            "exit",
+            1.0,
+            stroke.id,
+            exit_index,
+            points[exit_index].y - baseline_y,
+        )
+        return entry, exit
     if stroke.closed:
         opening = min(range(len(points)), key=lambda index: (points[index].x, points[index].y, index))
         points = points[opening:] + points[:opening]

@@ -10,4 +10,5 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-
+.plotter-cache/
+1-font-cache/

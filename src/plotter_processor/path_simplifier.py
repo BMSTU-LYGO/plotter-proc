@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from itertools import pairwise
 
 from plotter_processor.models import PathDocument, Point
 
@@ -29,14 +28,20 @@ def simplify_path_document(
             if points[-1] == points[0]:
                 points = points[:-1]
             ring = points + [points[0]]
-            reduced = _rdp(ring, max_deviation_mm)
+            reduced, observed = _rdp_with_deviation(ring, max_deviation_mm)
             if reduced[-1] == reduced[0]:
                 reduced = reduced[:-1]
-            points = reduced if len(reduced) >= 3 else points
+            if len(reduced) >= 3:
+                points = reduced
+            else:
+                observed = 0.0
         else:
-            reduced = _rdp(points, max_deviation_mm)
-            points = reduced if len(reduced) >= 2 else points
-        max_seen = max(max_seen, _directed_distance(stroke.points, points, closed))
+            reduced, observed = _rdp_with_deviation(points, max_deviation_mm)
+            if len(reduced) >= 2:
+                points = reduced
+            else:
+                observed = 0.0
+        max_seen = max(max_seen, observed)
         simplified_strokes.append(replace(stroke, points=points, closed=closed))
     after = sum(len(stroke.points) for stroke in simplified_strokes)
     result = replace(document, strokes=simplified_strokes, metadata=dict(document.metadata))
@@ -67,15 +72,21 @@ def _dedupe(points: list[Point], epsilon: float) -> list[Point]:
 
 
 def _rdp(points: list[Point], epsilon: float) -> list[Point]:
+    return _rdp_with_deviation(points, epsilon)[0]
+
+
+def _rdp_with_deviation(points: list[Point], epsilon: float) -> tuple[list[Point], float]:
     if len(points) <= 2 or epsilon == 0:
-        return points
+        return points, 0.0
     start, end = points[0], points[-1]
     distances = [_point_segment_distance(point, start, end) for point in points[1:-1]]
     maximum = max(distances, default=0)
     if maximum <= epsilon:
-        return [start, end]
+        return [start, end], maximum
     index = distances.index(maximum) + 1
-    return _rdp(points[: index + 1], epsilon)[:-1] + _rdp(points[index:], epsilon)
+    left, left_deviation = _rdp_with_deviation(points[: index + 1], epsilon)
+    right, right_deviation = _rdp_with_deviation(points[index:], epsilon)
+    return left[:-1] + right, max(left_deviation, right_deviation)
 
 
 def _point_segment_distance(point: Point, start: Point, end: Point) -> float:
@@ -87,13 +98,3 @@ def _point_segment_distance(point: Point, start: Point, end: Point) -> float:
     )
     projection = Point(start.x + t * dx, start.y + t * dy)
     return math.hypot(point.x - projection.x, point.y - projection.y)
-
-
-def _directed_distance(original: list[Point], simplified: list[Point], closed: bool) -> float:
-    segments = list(pairwise(simplified))
-    if closed:
-        segments.append((simplified[-1], simplified[0]))
-    return max(
-        (min(_point_segment_distance(point, a, b) for a, b in segments) for point in original),
-        default=0.0,
-    )

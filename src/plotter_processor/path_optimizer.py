@@ -48,6 +48,8 @@ def _nearest_variant(
 
 def _orient(stroke: PlotterStroke, previous: Point) -> PlotterStroke:
     candidate = _copy_stroke(stroke)
+    if candidate.preserve_order:
+        return candidate
     if candidate.closed:
         start = min(
             range(len(candidate.points)),
@@ -77,6 +79,11 @@ def _copy_stroke(stroke: PlotterStroke) -> PlotterStroke:
         font_role=stroke.font_role,
         font_sha256=stroke.font_sha256,
         source_path=stroke.source_path,
+        source_page_index=stroke.source_page_index,
+        semantic_role=stroke.semantic_role,
+        layout_group=stroke.layout_group,
+        preserve_order=stroke.preserve_order,
+        z_order=stroke.z_order,
     )
 
 

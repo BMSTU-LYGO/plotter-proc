@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from plotter_processor.centerline_font.cache import default_cache_path, font_sha256
+from plotter_processor.centerline_font.cache import (
+    centerline_config_payload,
+    default_cache_path,
+    font_sha256,
+    write_cache_metadata_atomic,
+)
 from plotter_processor.centerline_font.config import CenterlineConfig, _candidate_scoring
 from plotter_processor.centerline_font.debug import export_glyph_debug
 from plotter_processor.centerline_font.edge_geometry import build_smoothed_edge_geometry
@@ -35,10 +40,10 @@ def compile_centerline_font(
 ) -> tuple[CompiledCenterlineFont, Path]:
     source = Path(font_path)
     digest = font_sha256(source)
-    serialized_config = _serialized_config(config)
+    serialized_config = _serialized_config(config, digest)
     target = cache_path or default_cache_path(digest, config)
     compiled: CompiledCenterlineFont | None = None
-    if target.is_file() and not force:
+    if target.is_file():
         try:
             cached, cached_config = load_centerline_font(target)
             if cached.font_sha256 == digest and cached_config == serialized_config:
@@ -58,8 +63,8 @@ def compile_centerline_font(
                 font.metrics.line_gap,
                 {},
             )
-        missing = [char for char in requested if char not in compiled.glyphs]
-        compiled.cache_hits = len(requested) - len(missing)
+        missing = requested if force else [char for char in requested if char not in compiled.glyphs]
+        compiled.cache_hits = 0 if force else len(requested) - len(missing)
         compiled.cache_misses = len(missing)
         for char in missing:
             try:
@@ -84,14 +89,20 @@ def compile_centerline_font(
             if char in patches:
                 compiled.glyphs[char] = apply_glyph_patch(compiled.glyphs[char], patches[char])
     write_centerline_font_atomic(compiled, target, config=serialized_config)
+    write_cache_metadata_atomic(
+        target,
+        font_hash=digest,
+        font_path=source,
+        config=config,
+        glyph_count=len(compiled.glyphs),
+    )
     return compiled, target
 
 
-def _serialized_config(config: CenterlineConfig) -> dict[str, object]:
-    values = config.serializable()
-    if config.glyph_patch_file is not None:
-        values["glyph_patch_sha256"] = font_sha256(config.glyph_patch_file)
-    return values
+def _serialized_config(
+    config: CenterlineConfig, font_digest: str | None = None
+) -> dict[str, object]:
+    return centerline_config_payload(config, font_hash=font_digest)
 
 
 def _compile_glyph(

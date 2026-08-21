@@ -45,26 +45,61 @@ python3 -m venv .venv
 В TXT, обычном тексте DOCX и `composition` поддерживаются inline-формулы
 `$...$`, `\(...\)` и блочные формулы `$$...$$`, `\[...\]`. MathText
 преобразует степени и индексы, дроби, корни, греческие буквы, основные
-операторы, суммы, интегралы и скобки непосредственно в векторные контуры —
-без запуска shell или системного `latex`. Запись `\$` означает обычный знак
-доллара.
+операторы, суммы, интегралы и скобки в high-resolution ink mask, после чего
+общий raster-to-centerline pipeline строит центральные линии. Shell и
+системный `latex` не запускаются. Запись `\$` означает обычный знак доллара.
 
 ```bash
 .venv/bin/python -m plotter_processor run examples/formulas.txt \
   --font assets/1.ttf --font-mode centerline \
-  --latex mathtext --latex-debug --output-dir build/formulas
+  --latex mathtext --latex-stroke-mode centerline \
+  --strict-latex-quality --latex-debug --output-dir build/formulas
 ```
 
 Режим `--latex auto` включён по умолчанию, `--latex off` оставляет разделители
-обычным текстом и добавляет предупреждение в отчёт. `--latex-debug` сохраняет
-отдельные `latex-debug/formula-NNN.svg` и `.json`. Формулы остаются outline;
-centerline применяется только к обычному тексту.
+обычным текстом и добавляет предупреждение в отчёт. Default stroke mode —
+`centerline`; прежний результат доступен через `--latex-stroke-mode outline`.
+`--latex-debug` сохраняет mask, skeleton, graph, centerline и overlay каждой
+формулы. `--strict-latex-quality` останавливает job до G-code при провале
+quality gate.
+
+Базовое подмножество Word OMML (символы, индексы, степени, дроби, корни,
+скобки и n-ary operators) становится отдельным математическим элементом. Для
+PDF доступен `--pdf-math auto|visual|off`: detector выделяет визуальный bbox
+формулы, рендерит только этот clip и строит centerline, не печатая поглощённые
+text/vector primitives второй раз. `--math-debug` сохраняет PDF clip и список
+поглощённых элементов.
 
 Это не полный TeX: не поддерживаются LaTeX-документы, `\documentclass`,
 packages, TikZ, пользовательские макросы, bibliography, произвольные file
-includes, внешний `latex` и shell execution. OMML из DOCX только обнаруживается
-и отмечается предупреждением; полное преобразование OMML и восстановление
-исходного LaTeX из PDF не выполняются.
+includes, внешний `latex` и shell execution. Поддерживается не весь OMML;
+неизвестные узлы отмечаются конкретным warning. PDF-режим является visual
+centerline reconstruction: исходная строка `.tex` не восстанавливается,
+low-confidence регионы остаются обычным текстом/вектором.
+
+## Размещение изображений
+
+Для DOCX и PDF доступны три режима `--document-layout reflow|hybrid|preserve`.
+`reflow` сохраняет прежний последовательный поток, `hybrid` удерживает сторону
+anchored-рисунка и обтекает его текстом, а `preserve` отображает исходные bbox
+на целевую страницу единым contain-scale. Старый `--pdf-layout reflow|preserve`
+остаётся alias; конфликт двух флагов завершается понятной ошибкой.
+
+`--layout-debug` создаёт `layout-debug/source-layout.svg`,
+`target-layout.svg`, `placement-overlay.svg` и `placement.json`. В отчёте раздел
+`document_layout` содержит displacement, scale, wrapping, overlap и overflow.
+
+## Семантические линии, стрелки и таблицы
+
+DOCX сохраняет single/double/words-only underline, VML-стрелки и структуру
+простых таблиц, включая horizontal/vertical merged cells и повтор header-row.
+Для PDF консервативно классифицируются line-based tables, стрелки,
+подчёркивания и обычные линии — один primitive может принадлежать только одному
+semantic object. Табличные shared borders строятся один раз.
+
+Флаг `--semantic-debug` создаёт `semantic-debug/classification.json` и SVG для
+исходных primitives, таблиц, стрелок и подчёркиваний. Счётчики находятся в
+разделе `semantic_objects` файла `report.json`.
 
 ## Профили скорости
 
@@ -121,7 +156,9 @@ npx draw-your-font make page-1.jpg page-2.jpg --name "My Hand"
   --output-dir build/centerline-job
 ```
 
-При первом запуске уникальные глифы компилируются в `build/font-cache`.
+При первом запуске уникальные глифы компилируются в
+`1-font-cache`. Этот постоянный кеш отделён от результатов в
+`build`, поэтому очистка старых заданий его не удаляет.
 Последующие запуски используют частичный кеш. Отдельная предварительная
 компиляция:
 
@@ -146,15 +183,58 @@ Centerline — автоматическое приближение. Сложны
 Перед печатью обязательно проверьте `font-preview.svg`,
 `centerline-font-preview.svg`, `plotter-preview.svg` и предупреждения отчёта.
 
+### Постоянный centerline cache
+
+Canonical cache хранится в `1-font-cache`, отдельно от job artifacts
+в `build/`. Namespace имеет вид
+`<font-sha256>/<centerline-config-fingerprint>/centerlines.json`; рядом атомарно
+записывается `metadata.json`. В identity входят содержимое TTF, версия алгоритма,
+render/skeleton/routing/stroke/quality settings, glyph/font overrides и содержимое
+glyph patch. Формат страницы, margins, pagination, machine и G-code settings cache
+не инвалидируют.
+
+```bash
+make clean                         # удаляет только build
+make cache-clean                   # явно удаляет весь reusable cache
+make font-cache-rebuild FONT=assets/1.ttf
+make font-cache-status FONT=assets/1.ttf
+```
+
+`font-cache-rebuild` компилирует воспроизводимый corpus из
+`assets/font-cache-corpus.txt`. Другой corpus можно передать через
+`FONT_CACHE_CORPUS=assets/custom-corpus.txt`. Rebuild одного TTF обновляет только
+его namespace и не удаляет кеши других шрифтов.
+
+При обычном `run --force-centerline-rebuild` принудительно пересобираются только
+глифы текущего документа. `compile-centerline-font --force` пересобирает весь
+переданный `--text-file`/`--chars`, сохраняя прочие валидные entries того же
+namespace. Без `--force` компилируются только misses. Изменение алгоритма или
+релевантного fingerprint автоматически выбирает новый namespace, поэтому ручная
+очистка для корректности не требуется.
+
+Если менялся только layout, достаточно `make test`. После изменений skeleton,
+routing, threshold, smoothing, cache schema или overrides выполните
+`make font-cache-rebuild FONT=assets/1.ttf`.
+
 Quality v3 сравнивает `skeletonize` и `medial_axis` по геометрии и
 топологии, нормализует junction-кластеры и удаляет spur относительно
 локальной толщины. Отдельный глиф можно настроить через
 `centerline.glyph_overrides`. Полный отчёт и regression-корпус описаны в
 `docs/centerline-quality-v3.md`.
 
-Флаг `--join-writing` включает безопасные рукописные переходы между
-буквами одного слова. Подробные правила, метрики и debug-preview описаны
-в `docs/word-joining.md`.
+`--connections off|safe|aggressive` управляет рукописными переходами между
+буквами одного слова. `safe` использует entry/exit anchors, проверяет distance,
+vertical offset, tangent, backtracking, corridor и collisions; сомнительная
+пара остаётся с подъёмом пера. `aggressive` расширяет геометрические допуски,
+но не отключает collision validation. Точки `ё`, дуга `й` и другая диакритика
+остаются отдельными strokes. `--join-writing` сохранён как compatibility-флаг
+для safe-поведения.
+
+Canonical-настройки находятся только в секции `connections` файла
+`configs/layout.yaml`. Флаг `--connection-debug` создаёт
+`connection-debug.svg` и `connection-debug.json`; в `report.json` доступны
+`pairs_total`, `accepted`, причины отказов, `snapped_existing_contact` и
+`connector_length_mm`.
 
 ### Один непрерывный маршрут на компонент
 
@@ -193,7 +273,11 @@ Centerline cache version 2 строит topology-aware граф с crossing numb
 - `output.gcode` — движения XY/Z без нагрева, extrusion и G28 по умолчанию;
 - `report.json` — статус, предупреждения, статистика и пути артефактов.
 
-Один запуск создаёт одну страницу. OCR, восстановление порядка рукописных штрихов и полный OpenType shaping/GPOS не поддерживаются. Если в TTF отсутствует требуемый глиф или текст не помещается, команда завершается с кодом 1, сохраняет error-report и не оставляет `output.gcode`.
+Один job может содержать несколько страниц с page-level `paths.json`, preview
+и G-code, а также общие `job.json`, `plotter-preview.svg` и `output.gcode`.
+OCR и восстановление порядка рукописных штрихов не поддерживаются. Если в TTF
+отсутствует требуемый глиф или geometry не проходит safety validation, команда
+завершается с кодом 1, сохраняет error-report и не оставляет G-code.
 
 ## Безопасность
 
@@ -216,4 +300,50 @@ make lint
 make demo FONT=assets/handwriting.ttf
 ```
 
-Тесты работают без сети, принтера и системных TTF.
+Обычный `pytest` содержит только component tests. Полную конвертацию перед
+релизом запускайте отдельно:
+
+```bash
+make smoke
+```
+
+Cold/warm benchmark конвертации также вынесен из pytest:
+
+```bash
+.venv/bin/python tools/benchmark_conversion.py \
+  tests/fixtures/layout/mixed_layout_demo.docx \
+  --font assets/1.ttf --runs 3 --output build/benchmark-conversion.json
+```
+
+В JSON сохраняются отдельный cold run, warm runs, median, stage timings и
+cache hits/misses. Тесты работают без сети, принтера и системных TTF.
+
+## Абзацное форматирование
+
+DOCX-абзацы сохраняют выравнивание `left`, `center`, `right` и `justify`,
+красную строку, левые/правые отступы и пользовательские tab stops. Стили
+Title и Heading переносятся как семантические роли, а не как пробелы.
+
+## Centerline cache
+
+Постоянный cache глифов лежит в `1-font-cache` в корне проекта.
+
+```bash
+make font-cache-rebuild FONT=assets/1.ttf
+make font-cache-status FONT=assets/1.ttf
+make cache-clean
+```
+
+`make clean` удаляет только build-артефакты и не удаляет `1-font-cache`.
+
+## A4/A5 document scaling
+
+При изменении формата листа единый `PageTransform` равномерно сопоставляет source
+content box с target content box. Рисунки сохраняют пропорции, поворот и
+left/center/right affinity. Таблицы сохраняют пропорции колонок, автоматически
+увеличивают строки и делятся между строками при переносе на следующую страницу.
+
+- `reflow` — переверстать текст и блочные объекты.
+- `hybrid` — reflow текста с сохранением логической позиции floating-объектов.
+- `preserve` — перенести source geometry через `PageTransform`.
+- `auto` — выбрать безопасный режим по типу входного документа.

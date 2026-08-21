@@ -37,9 +37,45 @@ preview:
   plotter_stroke_width_mm: 0.20
   show_page_border: true
 
-document_import:
-  pdf_layout: reflow
-  preserve_source_page_breaks: true
+document_layout:
+  mode: auto
+  preserve:
+    fit: contain
+    max_upscale: 1.10
+    clip_to_page: false
+  hybrid:
+    image_padding_mm: 2.0
+    max_vertical_shift_mm: 25.0
+    max_horizontal_shift_mm: 20.0
+    allow_side_switch: false
+    fallback: top_bottom
+    max_placement_attempts: 20
+
+text_decorations:
+  underline:
+    offset_em: 0.12
+    double_gap_mm: 0.45
+    min_length_mm: 0.5
+    join_adjacent_runs_gap_mm: 0.3
+
+shapes:
+  arrows:
+    endpoint_tolerance_mm: 1.2
+    angle_tolerance_deg: 25
+    min_shaft_length_mm: 2.0
+    head_min_size_mm: 0.8
+    head_max_size_mm: 8.0
+    filled_head_mode: open_v
+
+tables:
+  draw_order: borders_first
+  max_cells: 10000
+  cell_padding_mm: 1.2
+  pdf_detection:
+    enabled: true
+    snap_tolerance_mm: 0.6
+    min_rows: 2
+    min_columns: 2
 
 pagination:
   enabled: true
@@ -55,6 +91,7 @@ pagination:
 latex:
   enabled: true
   backend: mathtext
+  stroke_mode: centerline
   max_expression_length: 4000
   max_elements_per_document: 500
   inline_size_scale: 1.0
@@ -64,6 +101,22 @@ latex:
   block_alignment: center
   min_scale: 0.65
   curve_tolerance_mm: 0.04
+  render_ppmm: 24
+  supersample: 2
+  threshold: 160
+  closing_radius_px: 1
+  min_component_length_mm: 0.20
+  max_render_pixels: 16000000
+  max_components: 5000
+  max_points: 150000
+  fallback_to_outline: false
+  strict_quality: false
+  pdf_math:
+    mode: auto
+    render_ppmm: 24
+    bbox_padding_mm: 0.8
+    confidence_threshold: 0.75
+    max_region_area_ratio: 0.35
 
 images:
   enabled: true
@@ -90,6 +143,8 @@ images:
   spacing_after_mm: 2.0
   default_width_ratio: 0.75
   max_height_ratio: 0.60
+  min_wrap_padding_mm: 0.7
+  max_wrap_padding_mm: 8.0
 
 layout:
   missing_glyph_policy: error
@@ -99,6 +154,30 @@ layout:
   script: Cyrl
   direction: ltr
   features: []
+
+paragraphs:
+  default_tab_interval_mm: 12.5
+  preserve_relative_font_size: true
+  source_body_font_size_pt: 12.0
+  min_font_scale: 0.80
+  max_font_scale: 1.60
+  max_extra_space_per_word_mm: 4.0
+  max_space_before_mm: 12.0
+  max_space_after_mm: 12.0
+  semantic_scale:
+    title: 1.35
+    heading_1: 1.25
+    heading_2: 1.15
+    heading_3: 1.08
+    body: 1.00
+
+tables:
+  min_column_width_mm: 8.0
+  cell_padding_mm: 1.2
+  min_cell_padding_mm: 0.7
+  max_cell_padding_mm: 2.0
+  scale_padding_with_page: true
+  min_text_scale: 0.75
 
 centerline:
   algorithm_version: 6
@@ -143,7 +222,7 @@ centerline:
     fail_on_low_quality: false
   cache:
     enabled: true
-    directory: build/font-cache
+    directory: 1-font-cache
   debug:
     enabled: false
   glyph_overrides: {}
@@ -174,14 +253,6 @@ centerline:
   glyph_patch_file:
 
 handwriting:
-  joining:
-    enabled: false
-    max_join_gap_mm: 3.0
-    max_join_angle_deg: 105.0
-    connector_step_mm: 0.20
-    do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]
-    do_not_join_after: ["(", "«", "-"]
-    lift_between_words: true
   variation:
     enabled: false
     seed: 1
@@ -193,13 +264,15 @@ handwriting:
 connections:
   enabled: false
   mode: safe
-  max_distance_mm: 3.0
-  max_vertical_offset_mm: 3.0
-  max_tangent_mismatch_deg: 170.0
+  max_distance_mm: 2.5
+  max_vertical_offset_mm: 2.0
+  max_tangent_mismatch_deg: 135.0
   connector_step_mm: 0.20
-  min_corridor_inside_ratio: 0.55
+  min_corridor_inside_ratio: 0.75
   allow_connector_outside_ink: true
   outside_ink_margin_mm: 0.35
+  contact_epsilon_mm: 0.08
+  collision_clearance_mm: 0.10
   connect_letters_only: true
   connect_across_punctuation: false
   do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]

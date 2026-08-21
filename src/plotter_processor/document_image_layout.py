@@ -6,9 +6,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from plotter_processor.document_models import (
+    SourceArrowElement,
     SourceDocument,
+    SourceLineElement,
     SourceMathElement,
     SourceRasterImageElement,
+    SourceTableElement,
     SourceTextElement,
     SourceVectorElement,
 )
@@ -191,17 +194,63 @@ def save_document_structure(
         "pages": [
             {
                 "source_page_index": page.source_page_index,
-                "width_pt": page.width_pt,
-                "height_pt": page.height_pt,
+                "width_mm": page.width_mm,
+                "height_mm": page.height_mm,
+                "coordinate_unit": "mm",
                 "elements": [
                     {
                         "id": element.id,
                         "source_order": element.source_order,
                         "type": _element_type(element),
-                        "bbox": _bbox_payload(element.bbox),
+                        "source_bbox_mm": _bbox_payload(element.bbox),
                         **(
-                            {"paragraphs": list(element.paragraphs)}
+                            {
+                                "paragraphs": list(element.paragraphs),
+                                "paragraph_formatting": [
+                                    {
+                                        "alignment": paragraph.alignment,
+                                        "first_line_indent_mm": paragraph.first_line_indent_mm,
+                                        "hanging_indent_mm": paragraph.hanging_indent_mm,
+                                        "left_indent_mm": paragraph.left_indent_mm,
+                                        "right_indent_mm": paragraph.right_indent_mm,
+                                        "space_before_mm": paragraph.space_before_mm,
+                                        "space_after_mm": paragraph.space_after_mm,
+                                        "line_spacing": paragraph.line_spacing,
+                                        "tab_stops_mm": list(paragraph.tab_stops_mm),
+                                        "style_id": paragraph.style_id,
+                                        "style_name": paragraph.style_name,
+                                        "semantic_role": paragraph.semantic_role,
+                                    }
+                                    for paragraph in element.styled_paragraphs
+                                ],
+                            }
                             if isinstance(element, SourceTextElement)
+                            else {}
+                        ),
+                        **(
+                            {"semantic_role": element.semantic_role}
+                            if isinstance(element, SourceLineElement)
+                            else {}
+                        ),
+                        **(
+                            {
+                                "head_at_start": element.head_at_start,
+                                "head_at_end": element.head_at_end,
+                                "head_style": element.head_style,
+                                "confidence": element.confidence,
+                            }
+                            if isinstance(element, SourceArrowElement)
+                            else {}
+                        ),
+                        **(
+                            {
+                                "rows": element.rows,
+                                "columns": element.columns,
+                                "cells": len(element.cells),
+                                "repeat_header_rows": element.repeat_header_rows,
+                                "source_kind": element.source_kind,
+                            }
+                            if isinstance(element, SourceTableElement)
                             else {}
                         ),
                         **(
@@ -209,6 +258,14 @@ def save_document_structure(
                                 "expression": element.expression,
                                 "display_mode": element.display_mode,
                                 "source_syntax": element.source_syntax,
+                                "visual_image_path": (
+                                    str(element.visual_image_path)
+                                    if element.visual_image_path is not None
+                                    else None
+                                ),
+                                "visual_ppmm": element.visual_ppmm,
+                                "absorbed_element_ids": list(element.absorbed_element_ids),
+                                "detection_confidence": element.detection_confidence,
                             }
                             if isinstance(element, SourceMathElement)
                             else {}
@@ -220,6 +277,18 @@ def save_document_structure(
                                 "height_px": element.height_px,
                                 "displayed_width": element.displayed_width,
                                 "displayed_height": element.displayed_height,
+                                "anchor_type": element.anchor_type,
+                                "wrap_mode": element.wrap_mode,
+                                "wrap_side": element.wrap_side,
+                                "distance_left_mm": element.distance_left_mm,
+                                "distance_right_mm": element.distance_right_mm,
+                                "distance_top_mm": element.distance_top_mm,
+                                "distance_bottom_mm": element.distance_bottom_mm,
+                                "relative_to_h": element.relative_to_h,
+                                "relative_to_v": element.relative_to_v,
+                                "behind_text": element.behind_text,
+                                "z_order": element.z_order,
+                                "rotation_deg": element.rotation_deg,
                             }
                             if isinstance(element, SourceRasterImageElement)
                             else {}
@@ -265,10 +334,21 @@ def _element_type(element: object) -> str:
         return "raster-image"
     if isinstance(element, SourceMathElement):
         return "latex"
+    if isinstance(element, SourceLineElement):
+        return "line"
+    if isinstance(element, SourceArrowElement):
+        return "arrow"
+    if isinstance(element, SourceTableElement):
+        return "table"
     return "pdf-vector"
 
 
 def _bbox_payload(bbox: object) -> dict[str, float] | None:
     if bbox is None:
         return None
-    return {"x0": bbox.x0, "y0": bbox.y0, "x1": bbox.x1, "y1": bbox.y1}
+    return {
+        "x0_mm": bbox.x0,
+        "y0_mm": bbox.y0,
+        "x1_mm": bbox.x1,
+        "y1_mm": bbox.y1,
+    }

@@ -16,7 +16,7 @@ from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
 from plotter_processor.handwriting import load_joining_config, route_words
 from plotter_processor.latex_layout import layout_latex_paragraph
 from plotter_processor.latex_parser import contains_latex
-from plotter_processor.latex_renderer import MathTextRenderer
+from plotter_processor.latex_renderer import math_renderer_from_options
 from plotter_processor.models import PageSpec, PathDocument, Point, PositionedGlyph
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.path_builder import build_paths, save_path_document
@@ -43,6 +43,8 @@ def compose_manifest(
     motion_profile: str | None = None,
     latex: str = "auto",
     latex_debug: bool = False,
+    latex_stroke_mode: str | None = None,
+    strict_latex_quality: bool = False,
 ) -> CompositionResult:
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path, gcode_path = output_dir / "report.json", output_dir / "output.gcode"
@@ -96,12 +98,14 @@ def compose_manifest(
                             connections,
                             latex_debug=latex_debug,
                             formula_index_start=previous_formula_index,
+                            latex_stroke_mode=latex_stroke_mode,
+                            strict_latex_quality=strict_latex_quality,
                         )
                     )
                     formula_count = latex_expressions - previous_formula_index
                 else:
                     added, used_fallbacks, connection_metrics = _text_strokes(
-                        document, element, page, layout_config, output_dir, connections
+                        document, element, page, layout_config, connections
                     )
                     formula_count = 0
                     if contains_latex(element.text):
@@ -156,6 +160,8 @@ def compose_manifest(
                 "latex": {
                     "enabled": latex_enabled,
                     "backend": "mathtext" if latex_enabled else "off",
+                    "stroke_mode": latex_stroke_mode
+                    or str(layout_config.get("latex", {}).get("stroke_mode", "centerline")),
                     "expressions_found": latex_expressions,
                     "rendered": latex_expressions,
                     "fallbacks": 0,
@@ -188,7 +194,7 @@ def compose_manifest(
         return CompositionResult("error", report_path, str(error))
 
 
-def _text_strokes(document, element, page, layout_config, output_dir, connections):
+def _text_strokes(document, element, page, layout_config, connections):
     sizes = layout_config["sizes"]
     if element.size not in sizes:
         raise ValueError(f"Unknown text size: {element.size}")
@@ -240,7 +246,6 @@ def _text_strokes(document, element, page, layout_config, output_dir, connection
                     source.path,
                     {glyph.char for glyph in glyphs},
                     config,
-                    cache_path=output_dir / f".{source.sha256}.centerline-cache.json",
                 )
                 paths = build_centerline_paths(compiled, glyphs, page)
             else:
@@ -278,6 +283,8 @@ def _latex_text_strokes(
     *,
     latex_debug: bool,
     formula_index_start: int,
+    latex_stroke_mode: str | None,
+    strict_latex_quality: bool,
 ):
     sizes = layout_config["sizes"]
     if element.size not in sizes:
@@ -290,8 +297,10 @@ def _latex_text_strokes(
             element.placement.width_mm,
             sizes[element.size],
             latex_options,
-            MathTextRenderer(
-                curve_tolerance_mm=float(latex_options.get("curve_tolerance_mm", 0.04))
+            math_renderer_from_options(
+                latex_options,
+                stroke_mode=latex_stroke_mode,
+                strict_quality=strict_latex_quality,
             ),
             formula_index_start=formula_index_start,
             element_id=element.id,
@@ -353,7 +362,6 @@ def _latex_text_strokes(
                 document.primary_font,
                 {glyph.char for glyph in glyphs},
                 config,
-                cache_path=output_dir / ".latex-centerline-cache.json",
             )
             paths = build_centerline_paths(compiled, glyphs, page)
         else:
