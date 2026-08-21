@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>plotter-proc audit visual index</title>
+  <style>
+    body { font: 15px system-ui, sans-serif; margin: 24px; background: #f3f4f6; color: #111827; }
+    h1, h2 { margin: 0.8em 0 0.4em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+    figure { background: white; margin: 0; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+    object, img { width: 100%; min-height: 520px; border: 1px solid #e5e7eb; background: white; }
+    img { min-height: 0; image-rendering: auto; }
+    figcaption { margin-top: 8px; font-weight: 600; overflow-wrap: anywhere; }
+    code { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>plotter-proc quality audit: visual index</h1>
+  <p>PDF jobs stopped before previews because of the recorded math-routing failure. Open SVG objects in a browser at 100% zoom.</p>
+
+  <h2>Whole-job controls</h2>
+  <div class="grid">
+    <figure><object data="jobs/docx-centerline-hybrid-a5/plotter-preview.svg"></object><figcaption>DOCX centerline hybrid A5 — 20 pages</figcaption></figure>
+    <figure><object data="jobs/docx-outline-hybrid-a5/plotter-preview.svg"></object><figcaption>DOCX outline hybrid A5 — 20 pages</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/layout-debug/placement-overlay.svg"></object><figcaption>Layout placement overlay</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/semantic-debug/classification.svg"></object><figcaption>Semantic classification</figcaption></figure>
+  </div>
+
+  <h2>Images, rotation and anchored wrapping</h2>
+  <div class="grid">
+    <figure><img src="jobs/docx-centerline-hybrid-a5/extracted-assets/image-001-e485f897a47c.png"><figcaption>Extracted source raster</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/pages/page-006/plotter-preview.svg"></object><figcaption>Page 6: inline raster and 12° rotated raster</figcaption></figure>
+    <figure><object data="jobs/docx-outline-hybrid-a5/pages/page-006/plotter-preview.svg"></object><figcaption>Page 6 outline control</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/pages/page-007/plotter-preview.svg"></object><figcaption>Page 7: anchored square-wrap raster</figcaption></figure>
+  </div>
+
+  <h2>Tables, arrows and underlines</h2>
+  <div class="grid">
+    <figure><object data="jobs/docx-centerline-hybrid-a5/semantic-debug/tables.svg"></object><figcaption>Semantic tables</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/semantic-debug/arrows.svg"></object><figcaption>Imported arrows (only 1 of 3 source VML lines)</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/semantic-debug/underlines.svg"></object><figcaption>Underlines</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/pages/page-010/plotter-preview.svg"></object><figcaption>Long table pagination sample</figcaption></figure>
+  </div>
+
+  <h2>Font and connection controls</h2>
+  <div class="grid">
+    <figure><object data="jobs/docx-centerline-hybrid-a5/centerline-font-preview.svg"></object><figcaption>Centerline font preview</figcaption></figure>
+    <figure><object data="jobs/docx-centerline-hybrid-a5/font-preview.svg"></object><figcaption>Outline font preview</figcaption></figure>
+    <figure><object data="jobs/connections-safe/connection-debug.svg"></object><figcaption>Connections safe</figcaption></figure>
+    <figure><object data="jobs/connections-aggressive/connection-debug.svg"></object><figcaption>Connections aggressive (geometry hashes match safe)</figcaption></figure>
+  </div>
+</body>
+</html>

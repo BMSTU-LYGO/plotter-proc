@@ -1,0 +1,2529 @@
+{
+  "format": "plotter-job",
+  "version": 1,
+  "page": {
+    "name": "A5",
+    "width_mm": 148.0,
+    "height_mm": 210.0
+  },
+  "page_count": 20,
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right",
+    "Glyph \".\" needs centerline review",
+    "Glyph \":\" needs centerline review",
+    "Glyph \";\" needs centerline review",
+    "Glyph \"?\" needs centerline review",
+    "Glyph \"U\" needs centerline review",
+    "Glyph \"И\" needs centerline review",
+    "Glyph \"Й\" needs centerline review",
+    "Glyph \"Ц\" needs centerline review",
+    "Glyph \"Ш\" needs centerline review",
+    "Glyph \"Щ\" needs centerline review",
+    "Glyph \"Ю\" needs centerline review",
+    "Glyph \"…\" needs centerline review"
+  ],
+  "metadata": {
+    "page_count": 20,
+    "pause_seconds": 1.0
+  },
+  "pages": [
+    {
+      "page_index": 0,
+      "page_number": 1,
+      "source_element_ids": [
+        "page-001-text-001",
+        "page-001-text-002",
+        "page-001-text-003",
+        "page-001-text-004",
+        "page-001-table-005"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "PLOTTER FULL PIPELINE CONTROL DOCUMENTDOCX + PDF / A4 source / designed for A5 re-paginationPurpose: detect regressions in import, layout, centerline/outline conversion, semantics, pagination and G-code export.0. Coverage map",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-005",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 0,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.014298,
+              "y": 109.529139,
+              "width": 119.971404,
+              "height": 50.752631
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 25.869125,
+            "y": 10.0,
+            "width": 96.26175,
+            "height": 11.853
+          },
+          {
+            "x": 32.0015,
+            "y": 21.853,
+            "width": 83.997,
+            "height": 11.853
+          },
+          {
+            "x": 10.965,
+            "y": 38.997667,
+            "width": 126.07,
+            "height": 10.097
+          },
+          {
+            "x": 27.0825,
+            "y": 52.622444,
+            "width": 93.835,
+            "height": 10.097
+          },
+          {
+            "x": 17.215,
+            "y": 62.719444,
+            "width": 113.57,
+            "height": 10.097
+          },
+          {
+            "x": 58.5875,
+            "y": 72.816444,
+            "width": 30.825,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 94.907889,
+            "width": 42.50625,
+            "height": 12.62125
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-005",
+            "rows": [
+              0,
+              1
+            ],
+            "row_heights_mm": [
+              15.279315398338285,
+              35.47331539833828
+            ],
+            "column_widths_mm": [
+              59.98570187746375,
+              59.98570187746375
+            ],
+            "continued_from_previous": false,
+            "continues_next": true,
+            "border_strokes": 12,
+            "target_bbox": {
+              "x": 14.014298,
+              "y": 109.529139,
+              "width": 119.971404,
+              "height": 50.752631
+            }
+          }
+        ],
+        "page_number": 1,
+        "page_number_text": "1",
+        "page_number_glyph_indices": [
+          281
+        ],
+        "page_number_width_mm": 1.504,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-001",
+      "preview": "pages/page-001/plotter-preview.svg",
+      "paths": "pages/page-001/paths.json",
+      "gcode": "pages/page-001/page.gcode",
+      "report": "pages/page-001/report.json"
+    },
+    {
+      "page_index": 1,
+      "page_number": 2,
+      "source_element_ids": [
+        "page-001-table-005"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-005",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 1,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.014298,
+              "y": 10.0,
+              "width": 119.971404,
+              "height": 177.366577
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-005",
+            "rows": [
+              0,
+              2,
+              3,
+              4,
+              5
+            ],
+            "row_heights_mm": [
+              15.279315398338285,
+              45.57031539833828,
+              45.57031539833828,
+              35.47331539833828,
+              35.47331539833828
+            ],
+            "column_widths_mm": [
+              59.98570187746375,
+              59.98570187746375
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 27,
+            "target_bbox": {
+              "x": 14.014298,
+              "y": 10.0,
+              "width": 119.971404,
+              "height": 177.366577
+            }
+          }
+        ],
+        "page_number": 2,
+        "page_number_text": "2",
+        "page_number_glyph_indices": [
+          349
+        ],
+        "page_number_width_mm": 2.24,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-002",
+      "preview": "pages/page-002/plotter-preview.svg",
+      "paths": "pages/page-002/paths.json",
+      "gcode": "pages/page-002/page.gcode",
+      "report": "pages/page-002/report.json"
+    },
+    {
+      "page_index": 2,
+      "page_number": 3,
+      "source_element_ids": [
+        "page-001-table-005",
+        "page-001-text-006"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "1. Text, typography and paragraph geometry",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-005",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 2,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.014298,
+              "y": 10.0,
+              "width": 119.971404,
+              "height": 131.796262
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 152.262928,
+            "width": 115.175,
+            "height": 12.62125
+          },
+          {
+            "x": 20.00125,
+            "y": 164.884178,
+            "width": 117.99875,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 175.859178,
+            "width": 128.0,
+            "height": 10.975
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-005",
+            "rows": [
+              0,
+              6,
+              7,
+              8
+            ],
+            "row_heights_mm": [
+              15.279315398338285,
+              35.47331539833828,
+              35.47331539833828,
+              45.57031539833828
+            ],
+            "column_widths_mm": [
+              59.98570187746375,
+              59.98570187746375
+            ],
+            "continued_from_previous": true,
+            "continues_next": false,
+            "border_strokes": 22,
+            "target_bbox": {
+              "x": 14.014298,
+              "y": 10.0,
+              "width": 119.971404,
+              "height": 131.796262
+            }
+          }
+        ],
+        "page_number": 3,
+        "page_number_text": "3",
+        "page_number_glyph_indices": [
+          365
+        ],
+        "page_number_width_mm": 2.08,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-003",
+      "preview": "pages/page-003/plotter-preview.svg",
+      "paths": "pages/page-003/paths.json",
+      "gcode": "pages/page-003/page.gcode",
+      "report": "pages/page-003/report.json"
+    },
+    {
+      "page_index": 3,
+      "page_number": 4,
+      "source_element_ids": [
+        "page-001-text-007",
+        "page-001-text-008",
+        "page-001-text-009",
+        "page-001-text-010",
+        "page-001-text-011"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Красная строка и выравнивание по ширине. Этот абзац проверяет русский рукописный текст: съешь ещё этих мягких французских булок, да выпей чаю; подъём, объём, шьёшь, мышь, чаща, йод, ёлка, цифры 0123456789. Latin: The quick brown fox jumps over the lazy dog. Punctuation: . , : ; ! ? ( ) [ ] + - = / % # №.Висячий отступ: первая строка выступает влево, последующие строки должны сохранять общий левый отступ. Это намеренно длинное предложение, чтобы перенос строки был неизбежен и положение второй строки можно было сравнить с исходным документом.LEFT / слева - контроль положения строки относительно полей страницы.CENTER / по центру - контроль положения строки относительно полей страницы.RIGHT / справа - контроль положения строки относительно полей страницы.",
+        "formulas": [],
+        "placements": [],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 128.0,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 20.975,
+            "width": 128.0,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 31.95,
+            "width": 128.0,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 42.925,
+            "width": 95.235,
+            "height": 10.975
+          },
+          {
+            "x": 14.991806,
+            "y": 56.369444,
+            "width": 109.215,
+            "height": 10.097
+          },
+          {
+            "x": 21.994444,
+            "y": 66.466444,
+            "width": 100.2,
+            "height": 10.097
+          },
+          {
+            "x": 21.994444,
+            "y": 76.563444,
+            "width": 83.795,
+            "height": 10.097
+          },
+          {
+            "x": 21.994444,
+            "y": 86.660444,
+            "width": 86.415,
+            "height": 10.097
+          },
+          {
+            "x": 21.994444,
+            "y": 96.757444,
+            "width": 96.255,
+            "height": 10.097
+          },
+          {
+            "x": 21.994444,
+            "y": 106.854444,
+            "width": 87.275,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 120.479222,
+            "width": 127.545,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 130.576222,
+            "width": 35.38,
+            "height": 10.097
+          },
+          {
+            "x": 16.6325,
+            "y": 144.201,
+            "width": 114.735,
+            "height": 10.097
+          },
+          {
+            "x": 40.4475,
+            "y": 154.298,
+            "width": 67.105,
+            "height": 10.097
+          },
+          {
+            "x": 34.715,
+            "y": 167.922778,
+            "width": 103.285,
+            "height": 10.097
+          },
+          {
+            "x": 70.895,
+            "y": 178.019778,
+            "width": 67.105,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 4,
+        "page_number_text": "4",
+        "page_number_glyph_indices": [
+          561
+        ],
+        "page_number_width_mm": 2.308,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-004",
+      "preview": "pages/page-004/plotter-preview.svg",
+      "paths": "pages/page-004/paths.json",
+      "gcode": "pages/page-004/page.gcode",
+      "report": "pages/page-004/report.json"
+    },
+    {
+      "page_index": 4,
+      "page_number": 5,
+      "source_element_ids": [
+        "page-001-text-012",
+        "page-001-text-013",
+        "page-001-text-014",
+        "page-001-text-015",
+        "page-001-text-016",
+        "page-001-text-017",
+        "page-001-text-018"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "JUSTIFY / по ширине - контроль положения строки относительно полей страницы.TAB-A TAB-B TAB-C 123.45Интервалы: before=10 pt, after=12 pt, line spacing=1.5. BOLD / ITALIC / UNDERLINE / DOUBLE UNDERLINE / WORDS ONLY / STRIKE / H2O / x2 + y2 = z2Horizontal rule below - PDF line detector target2. Mathematics: LaTeX text + native OMMLInline LaTeX token: $E=mc^2$ and another token $y=\\frac{x^2+1}{x+1}$$$\\int_0^1 x^2\\,dx=\\frac{1}{3}$$",
+        "formulas": [
+          {
+            "formula_index": 1,
+            "expression": "E=mc^2",
+            "display_mode": false,
+            "source_syntax": "dollar-inline",
+            "delimiter": "$",
+            "source_position": 20,
+            "element_id": "page-001-text-017-formula-001",
+            "width_mm": 19.145833333333332,
+            "height_mm": 4.895833333333333,
+            "strokes": 6,
+            "points": 83,
+            "stroke_mode": "centerline",
+            "source_kind": "semantic-latex",
+            "source_page_index": 0,
+            "quality": {
+              "mask_foreground_pixels": 34588,
+              "components_before_pruning": 6,
+              "components_after_pruning": 6,
+              "graph_nodes": 22,
+              "graph_edges": 16,
+              "junction_count": 5,
+              "strokes": 6,
+              "points": 83,
+              "draw_length_mm": 42.760637,
+              "retraced_length_mm": 5.247547,
+              "retrace_ratio": 0.122719,
+              "small_components_removed": 0,
+              "centerline_coverage_ratio": 0.945704,
+              "needs_review": false
+            },
+            "warnings": [],
+            "source_bbox": null,
+            "target_bbox": {
+              "x": 53.535,
+              "y": 144.27119444444443,
+              "width": 19.145833333333332,
+              "height": 4.895833333333333
+            }
+          },
+          {
+            "formula_index": 2,
+            "expression": "y=\\frac{x^2+1}{x+1}",
+            "display_mode": false,
+            "source_syntax": "dollar-inline",
+            "delimiter": "$",
+            "source_position": 47,
+            "element_id": "page-001-text-017-formula-002",
+            "width_mm": 20.0625,
+            "height_mm": 6.9375,
+            "strokes": 11,
+            "points": 89,
+            "stroke_mode": "centerline",
+            "source_kind": "semantic-latex",
+            "source_page_index": 0,
+            "quality": {
+              "mask_foreground_pixels": 39850,
+              "components_before_pruning": 11,
+              "components_after_pruning": 11,
+              "graph_nodes": 44,
+              "graph_edges": 33,
+              "junction_count": 10,
+              "strokes": 11,
+              "points": 89,
+              "draw_length_mm": 65.196579,
+              "retraced_length_mm": 12.273584,
+              "retrace_ratio": 0.188255,
+              "small_components_removed": 0,
+              "centerline_coverage_ratio": 0.914404,
+              "needs_review": false
+            },
+            "warnings": [],
+            "source_bbox": null,
+            "target_bbox": {
+              "x": 112.47583333333336,
+              "y": 143.95069444444442,
+              "width": 20.0625,
+              "height": 6.9375
+            }
+          },
+          {
+            "formula_index": 3,
+            "expression": "\\int_0^1 x^2\\,dx=\\frac{1}{3}",
+            "display_mode": true,
+            "source_syntax": "dollar-block",
+            "delimiter": "$$",
+            "source_position": 0,
+            "element_id": "page-001-text-018-formula-003",
+            "width_mm": 32.020833333333336,
+            "height_mm": 11.166666666666666,
+            "strokes": 12,
+            "points": 160,
+            "stroke_mode": "centerline",
+            "source_kind": "semantic-latex",
+            "source_page_index": 0,
+            "quality": {
+              "mask_foreground_pixels": 77442,
+              "components_before_pruning": 12,
+              "components_after_pruning": 12,
+              "graph_nodes": 45,
+              "graph_edges": 35,
+              "junction_count": 12,
+              "strokes": 12,
+              "points": 160,
+              "draw_length_mm": 88.381902,
+              "retraced_length_mm": 11.524092,
+              "retrace_ratio": 0.13039,
+              "small_components_removed": 0,
+              "centerline_coverage_ratio": 0.84276,
+              "needs_review": false
+            },
+            "warnings": [],
+            "source_bbox": null,
+            "target_bbox": {
+              "x": 57.98958333333333,
+              "y": 157.97536111111108,
+              "width": 32.020833333333336,
+              "height": 11.166666666666666
+            }
+          }
+        ],
+        "placements": [],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 20.097,
+            "width": 67.105,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 33.721778,
+            "width": 70.205,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 50.874333,
+            "width": 118.475,
+            "height": 13.17
+          },
+          {
+            "x": 10.0,
+            "y": 64.044333,
+            "width": 108.715,
+            "height": 13.17
+          },
+          {
+            "x": 10.0,
+            "y": 77.214333,
+            "width": 126.865,
+            "height": 13.17
+          },
+          {
+            "x": 10.0,
+            "y": 90.384333,
+            "width": 27.965,
+            "height": 13.17
+          },
+          {
+            "x": 10.0,
+            "y": 107.787667,
+            "width": 103.005,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 129.879111,
+            "width": 125.34375,
+            "height": 12.62125
+          },
+          {
+            "x": 10.0,
+            "y": 142.500361,
+            "width": 122.350833,
+            "height": 10.975
+          },
+          {
+            "x": 58.614583,
+            "y": 157.975361,
+            "width": 31.1875,
+            "height": 13.958333
+          },
+          {
+            "x": 10.0,
+            "y": 176.433694,
+            "width": 123.445,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 5,
+        "page_number_text": "5",
+        "page_number_glyph_indices": [
+          350
+        ],
+        "page_number_width_mm": 2.072,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-005",
+      "preview": "pages/page-005/plotter-preview.svg",
+      "paths": "pages/page-005/paths.json",
+      "gcode": "pages/page-005/page.gcode",
+      "report": "pages/page-005/report.json"
+    },
+    {
+      "page_index": 5,
+      "page_number": 6,
+      "source_element_ids": [
+        "page-001-text-019",
+        "page-001-math-020",
+        "page-001-text-021",
+        "page-001-text-022",
+        "page-001-image-023",
+        "page-001-text-024",
+        "page-001-image-025",
+        "page-001-text-026"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Native DOCX equation (OMML) - the DOCX importer should see this as structured math:3. Image extraction, vectorization and wrapping3A. Inline raster image. It contains thin/thick strokes, closed contours, a gray sinusoid, grayscale blocks and tiny marks.3A.2 Rotated inline raster (12 degrees). The output preview should preserve the rotation, not only metadata.3B. Anchored square-wrapped image target. ",
+        "formulas": [
+          {
+            "formula_index": 4,
+            "expression": "y=\\frac{{x}^{2}+1}{x+1}",
+            "display_mode": true,
+            "source_syntax": "omml",
+            "delimiter": "omml",
+            "source_position": 0,
+            "element_id": "page-001-math-020-formula-004",
+            "width_mm": 23.0625,
+            "height_mm": 7.9375,
+            "strokes": 11,
+            "points": 99,
+            "stroke_mode": "centerline",
+            "source_kind": "omml",
+            "source_page_index": 0,
+            "quality": {
+              "mask_foreground_pixels": 52922,
+              "components_before_pruning": 11,
+              "components_after_pruning": 11,
+              "graph_nodes": 44,
+              "graph_edges": 33,
+              "junction_count": 10,
+              "strokes": 11,
+              "points": 99,
+              "draw_length_mm": 75.359104,
+              "retraced_length_mm": 14.169671,
+              "retrace_ratio": 0.188029,
+              "small_components_removed": 0,
+              "centerline_coverage_ratio": 0.903518,
+              "needs_review": false
+            },
+            "warnings": [],
+            "source_bbox": null,
+            "target_bbox": {
+              "x": 62.46875,
+              "y": 25.624777777777776,
+              "width": 23.0625,
+              "height": 7.9375
+            }
+          }
+        ],
+        "placements": [
+          {
+            "id": "page-001-image-023",
+            "element_type": "raster-image",
+            "source_order": 22,
+            "source_page_index": 0,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 22.295699,
+              "y": 84.356347,
+              "width": 103.408601,
+              "height": 44.810394
+            },
+            "target_page_index": 5,
+            "anchor": "flow",
+            "wrap_mode": "inline",
+            "wrap_side": "both",
+            "scale": 0.689391,
+            "center_displacement_mm": null,
+            "overlap_area_mm2": 0.0,
+            "page_overflow_area_mm2": 0.0,
+            "fallbacks": [],
+            "placement_reason": "activated_at_source_order"
+          },
+          {
+            "id": "page-001-image-025",
+            "element_type": "raster-image",
+            "source_order": 24,
+            "source_page_index": 0,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 54.85265,
+              "y": 156.888519,
+              "width": 38.2947,
+              "height": 22.648093
+            },
+            "target_page_index": 5,
+            "anchor": "flow",
+            "wrap_mode": "inline",
+            "wrap_side": "both",
+            "scale": 0.736437,
+            "center_displacement_mm": null,
+            "overlap_area_mm2": 0.0,
+            "page_overflow_area_mm2": 0.0,
+            "fallbacks": [],
+            "placement_reason": "activated_at_source_order"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 71.875,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 46.013319,
+            "width": 122.99375,
+            "height": 12.62125
+          },
+          {
+            "x": 10.0,
+            "y": 58.634569,
+            "width": 127.7,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 68.731569,
+            "width": 120.85,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 131.166741,
+            "width": 126.795,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 141.263741,
+            "width": 99.08,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 181.536612,
+            "width": 92.035,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 6,
+        "page_number_text": "6",
+        "page_number_glyph_indices": [
+          308
+        ],
+        "page_number_width_mm": 2.164,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-006",
+      "preview": "pages/page-006/plotter-preview.svg",
+      "paths": "pages/page-006/paths.json",
+      "gcode": "pages/page-006/page.gcode",
+      "report": "pages/page-006/report.json"
+    },
+    {
+      "page_index": 6,
+      "page_number": 7,
+      "source_element_ids": [
+        "page-001-image-027",
+        "page-001-text-028",
+        "page-001-text-029"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Текст для проверки обтекания рисунка: положение строк не должно пересекать область изображения, а после окончания рисунка абзац должен снова использовать полную ширину строки. Hybrid/preserve mode should keep the image close to its original anchor; reflow may move it but must not overlap text. Текст для проверки обтекания рисунка: положение строк не должно пересекать область изображения, а после окончания рисунка абзац должен снова использовать полную ширину строки. Hybrid/preserve mode should keep the image close to its original anchor; reflow may move it but must not overlap text. ",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-image-027",
+            "element_type": "raster-image",
+            "source_order": 26,
+            "source_page_index": 0,
+            "source_bbox_mm": {
+              "x": 112.991667,
+              "y": 0.0,
+              "width": 64.0,
+              "height": 27.733333
+            },
+            "mapped_bbox_mm": {
+              "x": 79.506412,
+              "y": 12.0,
+              "width": 44.121003,
+              "height": 19.119101
+            },
+            "output_bbox_mm": {
+              "x": 79.506412,
+              "y": 12.0,
+              "width": 44.121003,
+              "height": 19.119101
+            },
+            "target_page_index": 6,
+            "anchor": "anchored",
+            "wrap_mode": "square",
+            "wrap_side": "both",
+            "scale": 0.689391,
+            "center_displacement_mm": 0.0,
+            "overlap_area_mm2": 0.0,
+            "page_overflow_area_mm2": 0.0,
+            "fallbacks": [],
+            "placement_reason": "activated_at_source_order"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 62.08,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 20.975,
+            "width": 56.105,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 31.95,
+            "width": 57.07,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 42.925,
+            "width": 117.715,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 53.9,
+            "width": 111.675,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 64.875,
+            "width": 114.685,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 75.85,
+            "width": 70.265,
+            "height": 10.975
+          },
+          {
+            "x": 10.0,
+            "y": 89.325,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 99.422,
+            "width": 125.425,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 109.519,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 119.616,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 129.713,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 139.81,
+            "width": 45.755,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 153.434778,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 163.531778,
+            "width": 125.425,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 173.628778,
+            "width": 128.0,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 7,
+        "page_number_text": "7",
+        "page_number_glyph_indices": [
+          638
+        ],
+        "page_number_width_mm": 1.988,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-007",
+      "preview": "pages/page-007/plotter-preview.svg",
+      "paths": "pages/page-007/paths.json",
+      "gcode": "pages/page-007/page.gcode",
+      "report": "pages/page-007/report.json"
+    },
+    {
+      "page_index": 7,
+      "page_number": 8,
+      "source_element_ids": [
+        "page-001-text-030",
+        "page-001-text-031",
+        "page-001-text-032",
+        "page-001-arrow-033",
+        "page-001-text-034",
+        "page-001-text-035",
+        "page-001-table-036"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Текст для проверки обтекания рисунка: положение строк не должно пересекать область изображения, а после окончания рисунка абзац должен снова использовать полную ширину строки. Hybrid/preserve mode should keep the image close to its original anchor; reflow may move it but must not overlap text. 4. VML arrows and line semanticsThree arrow primitives follow: one-headed, two-headed, and classic arrowhead. The DOCX semantic importer should report them separately.Arrow labels: A -> B; C <-> D; long route E -> F. Exact arrow geometry matters more than typography in this block.5. Tables, borders, cell alignment and merges",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-036",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 7,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 152.67129,
+              "width": 119.947084,
+              "height": 15.279315
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 20.097,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 30.194,
+            "width": 45.755,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 52.285444,
+            "width": 91.81875,
+            "height": 12.62125
+          },
+          {
+            "x": 10.0,
+            "y": 64.906694,
+            "width": 123.92,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 75.003694,
+            "width": 116.85,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 85.100694,
+            "width": 48.67,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 105.861596,
+            "width": 123.145,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 115.958596,
+            "width": 124.985,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 138.05004,
+            "width": 116.6375,
+            "height": 12.62125
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-036",
+            "rows": [
+              0
+            ],
+            "row_heights_mm": [
+              15.279315398338285
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": false,
+            "continues_next": true,
+            "border_strokes": 13,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 152.67129,
+              "width": 119.947084,
+              "height": 15.279315
+            }
+          }
+        ],
+        "page_number": 8,
+        "page_number_text": "8",
+        "page_number_glyph_indices": [
+          418
+        ],
+        "page_number_width_mm": 2.048,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-008",
+      "preview": "pages/page-008/plotter-preview.svg",
+      "paths": "pages/page-008/paths.json",
+      "gcode": "pages/page-008/page.gcode",
+      "report": "pages/page-008/report.json"
+    },
+    {
+      "page_index": 8,
+      "page_number": 9,
+      "source_element_ids": [
+        "page-001-table-036",
+        "page-001-text-037"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "6. Multi-page flow, table split and repeated header",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-036",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 8,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 116.784577
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 137.251244,
+            "width": 114.25,
+            "height": 12.62125
+          },
+          {
+            "x": 10.0,
+            "y": 149.872494,
+            "width": 17.05,
+            "height": 12.62125
+          },
+          {
+            "x": 20.00125,
+            "y": 162.493744,
+            "width": 117.99875,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 172.590744,
+            "width": 128.0,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-036",
+            "rows": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "row_heights_mm": [
+              15.279315398338285,
+              15.279315398338285,
+              35.47331539833828,
+              25.37631539833828,
+              25.37631539833828
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": false,
+            "border_strokes": 49,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 116.784577
+            }
+          }
+        ],
+        "page_number": 9,
+        "page_number_text": "9",
+        "page_number_glyph_indices": [
+          269
+        ],
+        "page_number_width_mm": 2.164,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-009",
+      "preview": "pages/page-009/plotter-preview.svg",
+      "paths": "pages/page-009/paths.json",
+      "gcode": "pages/page-009/page.gcode",
+      "report": "pages/page-009/report.json"
+    },
+    {
+      "page_index": 9,
+      "page_number": 10,
+      "source_element_ids": [
+        "page-001-text-038",
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Следующий блок намеренно длинный. При выводе на A5 он должен разбиться на несколько страниц; номера страниц должны быть снизу по центру, после каждой страницы G-code должен парковать перо и делать заданную паузу. Таблица ниже должна сохранять сетку и повторять строку заголовка после разрыва страницы.",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 9,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 55.915778,
+              "width": 119.947084,
+              "height": 91.140631
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 20.097,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 30.194,
+            "width": 128.0,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 40.291,
+            "width": 117.93,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              1
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": false,
+            "continues_next": true,
+            "border_strokes": 22,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 55.915778,
+              "width": 119.947084,
+              "height": 91.140631
+            }
+          }
+        ],
+        "page_number": 10,
+        "page_number_text": "10",
+        "page_number_glyph_indices": [
+          300,
+          301
+        ],
+        "page_number_width_mm": 3.676,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-010",
+      "preview": "pages/page-010/plotter-preview.svg",
+      "paths": "pages/page-010/paths.json",
+      "gcode": "pages/page-010/page.gcode",
+      "report": "pages/page-010/report.json"
+    },
+    {
+      "page_index": 10,
+      "page_number": 11,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 10,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              2,
+              3
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              75.86131539833826
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            }
+          }
+        ],
+        "page_number": 11,
+        "page_number_text": "11",
+        "page_number_glyph_indices": [
+          230,
+          231
+        ],
+        "page_number_width_mm": 3.008,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-011",
+      "preview": "pages/page-011/plotter-preview.svg",
+      "paths": "pages/page-011/paths.json",
+      "gcode": "pages/page-011/page.gcode",
+      "report": "pages/page-011/report.json"
+    },
+    {
+      "page_index": 11,
+      "page_number": 12,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 11,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              4,
+              5
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              65.76431539833827
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            }
+          }
+        ],
+        "page_number": 12,
+        "page_number_text": "12",
+        "page_number_glyph_indices": [
+          225,
+          226
+        ],
+        "page_number_width_mm": 3.744,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-012",
+      "preview": "pages/page-012/plotter-preview.svg",
+      "paths": "pages/page-012/paths.json",
+      "gcode": "pages/page-012/page.gcode",
+      "report": "pages/page-012/report.json"
+    },
+    {
+      "page_index": 12,
+      "page_number": 13,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 12,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              6,
+              7
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              75.86131539833826
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            }
+          }
+        ],
+        "page_number": 13,
+        "page_number_text": "13",
+        "page_number_glyph_indices": [
+          231,
+          232
+        ],
+        "page_number_width_mm": 3.584,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-013",
+      "preview": "pages/page-013/plotter-preview.svg",
+      "paths": "pages/page-013/paths.json",
+      "gcode": "pages/page-013/page.gcode",
+      "report": "pages/page-013/report.json"
+    },
+    {
+      "page_index": 13,
+      "page_number": 14,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 13,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              8,
+              9
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              65.76431539833827
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            }
+          }
+        ],
+        "page_number": 14,
+        "page_number_text": "14",
+        "page_number_glyph_indices": [
+          225,
+          226
+        ],
+        "page_number_width_mm": 3.812,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-014",
+      "preview": "pages/page-014/plotter-preview.svg",
+      "paths": "pages/page-014/paths.json",
+      "gcode": "pages/page-014/page.gcode",
+      "report": "pages/page-014/report.json"
+    },
+    {
+      "page_index": 14,
+      "page_number": 15,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 14,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              10,
+              11
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              75.86131539833826
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            }
+          }
+        ],
+        "page_number": 15,
+        "page_number_text": "15",
+        "page_number_glyph_indices": [
+          233,
+          234
+        ],
+        "page_number_width_mm": 3.576,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-015",
+      "preview": "pages/page-015/plotter-preview.svg",
+      "paths": "pages/page-015/paths.json",
+      "gcode": "pages/page-015/page.gcode",
+      "report": "pages/page-015/report.json"
+    },
+    {
+      "page_index": 15,
+      "page_number": 16,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 15,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              12,
+              13
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              65.76431539833827
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 156.904946
+            }
+          }
+        ],
+        "page_number": 16,
+        "page_number_text": "16",
+        "page_number_glyph_indices": [
+          227,
+          228
+        ],
+        "page_number_width_mm": 3.668,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-016",
+      "preview": "pages/page-016/plotter-preview.svg",
+      "paths": "pages/page-016/paths.json",
+      "gcode": "pages/page-016/page.gcode",
+      "report": "pages/page-016/report.json"
+    },
+    {
+      "page_index": 16,
+      "page_number": 17,
+      "source_element_ids": [
+        "page-001-table-039"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 16,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              14,
+              15
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827,
+              75.86131539833826
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": true,
+            "border_strokes": 31,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 167.001946
+            }
+          }
+        ],
+        "page_number": 17,
+        "page_number_text": "17",
+        "page_number_glyph_indices": [
+          233,
+          234
+        ],
+        "page_number_width_mm": 3.492,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-017",
+      "preview": "pages/page-017/plotter-preview.svg",
+      "paths": "pages/page-017/paths.json",
+      "gcode": "pages/page-017/page.gcode",
+      "report": "pages/page-017/report.json"
+    },
+    {
+      "page_index": 17,
+      "page_number": 18,
+      "source_element_ids": [
+        "page-001-table-039",
+        "page-001-text-040",
+        "page-001-text-041"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "7. Connection and handwriting stress corpus1. молоко машина школа работа площадь объём подъём мышь тишь большой. Перо желательно не поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.",
+        "formulas": [],
+        "placements": [
+          {
+            "id": "page-001-table-039",
+            "type": "semantic-table",
+            "source_page_index": 0,
+            "target_page_index": 17,
+            "source_bbox_mm": null,
+            "mapped_bbox_mm": null,
+            "output_bbox_mm": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 91.140631
+            },
+            "scale": 0.689391,
+            "page_scale": 0.689391,
+            "placement_mode": "hybrid",
+            "anchor_affinity": "center"
+          }
+        ],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 111.607297,
+            "width": 113.75,
+            "height": 12.62125
+          },
+          {
+            "x": 17.002639,
+            "y": 124.228547,
+            "width": 119.96,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 134.325547,
+            "width": 118.38,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 144.422547,
+            "width": 101.225,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 154.519547,
+            "width": 80.89,
+            "height": 10.097
+          },
+          {
+            "x": 17.002639,
+            "y": 168.144325,
+            "width": 103.41,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 178.241325,
+            "width": 121.725,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [
+          {
+            "table_id": "page-001-table-039",
+            "rows": [
+              0,
+              16
+            ],
+            "row_heights_mm": [
+              25.37631539833828,
+              65.76431539833827
+            ],
+            "column_widths_mm": [
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113,
+              29.98677089597113
+            ],
+            "continued_from_previous": true,
+            "continues_next": false,
+            "border_strokes": 22,
+            "target_bbox": {
+              "x": 14.026458,
+              "y": 10.0,
+              "width": 119.947084,
+              "height": 91.140631
+            }
+          }
+        ],
+        "page_number": 18,
+        "page_number_text": "18",
+        "page_number_glyph_indices": [
+          411,
+          412
+        ],
+        "page_number_width_mm": 3.552,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-018",
+      "preview": "pages/page-018/plotter-preview.svg",
+      "paths": "pages/page-018/paths.json",
+      "gcode": "pages/page-018/page.gcode",
+      "report": "pages/page-018/report.json"
+    },
+    {
+      "page_index": 18,
+      "page_number": 19,
+      "source_element_ids": [
+        "page-001-text-042",
+        "page-001-text-043",
+        "page-001-text-044",
+        "page-001-text-045",
+        "page-001-text-046",
+        "page-001-text-047"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "2. быстрый рыжий лисёнок перепрыгивает через ленивую собаку. Перо желательно не поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.3. minimum maximum aluminum continuum rhythm handwriting connection. Перо желательно не поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.4. аааа мммм шшш щщщ ыыы ььь ъъъ ййй ёёё жжж. Перо желательно не поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.8. Final acceptance markersAll content remains inside page margins on A4 source and A5 target.No text overlaps image or table borders; rotated image remains rotated.",
+        "formulas": [],
+        "placements": [],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 116.765,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 20.097,
+            "width": 48.455,
+            "height": 10.097
+          },
+          {
+            "x": 17.002639,
+            "y": 33.721778,
+            "width": 104.33,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 43.818778,
+            "width": 119.545,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 53.915778,
+            "width": 101.225,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 64.012778,
+            "width": 80.89,
+            "height": 10.097
+          },
+          {
+            "x": 17.002639,
+            "y": 77.637556,
+            "width": 114.155,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 87.734556,
+            "width": 120.095,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 97.831556,
+            "width": 108.81,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 107.928556,
+            "width": 23.04,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 130.02,
+            "width": 71.76875,
+            "height": 12.62125
+          },
+          {
+            "x": 10.0,
+            "y": 142.64125,
+            "width": 127.115,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 152.73825,
+            "width": 14.2,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 166.363028,
+            "width": 113.68,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 176.460028,
+            "width": 34.115,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 19,
+        "page_number_text": "19",
+        "page_number_glyph_indices": [
+          503,
+          504
+        ],
+        "page_number_width_mm": 3.668,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-019",
+      "preview": "pages/page-019/plotter-preview.svg",
+      "paths": "pages/page-019/paths.json",
+      "gcode": "pages/page-019/page.gcode",
+      "report": "pages/page-019/report.json"
+    },
+    {
+      "page_index": 19,
+      "page_number": 20,
+      "source_element_ids": [
+        "page-001-text-048",
+        "page-001-text-049",
+        "page-001-text-050",
+        "page-001-text-051",
+        "page-001-text-052",
+        "page-001-text-053"
+      ],
+      "warnings": [
+        "docx_tab_stop_approximated:center",
+        "docx_tab_stop_approximated:right",
+        "Glyph \".\" needs centerline review",
+        "Glyph \":\" needs centerline review",
+        "Glyph \";\" needs centerline review",
+        "Glyph \"?\" needs centerline review",
+        "Glyph \"U\" needs centerline review",
+        "Glyph \"И\" needs centerline review",
+        "Glyph \"Й\" needs centerline review",
+        "Glyph \"Ц\" needs centerline review",
+        "Glyph \"Ш\" needs centerline review",
+        "Glyph \"Щ\" needs centerline review",
+        "Glyph \"Ю\" needs centerline review",
+        "Glyph \"…\" needs centerline review"
+      ],
+      "metadata": {
+        "text": "Centerline glyphs are recognizable; ъ/ь/ы and joins are visually acceptable.Underline is below text; strike crosses text; superscript/subscript positions are preserved.LaTeX and OMML equations are visible and use centerline strokes in the target run.Arrows have correct heads and table grids are preserved.Output has more than one page, centered page numbers, pen-up park move and page pause.The generated report.json contains import/layout/semantic/pagination/math/image metrics and warnings.",
+        "formulas": [],
+        "placements": [],
+        "line_boxes": [
+          {
+            "x": 10.0,
+            "y": 10.0,
+            "width": 114.24,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 20.097,
+            "width": 39.21,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 33.721778,
+            "width": 90.665,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 43.818778,
+            "width": 93.89,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 57.443556,
+            "width": 124.685,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 67.540556,
+            "width": 52.07,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 81.165333,
+            "width": 117.96,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 94.790111,
+            "width": 113.93,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 104.887111,
+            "width": 69.015,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 118.511889,
+            "width": 71.17,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 128.608889,
+            "width": 125.695,
+            "height": 10.097
+          },
+          {
+            "x": 10.0,
+            "y": 138.705889,
+            "width": 20.13,
+            "height": 10.097
+          }
+        ],
+        "table_fragments": [],
+        "page_number": 20,
+        "page_number_text": "20",
+        "page_number_glyph_indices": [
+          432,
+          433
+        ],
+        "page_number_width_mm": 4.412000000000001,
+        "page_number_center_x_mm": 74.0
+      },
+      "directory": "pages/page-020",
+      "preview": "pages/page-020/plotter-preview.svg",
+      "paths": "pages/page-020/paths.json",
+      "gcode": "pages/page-020/page.gcode",
+      "report": "pages/page-020/report.json"
+    }
+  ]
+}

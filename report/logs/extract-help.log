@@ -1,0 +1,18 @@
+COMMAND: .venv/bin/python -m plotter_processor extract --help
+STARTED_UTC: 2026-08-21T09:41:10.374634+00:00
+ENDED_UTC: 2026-08-21T09:41:11.647999+00:00
+DURATION_SECONDS: 1.273352
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor extract [-h] [--output OUTPUT] input
+
+positional arguments:
+  input
+
+options:
+  -h, --help       show this help message and exit
+  --output OUTPUT
+
+--- STDERR ---
+

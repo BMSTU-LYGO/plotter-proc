@@ -1,0 +1,1275 @@
+{
+  "status": "ok",
+  "pipeline": "ttf-vector",
+  "font_mode": "outline",
+  "input": "plotter_pipeline_full_test.docx",
+  "font": "assets/1.ttf",
+  "page": "A5",
+  "size": "normal",
+  "shaping": "legacy",
+  "statistics": {
+    "contours": 11835.0,
+    "strokes": 11835.0,
+    "points": 241951.0,
+    "closed_contours": 11319.0,
+    "open_contours": 516.0,
+    "draw_distance_mm": 123539.341,
+    "travel_distance_mm": 58410.69,
+    "characters": 4820.0,
+    "glyphs": 6820.0,
+    "lines": 176.0,
+    "estimated_time_minutes": 352.094571,
+    "pages": 20,
+    "bounding_box_mm": null
+  },
+  "motion": {
+    "profile": "safe",
+    "stroke_count": 471,
+    "point_count": 10022,
+    "xy_draw_commands": 10009,
+    "xy_travel_commands": 471,
+    "pen_down_count": 471,
+    "pen_up_count": 472,
+    "pen_lift_count": 471,
+    "pen_lift_distance_mm": 1884.0,
+    "pen_lower_distance_mm": 1884.0,
+    "total_z_distance_mm": 3768.0,
+    "draw_distance_mm": 5285.893728,
+    "travel_distance_mm": 2313.46407,
+    "dwell_count": 471,
+    "dwell_time_seconds": 47.1,
+    "ideal_draw_time_seconds": 317.153624,
+    "ideal_travel_time_seconds": 46.269281,
+    "ideal_z_time_seconds": 452.16,
+    "ideal_total_time_seconds": 862.682905,
+    "ideal_total_time_minutes": 14.378048,
+    "short_segment_count": 1453,
+    "very_short_segment_count": 0,
+    "short_segment_ratio": 0.145169,
+    "average_segment_length_mm": 0.528114,
+    "median_segment_length_mm": 0.383428,
+    "p95_segment_length_mm": 1.080395,
+    "planner_risk": "medium",
+    "gcode_command_count": 11898,
+    "draw_feed_mm_min": 1000.0,
+    "travel_feed_mm_min": 3000.0,
+    "z_feed_mm_min": 500.0,
+    "up_z_mm": 5.0,
+    "down_z_mm": 1.0,
+    "down_settle_ms": 100,
+    "gcode_analysis": {
+      "gcode_command_count": 11898,
+      "motion_command_count": 11421,
+      "z_command_count": 943,
+      "dwell_count": 471,
+      "dwell_time_seconds": 47.1,
+      "ideal_total_time_seconds": 867.541332
+    },
+    "ideal_motion_time_seconds": 21125.674,
+    "page_change_pause_time_seconds": 19.0,
+    "estimated_job_time_seconds": 21144.674
+  },
+  "simplification": {
+    "enabled": true,
+    "points_before_simplification": 12501,
+    "points_after_simplification": 10022,
+    "segments_before_simplification": 12488,
+    "segments_after_simplification": 10009,
+    "point_reduction_ratio": 0.198304,
+    "max_observed_deviation_mm": 0.049993
+  },
+  "handwriting": {
+    "enabled": false,
+    "mode": "off",
+    "words": 0,
+    "pairs_total": 0,
+    "accepted": 0,
+    "rejected": 0,
+    "rejected_distance": 0,
+    "rejected_tangent": 0,
+    "rejected_collision": 0,
+    "rejected_corridor": 0,
+    "snapped_existing_contact": 0,
+    "connector_length_mm": 0.0,
+    "joins_created": 0,
+    "joins_rejected": 0,
+    "pen_lifts_saved": 0,
+    "rejections_by_reason": {}
+  },
+  "document_import": {
+    "source_pages": 1,
+    "text_elements": 45,
+    "math_elements": 1,
+    "raster_images_found": 3,
+    "raster_images_vectorized": 3,
+    "pdf_vector_elements": 0,
+    "images_skipped": 0,
+    "image_strokes": 95,
+    "image_points": 391,
+    "image_cache_hits": 2,
+    "image_cache_misses": 1,
+    "underlines": 6,
+    "generic_lines": 0,
+    "arrows": 1,
+    "tables": 3,
+    "table_cells": 104,
+    "table_pages": 14,
+    "layout_mode": "hybrid"
+  },
+  "document_layout": {
+    "mode": "hybrid",
+    "images": 3,
+    "images_with_source_bbox": 1,
+    "images_wrapped": 1,
+    "images_top_bottom": 0,
+    "position_preserved": 1,
+    "position_fallbacks": 0,
+    "mean_center_displacement_mm": 0.0,
+    "max_center_displacement_mm": 0.0,
+    "mean_scale_factor": 0.705073,
+    "overlaps_remaining": 0.0,
+    "page_overflow_area_mm2": 0.0,
+    "max_unexplained_vertical_gap_mm": 0.0,
+    "unexplained_vertical_gap_count": 0,
+    "elements": [
+      {
+        "id": "page-001-table-005",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 0,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.014298,
+          "y": 109.529139,
+          "width": 119.971404,
+          "height": 50.752631
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-005",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 1,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.014298,
+          "y": 10.0,
+          "width": 119.971404,
+          "height": 177.366577
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-005",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 2,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.014298,
+          "y": 10.0,
+          "width": 119.971404,
+          "height": 131.796262
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-image-023",
+        "element_type": "raster-image",
+        "source_order": 22,
+        "source_page_index": 0,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 22.295699,
+          "y": 84.142022,
+          "width": 103.408601,
+          "height": 44.810394
+        },
+        "target_page_index": 5,
+        "anchor": "flow",
+        "wrap_mode": "inline",
+        "wrap_side": "both",
+        "scale": 0.689391,
+        "center_displacement_mm": null,
+        "overlap_area_mm2": 0.0,
+        "page_overflow_area_mm2": 0.0,
+        "fallbacks": [],
+        "placement_reason": "activated_at_source_order"
+      },
+      {
+        "id": "page-001-image-025",
+        "element_type": "raster-image",
+        "source_order": 24,
+        "source_page_index": 0,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 54.85265,
+          "y": 156.674194,
+          "width": 38.2947,
+          "height": 22.648093
+        },
+        "target_page_index": 5,
+        "anchor": "flow",
+        "wrap_mode": "inline",
+        "wrap_side": "both",
+        "scale": 0.736437,
+        "center_displacement_mm": null,
+        "overlap_area_mm2": 0.0,
+        "page_overflow_area_mm2": 0.0,
+        "fallbacks": [],
+        "placement_reason": "activated_at_source_order"
+      },
+      {
+        "id": "page-001-image-027",
+        "element_type": "raster-image",
+        "source_order": 26,
+        "source_page_index": 0,
+        "source_bbox_mm": {
+          "x": 112.991667,
+          "y": 0.0,
+          "width": 64.0,
+          "height": 27.733333
+        },
+        "mapped_bbox_mm": {
+          "x": 79.506412,
+          "y": 12.0,
+          "width": 44.121003,
+          "height": 19.119101
+        },
+        "output_bbox_mm": {
+          "x": 79.506412,
+          "y": 12.0,
+          "width": 44.121003,
+          "height": 19.119101
+        },
+        "target_page_index": 6,
+        "anchor": "anchored",
+        "wrap_mode": "square",
+        "wrap_side": "both",
+        "scale": 0.689391,
+        "center_displacement_mm": 0.0,
+        "overlap_area_mm2": 0.0,
+        "page_overflow_area_mm2": 0.0,
+        "fallbacks": [],
+        "placement_reason": "activated_at_source_order"
+      },
+      {
+        "id": "page-001-table-036",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 7,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 152.67129,
+          "width": 119.947084,
+          "height": 15.279315
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-036",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 8,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 116.784577
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 9,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 55.915778,
+          "width": 119.947084,
+          "height": 91.140631
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 10,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 167.001946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 11,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 156.904946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 12,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 167.001946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 13,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 156.904946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 14,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 167.001946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 15,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 156.904946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 16,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 167.001946
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      },
+      {
+        "id": "page-001-table-039",
+        "type": "semantic-table",
+        "source_page_index": 0,
+        "target_page_index": 17,
+        "source_bbox_mm": null,
+        "mapped_bbox_mm": null,
+        "output_bbox_mm": {
+          "x": 14.026458,
+          "y": 10.0,
+          "width": 119.947084,
+          "height": 91.140631
+        },
+        "scale": 0.689391,
+        "page_scale": 0.689391,
+        "placement_mode": "hybrid",
+        "anchor_affinity": "center"
+      }
+    ],
+    "page_transform": {
+      "source_width_mm": 210.008611,
+      "source_height_mm": 297.003611,
+      "source_content_rect": {
+        "x": 17.991667,
+        "y": 15.998472,
+        "width": 174.025278,
+        "height": 264.00125
+      },
+      "target_content_rect": {
+        "x": 10.0,
+        "y": 10.0,
+        "width": 128.0,
+        "height": 182.0
+      },
+      "scale": 0.689391,
+      "offset_x_mm": 1.611011,
+      "offset_y_mm": -1.029198,
+      "target_width_mm": 148.0,
+      "target_height_mm": 210.0,
+      "source_page_index": 0,
+      "target_page_start": 0
+    },
+    "layout_objects": {
+      "images_scaled": 3,
+      "tables_scaled": 3,
+      "tables_paginated": 3,
+      "table_rows_auto_height": 31,
+      "object_overflow_count": 0
+    }
+  },
+  "paragraph_formatting": {
+    "paragraphs_total": 149,
+    "titles": 1,
+    "headings": 9,
+    "first_line_indents": 6,
+    "centered": 5,
+    "right_aligned": 1,
+    "justified": 6,
+    "custom_tab_stops": 1
+  },
+  "page_transform": {
+    "source_width_mm": 210.008611,
+    "source_height_mm": 297.003611,
+    "source_content_rect": {
+      "x": 17.991667,
+      "y": 15.998472,
+      "width": 174.025278,
+      "height": 264.00125
+    },
+    "target_content_rect": {
+      "x": 10.0,
+      "y": 10.0,
+      "width": 128.0,
+      "height": 182.0
+    },
+    "scale": 0.689391,
+    "offset_x_mm": 1.611011,
+    "offset_y_mm": -1.029198,
+    "target_width_mm": 148.0,
+    "target_height_mm": 210.0,
+    "source_page_index": 0,
+    "target_page_start": 0
+  },
+  "layout_objects": {
+    "images_scaled": 3,
+    "tables_scaled": 3,
+    "tables_paginated": 3,
+    "table_rows_auto_height": 31,
+    "object_overflow_count": 0
+  },
+  "semantic_objects": {
+    "underlines": 6,
+    "generic_lines": 0,
+    "arrows": 1,
+    "tables": 3,
+    "table_cells": 104,
+    "table_pages": 14,
+    "classification_conflicts": 0,
+    "duplicate_primitives_suppressed": 0
+  },
+  "latex": {
+    "enabled": true,
+    "backend": "mathtext",
+    "expressions_found": 4,
+    "inline_expressions": 2,
+    "block_expressions": 2,
+    "rendered": 4,
+    "semantic_expressions": 3,
+    "omml_expressions": 1,
+    "pdf_visual_expressions": 0,
+    "outline_fallbacks": 0,
+    "fallbacks": 0,
+    "strokes": 42,
+    "points": 1176,
+    "pen_lifts": 42,
+    "needs_review": 0,
+    "warnings": [],
+    "cache_hits": 0,
+    "cache_misses": 4,
+    "formulas": [
+      {
+        "formula_index": 1,
+        "expression": "E=mc^2",
+        "display_mode": false,
+        "source_syntax": "dollar-inline",
+        "delimiter": "$",
+        "source_position": 20,
+        "element_id": "page-001-text-017-formula-001",
+        "width_mm": 19.02532682291667,
+        "height_mm": 4.733750000000001,
+        "strokes": 6,
+        "points": 288,
+        "stroke_mode": "outline",
+        "source_kind": "semantic-latex",
+        "source_page_index": 0,
+        "quality": {
+          "strokes": 6,
+          "points": 288,
+          "needs_review": false
+        },
+        "warnings": [],
+        "source_bbox": null,
+        "target_bbox": {
+          "x": 53.535,
+          "y": 144.3153611111111,
+          "width": 19.02532682291667,
+          "height": 4.733750000000001
+        }
+      },
+      {
+        "formula_index": 2,
+        "expression": "y=\\frac{x^2+1}{x+1}",
+        "display_mode": false,
+        "source_syntax": "dollar-inline",
+        "delimiter": "$",
+        "source_position": 47,
+        "element_id": "page-001-text-017-formula-002",
+        "width_mm": 19.93866373697917,
+        "height_mm": 6.753078124999999,
+        "strokes": 11,
+        "points": 180,
+        "stroke_mode": "outline",
+        "source_kind": "semantic-latex",
+        "source_page_index": 0,
+        "quality": {
+          "strokes": 11,
+          "points": 180,
+          "needs_review": false
+        },
+        "warnings": [],
+        "source_bbox": null,
+        "target_bbox": {
+          "x": 112.3553268229167,
+          "y": 144.01536111111108,
+          "width": 19.93866373697917,
+          "height": 6.753078124999999
+        }
+      },
+      {
+        "formula_index": 3,
+        "expression": "\\int_0^1 x^2\\,dx=\\frac{1}{3}",
+        "display_mode": true,
+        "source_syntax": "dollar-block",
+        "delimiter": "$$",
+        "source_position": 0,
+        "element_id": "page-001-text-018-formula-003",
+        "width_mm": 31.891143345133464,
+        "height_mm": 10.947371093750002,
+        "strokes": 14,
+        "points": 527,
+        "stroke_mode": "outline",
+        "source_kind": "semantic-latex",
+        "source_page_index": 0,
+        "quality": {
+          "strokes": 14,
+          "points": 527,
+          "needs_review": false
+        },
+        "warnings": [],
+        "source_bbox": null,
+        "target_bbox": {
+          "x": 58.05442832743327,
+          "y": 157.97536111111108,
+          "width": 31.891143345133464,
+          "height": 10.947371093750002
+        }
+      },
+      {
+        "formula_index": 4,
+        "expression": "y=\\frac{{x}^{2}+1}{x+1}",
+        "display_mode": true,
+        "source_syntax": "omml",
+        "delimiter": "omml",
+        "source_position": 0,
+        "element_id": "page-001-math-020-formula-004",
+        "width_mm": 22.92946329752604,
+        "height_mm": 7.76603984375,
+        "strokes": 11,
+        "points": 181,
+        "stroke_mode": "outline",
+        "source_kind": "omml",
+        "source_page_index": 0,
+        "quality": {
+          "strokes": 11,
+          "points": 181,
+          "needs_review": false
+        },
+        "warnings": [],
+        "source_bbox": null,
+        "target_bbox": {
+          "x": 62.53526835123698,
+          "y": 25.624777777777776,
+          "width": 22.92946329752604,
+          "height": 7.76603984375
+        }
+      }
+    ],
+    "unsupported": [
+      "full LaTeX documents and packages",
+      "TikZ, user macros, bibliography, and file includes",
+      "external LaTeX or shell execution",
+      "full OMML conversion",
+      "LaTeX reconstruction from PDF"
+    ],
+    "requested_mode": "mathtext",
+    "stroke_mode": "outline",
+    "pdf_math_mode": "auto"
+  },
+  "pagination": {
+    "enabled": true,
+    "page_count": 20,
+    "page_numbers": true,
+    "page_number_format": "{page}",
+    "pause_seconds": 1.0,
+    "pause_count": 19,
+    "total_pause_seconds": 19.0,
+    "park_mode": "corner",
+    "park_corner": "top_right"
+  },
+  "pages": [
+    {
+      "page": 1,
+      "text_elements": 4,
+      "image_elements": 0,
+      "contours": 471,
+      "strokes": 471,
+      "points": 10022,
+      "closed_contours": 458,
+      "open_contours": 13,
+      "draw_distance_mm": 5285.894,
+      "travel_distance_mm": 2313.464,
+      "bounding_box_mm": {
+        "min_x": 10.31875,
+        "min_y": 13.071250000000003,
+        "max_x": 137.68000000000004,
+        "max_y": 205.235264
+      },
+      "characters": 225,
+      "glyphs": 282,
+      "lines": 10,
+      "estimated_time_minutes": 14.378048,
+      "gcode": "pages/page-001/page.gcode"
+    },
+    {
+      "page": 2,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 634,
+      "strokes": 634,
+      "points": 11863,
+      "closed_contours": 606,
+      "open_contours": 28,
+      "draw_distance_mm": 6627.441,
+      "travel_distance_mm": 3235.651,
+      "bounding_box_mm": {
+        "min_x": 14.014298122536253,
+        "min_y": 10.0,
+        "max_x": 133.98570187746375,
+        "max_y": 205.29972
+      },
+      "characters": 0,
+      "glyphs": 350,
+      "lines": 6,
+      "estimated_time_minutes": 18.906658,
+      "gcode": "pages/page-002/page.gcode"
+    },
+    {
+      "page": 3,
+      "text_elements": 1,
+      "image_elements": 0,
+      "contours": 654,
+      "strokes": 654,
+      "points": 13297,
+      "closed_contours": 631,
+      "open_contours": 23,
+      "draw_distance_mm": 6951.544,
+      "travel_distance_mm": 3228.815,
+      "bounding_box_mm": {
+        "min_x": 10.175,
+        "min_y": 10.0,
+        "max_x": 138.645,
+        "max_y": 205.327292
+      },
+      "characters": 42,
+      "glyphs": 366,
+      "lines": 8,
+      "estimated_time_minutes": 19.581816,
+      "gcode": "pages/page-003/page.gcode"
+    },
+    {
+      "page": 4,
+      "text_elements": 5,
+      "image_elements": 0,
+      "contours": 904,
+      "strokes": 904,
+      "points": 20044,
+      "closed_contours": 903,
+      "open_contours": 1,
+      "draw_distance_mm": 8612.594,
+      "travel_distance_mm": 3065.654,
+      "bounding_box_mm": {
+        "min_x": 9.795,
+        "min_y": 11.815000000000001,
+        "max_x": 138.645,
+        "max_y": 205.311436
+      },
+      "characters": 761,
+      "glyphs": 562,
+      "lines": 17,
+      "estimated_time_minutes": 25.605145,
+      "gcode": "pages/page-004/page.gcode"
+    },
+    {
+      "page": 5,
+      "text_elements": 7,
+      "image_elements": 0,
+      "contours": 563,
+      "strokes": 563,
+      "points": 13106,
+      "closed_contours": 556,
+      "open_contours": 7,
+      "draw_distance_mm": 6684.311,
+      "travel_distance_mm": 2810.375,
+      "bounding_box_mm": {
+        "min_x": 9.915,
+        "min_y": 11.84,
+        "max_x": 138.645,
+        "max_y": 205.320788
+      },
+      "characters": 431,
+      "glyphs": 351,
+      "lines": 13,
+      "estimated_time_minutes": 17.567436,
+      "gcode": "pages/page-005/page.gcode"
+    },
+    {
+      "page": 6,
+      "text_elements": 5,
+      "image_elements": 2,
+      "contours": 591,
+      "strokes": 591,
+      "points": 10848,
+      "closed_contours": 526,
+      "open_contours": 65,
+      "draw_distance_mm": 5763.576,
+      "travel_distance_mm": 2085.791,
+      "bounding_box_mm": {
+        "min_x": 9.945,
+        "min_y": 11.815000000000001,
+        "max_x": 138.34500000000008,
+        "max_y": 205.319652
+      },
+      "characters": 403,
+      "glyphs": 309,
+      "lines": 9,
+      "estimated_time_minutes": 16.89984,
+      "gcode": "pages/page-006/page.gcode"
+    },
+    {
+      "page": 7,
+      "text_elements": 2,
+      "image_elements": 1,
+      "contours": 1097,
+      "strokes": 1097,
+      "points": 22912,
+      "closed_contours": 1065,
+      "open_contours": 32,
+      "draw_distance_mm": 10015.952,
+      "travel_distance_mm": 3684.606,
+      "bounding_box_mm": {
+        "min_x": 9.405,
+        "min_y": 11.815000000000001,
+        "max_x": 138.645,
+        "max_y": 205.258704
+      },
+      "characters": 590,
+      "glyphs": 639,
+      "lines": 17,
+      "estimated_time_minutes": 30.624487,
+      "gcode": "pages/page-007/page.gcode"
+    },
+    {
+      "page": 8,
+      "text_elements": 5,
+      "image_elements": 0,
+      "contours": 720,
+      "strokes": 720,
+      "points": 14552,
+      "closed_contours": 704,
+      "open_contours": 16,
+      "draw_distance_mm": 7047.441,
+      "travel_distance_mm": 2866.226,
+      "bounding_box_mm": {
+        "min_x": 10.0,
+        "min_y": 11.815000000000001,
+        "max_x": 138.645,
+        "max_y": 205.313304
+      },
+      "characters": 621,
+      "glyphs": 419,
+      "lines": 12,
+      "estimated_time_minutes": 20.72285,
+      "gcode": "pages/page-008/page.gcode"
+    },
+    {
+      "page": 9,
+      "text_elements": 1,
+      "image_elements": 0,
+      "contours": 489,
+      "strokes": 489,
+      "points": 10307,
+      "closed_contours": 439,
+      "open_contours": 50,
+      "draw_distance_mm": 6043.148,
+      "travel_distance_mm": 3308.614,
+      "bounding_box_mm": {
+        "min_x": 10.28,
+        "min_y": 10.0,
+        "max_x": 138.645,
+        "max_y": 205.299568
+      },
+      "characters": 51,
+      "glyphs": 270,
+      "lines": 10,
+      "estimated_time_minutes": 15.785019,
+      "gcode": "pages/page-009/page.gcode"
+    },
+    {
+      "page": 10,
+      "text_elements": 1,
+      "image_elements": 0,
+      "contours": 531,
+      "strokes": 531,
+      "points": 11011,
+      "closed_contours": 508,
+      "open_contours": 23,
+      "draw_distance_mm": 5561.61,
+      "travel_distance_mm": 2842.35,
+      "bounding_box_mm": {
+        "min_x": 9.79,
+        "min_y": 11.975000000000001,
+        "max_x": 138.645,
+        "max_y": 205.286672
+      },
+      "characters": 301,
+      "glyphs": 302,
+      "lines": 7,
+      "estimated_time_minutes": 15.89006,
+      "gcode": "pages/page-010/page.gcode"
+    },
+    {
+      "page": 11,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 418,
+      "strokes": 418,
+      "points": 8150,
+      "closed_contours": 385,
+      "open_contours": 33,
+      "draw_distance_mm": 4831.922,
+      "travel_distance_mm": 2979.953,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.235264
+      },
+      "characters": 0,
+      "glyphs": 232,
+      "lines": 4,
+      "estimated_time_minutes": 13.209907,
+      "gcode": "pages/page-011/page.gcode"
+    },
+    {
+      "page": 12,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 408,
+      "strokes": 408,
+      "points": 7961,
+      "closed_contours": 375,
+      "open_contours": 33,
+      "draw_distance_mm": 4721.272,
+      "travel_distance_mm": 2910.954,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.29972
+      },
+      "characters": 0,
+      "glyphs": 227,
+      "lines": 4,
+      "estimated_time_minutes": 12.89959,
+      "gcode": "pages/page-012/page.gcode"
+    },
+    {
+      "page": 13,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 422,
+      "strokes": 422,
+      "points": 8241,
+      "closed_contours": 389,
+      "open_contours": 33,
+      "draw_distance_mm": 4866.27,
+      "travel_distance_mm": 2991.392,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.327292
+      },
+      "characters": 0,
+      "glyphs": 233,
+      "lines": 4,
+      "estimated_time_minutes": 13.318734,
+      "gcode": "pages/page-013/page.gcode"
+    },
+    {
+      "page": 14,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 412,
+      "strokes": 412,
+      "points": 8063,
+      "closed_contours": 379,
+      "open_contours": 33,
+      "draw_distance_mm": 4740.281,
+      "travel_distance_mm": 2911.017,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.311436
+      },
+      "characters": 0,
+      "glyphs": 227,
+      "lines": 4,
+      "estimated_time_minutes": 12.989287,
+      "gcode": "pages/page-014/page.gcode"
+    },
+    {
+      "page": 15,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 423,
+      "strokes": 423,
+      "points": 8176,
+      "closed_contours": 390,
+      "open_contours": 33,
+      "draw_distance_mm": 4852.148,
+      "travel_distance_mm": 2993.3,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.320788
+      },
+      "characters": 0,
+      "glyphs": 235,
+      "lines": 4,
+      "estimated_time_minutes": 13.322915,
+      "gcode": "pages/page-015/page.gcode"
+    },
+    {
+      "page": 16,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 406,
+      "strokes": 406,
+      "points": 7969,
+      "closed_contours": 373,
+      "open_contours": 33,
+      "draw_distance_mm": 4732.327,
+      "travel_distance_mm": 2913.302,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.319652
+      },
+      "characters": 0,
+      "glyphs": 229,
+      "lines": 4,
+      "estimated_time_minutes": 12.876094,
+      "gcode": "pages/page-016/page.gcode"
+    },
+    {
+      "page": 17,
+      "text_elements": 0,
+      "image_elements": 0,
+      "contours": 421,
+      "strokes": 421,
+      "points": 8223,
+      "closed_contours": 388,
+      "open_contours": 33,
+      "draw_distance_mm": 4867.763,
+      "travel_distance_mm": 2997.731,
+      "bounding_box_mm": {
+        "min_x": 14.02645820805774,
+        "min_y": 10.0,
+        "max_x": 133.97354179194227,
+        "max_y": 205.258704
+      },
+      "characters": 0,
+      "glyphs": 235,
+      "lines": 4,
+      "estimated_time_minutes": 13.304673,
+      "gcode": "pages/page-017/page.gcode"
+    },
+    {
+      "page": 18,
+      "text_elements": 2,
+      "image_elements": 0,
+      "contours": 700,
+      "strokes": 700,
+      "points": 14816,
+      "closed_contours": 676,
+      "open_contours": 24,
+      "draw_distance_mm": 7237.257,
+      "travel_distance_mm": 3366.006,
+      "bounding_box_mm": {
+        "min_x": 9.945,
+        "min_y": 10.0,
+        "max_x": 137.60763888888889,
+        "max_y": 205.313304
+      },
+      "characters": 225,
+      "glyphs": 413,
+      "lines": 10,
+      "estimated_time_minutes": 20.725926,
+      "gcode": "pages/page-018/page.gcode"
+    },
+    {
+      "page": 19,
+      "text_elements": 6,
+      "image_elements": 0,
+      "contours": 826,
+      "strokes": 826,
+      "points": 17793,
+      "closed_contours": 824,
+      "open_contours": 2,
+      "draw_distance_mm": 7634.809,
+      "travel_distance_mm": 2660.696,
+      "bounding_box_mm": {
+        "min_x": 9.945,
+        "min_y": 11.815000000000001,
+        "max_x": 136.985,
+        "max_y": 205.299568
+      },
+      "characters": 677,
+      "glyphs": 505,
+      "lines": 16,
+      "estimated_time_minutes": 23.114374,
+      "gcode": "pages/page-019/page.gcode"
+    },
+    {
+      "page": 20,
+      "text_elements": 6,
+      "image_elements": 0,
+      "contours": 745,
+      "strokes": 745,
+      "points": 14597,
+      "closed_contours": 744,
+      "open_contours": 1,
+      "draw_distance_mm": 6461.781,
+      "travel_distance_mm": 2244.793,
+      "bounding_box_mm": {
+        "min_x": 9.405,
+        "min_y": 11.815000000000001,
+        "max_x": 136.34,
+        "max_y": 205.29972
+      },
+      "characters": 493,
+      "glyphs": 434,
+      "lines": 13,
+      "estimated_time_minutes": 20.371712,
+      "gcode": "pages/page-020/page.gcode"
+    }
+  ],
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right",
+    "Outline mode follows both boundaries of filled TTF strokes"
+  ],
+  "cache": {
+    "font": {
+      "directory": "1-font-cache",
+      "hits": 10,
+      "misses": 0,
+      "rebuilt": 0,
+      "algorithm_version": 6
+    },
+    "images": {
+      "hits": 2,
+      "misses": 1
+    },
+    "latex": {
+      "hits": 0,
+      "misses": 4
+    }
+  },
+  "outputs": {
+    "extracted": "report/jobs/docx-outline-hybrid-a5/extracted.txt",
+    "plotter_preview": "report/jobs/docx-outline-hybrid-a5/plotter-preview.svg",
+    "gcode": "report/jobs/docx-outline-hybrid-a5/output.gcode",
+    "job": "report/jobs/docx-outline-hybrid-a5/job.json",
+    "document_structure": "report/jobs/docx-outline-hybrid-a5/document-structure.json",
+    "font_preview": "report/jobs/docx-outline-hybrid-a5/font-preview.svg",
+    "centerline_font_preview": "report/jobs/docx-outline-hybrid-a5/centerline-font-preview.svg",
+    "latex_debug": "report/jobs/docx-outline-hybrid-a5/latex-debug"
+  },
+  "performance": {
+    "total_ms": 11491.415,
+    "read_document_ms": 50.178,
+    "layout_ms": 667.618,
+    "font_compile_ms": 1570.707,
+    "image_vectorization_ms": 390.974,
+    "latex_render_ms": 180.57,
+    "build_paths_ms": 1619.131,
+    "handwriting_ms": 0.0,
+    "simplification_ms": 1679.891,
+    "preview_ms": 509.316,
+    "gcode_ms": 3355.791,
+    "report_ms": 0.383,
+    "stages": {
+      "read_document": {
+        "calls": 1,
+        "total_ms": 50.178,
+        "max_ms": 50.178
+      },
+      "layout": {
+        "calls": 1,
+        "total_ms": 667.618,
+        "max_ms": 667.618
+      },
+      "font_compile": {
+        "calls": 1,
+        "total_ms": 1570.707,
+        "max_ms": 1570.707
+      },
+      "image_vectorization": {
+        "calls": 3,
+        "total_ms": 390.974,
+        "max_ms": 218.82
+      },
+      "latex_render": {
+        "calls": 3,
+        "total_ms": 180.57,
+        "max_ms": 163.321
+      },
+      "build_paths": {
+        "calls": 40,
+        "total_ms": 1619.131,
+        "max_ms": 204.15
+      },
+      "handwriting": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "simplification": {
+        "calls": 20,
+        "total_ms": 1679.891,
+        "max_ms": 154.407
+      },
+      "preview": {
+        "calls": 22,
+        "total_ms": 509.316,
+        "max_ms": 163.873
+      },
+      "gcode": {
+        "calls": 21,
+        "total_ms": 3355.791,
+        "max_ms": 1343.583
+      },
+      "report": {
+        "calls": 1,
+        "total_ms": 0.383,
+        "max_ms": 0.383
+      }
+    }
+  }
+}

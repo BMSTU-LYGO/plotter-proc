@@ -1,0 +1,19 @@
+{
+  "formula_index": 1,
+  "expression": "E=mc^2",
+  "display_mode": false,
+  "source_syntax": "dollar-inline",
+  "width_mm": 19.02532682291667,
+  "height_mm": 4.733750000000001,
+  "baseline_mm": 4.700000000000001,
+  "strokes": 6,
+  "points": 288,
+  "stroke_mode": "outline",
+  "source_kind": "semantic-latex",
+  "quality": {
+    "strokes": 6,
+    "points": 288,
+    "needs_review": false
+  },
+  "warnings": []
+}

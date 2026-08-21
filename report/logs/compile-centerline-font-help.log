@@ -1,0 +1,34 @@
+COMMAND: .venv/bin/python -m plotter_processor compile-centerline-font --help
+STARTED_UTC: 2026-08-21T09:41:13.163836+00:00
+ENDED_UTC: 2026-08-21T09:41:14.475019+00:00
+DURATION_SECONDS: 1.311171
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor compile-centerline-font [-h] [--chars CHARS]
+                                                 [--text-file TEXT_FILE]
+                                                 [--output OUTPUT]
+                                                 [--preview PREVIEW]
+                                                 [--debug-dir DEBUG_DIR]
+                                                 [--layout-config LAYOUT_CONFIG]
+                                                 [--cache-directory CACHE_DIRECTORY]
+                                                 [--force] [--strict-quality]
+                                                 font
+
+positional arguments:
+  font
+
+options:
+  -h, --help            show this help message and exit
+  --chars CHARS
+  --text-file TEXT_FILE
+  --output OUTPUT
+  --preview PREVIEW
+  --debug-dir DEBUG_DIR
+  --layout-config LAYOUT_CONFIG
+  --cache-directory CACHE_DIRECTORY
+  --force
+  --strict-quality
+
+--- STDERR ---
+

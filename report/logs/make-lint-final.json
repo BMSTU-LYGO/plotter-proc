@@ -1,0 +1,14 @@
+{
+  "name": "make-lint-final",
+  "command": [
+    "make",
+    "lint"
+  ],
+  "rendered_command": "make lint",
+  "started_utc": "2026-08-21T09:42:52.588410+00:00",
+  "ended_utc": "2026-08-21T09:42:52.620108+00:00",
+  "duration_seconds": 0.03168654900218826,
+  "exit_code": 0,
+  "stdout_chars": 52,
+  "stderr_chars": 0
+}

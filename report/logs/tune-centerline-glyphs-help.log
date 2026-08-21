@@ -1,0 +1,27 @@
+COMMAND: .venv/bin/python -m plotter_processor tune-centerline-glyphs --help
+STARTED_UTC: 2026-08-21T09:41:15.959626+00:00
+ENDED_UTC: 2026-08-21T09:41:17.255324+00:00
+DURATION_SECONDS: 1.295685
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor tune-centerline-glyphs [-h] --chars CHARS
+                                                [--layout-config LAYOUT_CONFIG]
+                                                --output-dir OUTPUT_DIR
+                                                [--max-candidates MAX_CANDIDATES]
+                                                [--top-n TOP_N]
+                                                font
+
+positional arguments:
+  font
+
+options:
+  -h, --help            show this help message and exit
+  --chars CHARS
+  --layout-config LAYOUT_CONFIG
+  --output-dir OUTPUT_DIR
+  --max-candidates MAX_CANDIDATES
+  --top-n TOP_N
+
+--- STDERR ---
+

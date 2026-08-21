@@ -1,0 +1,18 @@
+{
+  "baseline": "report/jobs/connections-safe",
+  "candidate": "report/jobs/motion-balanced",
+  "delta": {
+    "stroke_count": 0.0,
+    "point_count": 0.0,
+    "draw_distance_mm": 0.0,
+    "travel_distance_mm": 0.0,
+    "total_z_distance_mm": -2116.0,
+    "dwell_time_seconds": -31.74,
+    "ideal_total_time_seconds": -512.142239,
+    "gcode_command_count": 0.0
+  },
+  "max_path_deviation_mm": 0.0,
+  "missing_strokes": 0,
+  "new_strokes": 0,
+  "changed_glyphs": []
+}

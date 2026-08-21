@@ -1,0 +1,19 @@
+{
+  "formula_index": 2,
+  "expression": "y=\\frac{x^2+1}{x+1}",
+  "display_mode": false,
+  "source_syntax": "dollar-inline",
+  "width_mm": 19.93866373697917,
+  "height_mm": 6.753078124999999,
+  "baseline_mm": 5.000000000000001,
+  "strokes": 11,
+  "points": 180,
+  "stroke_mode": "outline",
+  "source_kind": "semantic-latex",
+  "quality": {
+    "strokes": 11,
+    "points": 180,
+    "needs_review": false
+  },
+  "warnings": []
+}

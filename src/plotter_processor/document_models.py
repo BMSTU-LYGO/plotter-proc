@@ -162,6 +162,11 @@ class SourceArrowElement:
     head_style: str = "open"
     bbox: SourceBBox | None = None
     confidence: float | None = None
+    start_head_style: str = "none"
+    end_head_style: str = "none"
+    stroke_color: str | None = None
+    line_width_mm: float | None = None
+    source_identity: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

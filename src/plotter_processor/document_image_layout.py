@@ -237,6 +237,11 @@ def save_document_structure(
                                 "head_at_start": element.head_at_start,
                                 "head_at_end": element.head_at_end,
                                 "head_style": element.head_style,
+                                "start_head_style": element.start_head_style,
+                                "end_head_style": element.end_head_style,
+                                "stroke_color": element.stroke_color,
+                                "line_width_mm": element.line_width_mm,
+                                "source_identity": element.source_identity,
                                 "confidence": element.confidence,
                             }
                             if isinstance(element, SourceArrowElement)

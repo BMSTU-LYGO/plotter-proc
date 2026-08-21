@@ -1,0 +1,20 @@
+COMMAND: git log -10 --oneline
+STARTED_UTC: 2026-08-21T09:41:07.324083+00:00
+ENDED_UTC: 2026-08-21T09:41:07.327152+00:00
+DURATION_SECONDS: 0.003057
+EXIT_CODE: 0
+
+--- STDOUT ---
+708cd7a Merge pull request #6 from BMSTU-LYGO/upd/plotter-7-layout-math-lines-tables
+928f2f4 upd 10-3
+56c1f56 upd 10-2
+ad03e05 upd 10-1
+1b68501 swag bomb
+168fa84 not last
+51e19e7 block8-2
+06a72e0 block8-1
+c7e2296 Merge pull request #5 from BMSTU-LYGO/upd/document-images-pagination-latex
+26f9172 block 3
+
+--- STDERR ---
+

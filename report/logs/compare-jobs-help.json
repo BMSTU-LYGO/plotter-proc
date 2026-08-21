@@ -1,0 +1,17 @@
+{
+  "name": "compare-jobs-help",
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "plotter_processor",
+    "compare-jobs",
+    "--help"
+  ],
+  "rendered_command": ".venv/bin/python -m plotter_processor compare-jobs --help",
+  "started_utc": "2026-08-21T09:41:20.221525+00:00",
+  "ended_utc": "2026-08-21T09:41:21.544102+00:00",
+  "duration_seconds": 1.322565433998534,
+  "exit_code": 0,
+  "stdout_chars": 203,
+  "stderr_chars": 0
+}

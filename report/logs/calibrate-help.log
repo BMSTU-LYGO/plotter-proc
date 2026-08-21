@@ -1,0 +1,20 @@
+COMMAND: .venv/bin/python -m plotter_processor calibrate --help
+STARTED_UTC: 2026-08-21T09:41:21.655914+00:00
+ENDED_UTC: 2026-08-21T09:41:22.978477+00:00
+DURATION_SECONDS: 1.322550
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor calibrate [-h] [--machine-config MACHINE_CONFIG]
+                                   [--page {A4,A5}] [--output OUTPUT]
+                                   [--full-page-frame]
+
+options:
+  -h, --help            show this help message and exit
+  --machine-config MACHINE_CONFIG
+  --page {A4,A5}
+  --output OUTPUT
+  --full-page-frame
+
+--- STDERR ---
+

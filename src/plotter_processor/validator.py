@@ -29,6 +29,42 @@ def validate_page_spec(page: PageSpec, margins: Mapping[str, object]) -> None:
         raise ValueError("Vertical margins leave no usable page area")
 
 
+def validate_page_workspace(
+    page: PageSpec,
+    machine_config: Mapping[str, object],
+) -> None:
+    origin = _mapping(machine_config, "page_origin_mm")
+    workspace = _mapping(machine_config, "workspace_mm")
+    origin_x = _number(origin, "x")
+    origin_y = _number(origin, "y")
+    minimum_x = _number(workspace, "min_x")
+    maximum_x = _number(workspace, "max_x")
+    minimum_y = _number(workspace, "min_y")
+    maximum_y = _number(workspace, "max_y")
+    if minimum_x >= maximum_x or minimum_y >= maximum_y:
+        raise ValueError("workspace_mm minimums must be smaller than maximums")
+    page_bounds = (
+        origin_x,
+        origin_x + page.width_mm,
+        origin_y,
+        origin_y + page.height_mm,
+    )
+    if (
+        page_bounds[0] < minimum_x
+        or page_bounds[1] > maximum_x
+        or page_bounds[2] < minimum_y
+        or page_bounds[3] > maximum_y
+    ):
+        workspace_width = maximum_x - minimum_x
+        workspace_height = maximum_y - minimum_y
+        raise ValueError(
+            f"{page.name} portrait ({page.width_mm:g}×{page.height_mm:g} mm) does not fit "
+            f"configured XY workspace {workspace_width:g}×{workspace_height:g} mm at page "
+            f"origin ({origin_x:g},{origin_y:g}) mm. Use a compatible machine config, "
+            "supported orientation, or smaller page size."
+        )
+
+
 def validate_path_document(document: PathDocument, *, max_points_per_contour: int) -> None:
     if max_points_per_contour < 2:
         raise ValueError("max_points_per_contour must be at least 2")
@@ -66,3 +102,20 @@ def validate_path_document(document: PathDocument, *, max_points_per_contour: in
             )
         if length <= 0:
             raise ValueError(f"Stroke {stroke.id} has zero length")
+
+
+def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
+    value = values.get(key)
+    if not isinstance(value, Mapping):
+        raise TypeError(f"Missing or invalid mapping field: {key}")
+    return value
+
+
+def _number(values: Mapping[str, object], key: str) -> float:
+    value = values.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{key} must be a number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{key} must be finite")
+    return number

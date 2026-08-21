@@ -1,0 +1,21 @@
+COMMAND: .venv/bin/python -m plotter_processor font-cache-info --help
+STARTED_UTC: 2026-08-21T09:41:14.586995+00:00
+ENDED_UTC: 2026-08-21T09:41:15.849387+00:00
+DURATION_SECONDS: 1.262380
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor font-cache-info [-h] [--layout-config LAYOUT_CONFIG]
+                                         [--cache-directory CACHE_DIRECTORY]
+                                         font
+
+positional arguments:
+  font
+
+options:
+  -h, --help            show this help message and exit
+  --layout-config LAYOUT_CONFIG
+  --cache-directory CACHE_DIRECTORY
+
+--- STDERR ---
+

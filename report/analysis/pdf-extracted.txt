@@ -1,0 +1,285 @@
+PLOTTER FULL PIPELINE CONTROL DOCUMENT
+DOCX + PDF / A4 source / designed for A5 re-pagination
+Purpose: detect regressions in import, layout, centerline/outline conversion, semantics, pagination and G-code export.
+0. Coverage map
+Feature
+Expected stress point
+Text
+Cyrillic + Latin + digits + punctuation; long lines 
+and wrapping
+Paragraph layout
+title/headings/body; left/center/right/justify; first-line 
++ hanging indents; tabs; spacing; line spacing
+Run formatting
+bold, italic, single/double/words-only underline, 
+strike, superscript, subscript
+Math
+literal LaTeX inline/block + native DOCX OMML 
+display equation
+Images
+inline raster + rotated inline raster + anchored 
+square-wrapped raster
+Semantics
+VML arrows, horizontal rule, bordered tables, 
+merged cells
+Pagination
+long repeated-header table + enough body text for 
+multi-page A5 output
+Cross-format
+same DOCX is converted to PDF to exercise PDF 
+visual reconstruction and PDF math detection
+1. Text, typography and paragraph geometry
+Красная строка и выравнивание по ширине. Этот абзац проверяет русский рукописный 
+текст: съешь ещё этих мягких французских булок, да выпей чаю; подъём, объём, шьёшь, мышь, 
+чаща, йод, ёлка, цифры 0123456789. Latin: The quick brown fox jumps over the lazy dog. Punctuation: . 
+, : ; ! ? ( ) [ ] + - = / % # №.
+Висячий отступ: первая строка выступает влево, последующие строки должны сохранять 
+общий левый отступ. Это намеренно длинное предложение, чтобы перенос строки был 
+неизбежен и положение второй строки можно было сравнить с исходным документом.
+LEFT / слева - контроль положения строки относительно полей страницы.
+CENTER / по центру - контроль положения строки относительно полей страницы.
+RIGHT / справа - контроль положения строки относительно полей страницы.
+JUSTIFY / по ширине - контроль положения строки относительно полей страницы.
+TAB-A............................TAB-B-------------------------------TAB-C.....................................123.45
+Интервалы: before=10 pt, after=12 pt, line spacing=1.5. BOLD / ITALIC / UNDERLINE / DOUBLE 
+UNDERLINE / WORDS ONLY / STRIKE / H2O / x2 + y2 = z2
+Horizontal rule below - PDF line detector target
+2. Mathematics: LaTeX text + native OMML
+Inline LaTeX token: $E=mc^2$ and another token $y=\frac{x^2+1}{x+1}$
+SOURCE CONTROL DOCUMENT - footer geometry marker
+$$\int_0^1 x^2\,dx=\frac{1}{3}$$
+2+1
+x+1
+Native DOCX equation (OMML) - the DOCX importer should see this as structured math: y= x
+3. Image extraction, vectorization and wrapping
+3A. Inline raster image. It contains thin/thick strokes, closed contours, a gray sinusoid, grayscale blocks 
+and tiny marks.
+3A.2 Rotated inline raster (12 degrees). The output preview should preserve the rotation, not only 
+metadata.
+3B. Anchored square-wrapped image target. 
+Текст для проверки обтекания рисунка: положение 
+строк 
+не должно пересекать область изображения, а 
+после 
+окончания рисунка абзац должен снова 
+использовать
+ 
+полную
+ 
+ширину
+ 
+строки. 
+Hybrid/preserve mode should keep the image close to 
+its 
+original anchor; reflow may move it but must not overlap text. 
+Текст для проверки обтекания рисунка: положение строк не должно пересекать область 
+изображения, а после окончания рисунка абзац должен снова использовать полную ширину строки. 
+Hybrid/preserve mode should keep the image close to its original anchor; reflow may move it but must not 
+overlap text. 
+Текст для проверки обтекания рисунка: положение строк не должно пересекать область 
+изображения, а после окончания рисунка абзац должен снова использовать полную ширину строки. 
+Hybrid/preserve mode should keep the image close to its original anchor; reflow may move it but must not 
+overlap text. 
+SOURCE CONTROL DOCUMENT - footer geometry marker
+4. VML arrows and line semantics
+Three arrow primitives follow: one-headed, two-headed, and classic arrowhead. The DOCX semantic 
+importer should report them separately.
+Arrow labels: A -> B; C <-> D; long route E -> F. Exact arrow geometry matters more than typography in 
+this block.
+5. Tables, borders, cell alignment and merges
+ID
+Description
+Value
+State
+VERTICAL
+MERGE
+short
+12.5
+OK
+long wrapped text in a 
+narrow cell
+25.0
+CHECK
+T3
+underlined cell
+37.5
+WARN
+T4
+HORIZONTAL MERGE: columns 2-3
+DONE
+6. Multi-page flow, table split and repeated header
+Следующий блок намеренно длинный. При выводе на A5 он должен разбиться на несколько 
+страниц; номера страниц должны быть снизу по центру, после каждой страницы G-code должен 
+парковать перо и делать заданную паузу. Таблица ниже должна сохранять сетку и повторять 
+строку заголовка после разрыва страницы.
+Row
+Russian sample
+Latin sample
+Metric
+01
+Плавные соединения 
+букв и минимум 
+подъёмов пера.
+curve join test 1: 
+minimum pen lifts and 
+stable baseline
+3.7
+02
+Проверка ъ, ь, ы, й, ё 
+и повторяющихся 
+штрихов.
+curve join test 2: 
+minimum pen lifts and 
+stable baseline
+7.4
+03
+Длинная строка 
+должна корректно 
+переноситься внутри 
+ячейки.
+curve join test 3: 
+minimum pen lifts and 
+stable baseline
+11.1
+04
+Границы таблицы не 
+должны пересекать 
+текст ячейки.
+curve join test 4: 
+minimum pen lifts and 
+stable baseline
+14.8
+05
+Плавные 
+соединения букв и 
+минимум подъёмов 
+пера.
+curve join test 5: 
+minimum pen lifts and 
+stable baseline
+18.5
+06
+Проверка ъ, ь, ы, й, ё 
+и повторяющихся 
+штрихов.
+curve join test 6: 
+minimum pen lifts and 
+stable baseline
+22.2
+07
+Длинная строка 
+должна корректно 
+переноситься внутри 
+ячейки.
+curve join test 7: 
+minimum pen lifts and 
+stable baseline
+25.9
+08
+Границы таблицы не 
+должны пересекать 
+curve join test 8: 
+minimum pen lifts and 
+29.6
+SOURCE CONTROL DOCUMENT - footer geometry marker
+Row
+Russian sample
+Latin sample
+Metric
+текст ячейки.
+stable baseline
+09
+Плавные соединения 
+букв и минимум 
+подъёмов пера.
+curve join test 9: 
+minimum pen lifts and 
+stable baseline
+33.3
+10
+Проверка ъ, ь, ы, й, ё 
+и повторяющихся 
+штрихов.
+curve join test 10: 
+minimum pen lifts and 
+stable baseline
+37.0
+11
+Длинная строка 
+должна корректно 
+переноситься внутри 
+ячейки.
+curve join test 11: 
+minimum pen lifts and 
+stable baseline
+40.7
+12
+Границы таблицы не 
+должны пересекать 
+текст ячейки.
+curve join test 12: 
+minimum pen lifts and 
+stable baseline
+44.4
+13
+Плавные соединения 
+букв и минимум 
+подъёмов пера.
+curve join test 13: 
+minimum pen lifts and 
+stable baseline
+48.1
+14
+Проверка ъ, ь, ы, й, ё 
+и повторяющихся 
+штрихов.
+curve join test 14: 
+minimum pen lifts and 
+stable baseline
+51.8
+15
+Длинная строка 
+должна корректно 
+переноситься 
+внутри ячейки.
+curve join test 15: 
+minimum pen lifts and 
+stable baseline
+55.5
+16
+Границы таблицы не 
+должны пересекать 
+текст ячейки.
+curve join test 16: 
+minimum pen lifts and 
+stable baseline
+59.2
+7. Connection and handwriting stress corpus
+1. молоко машина школа работа площадь объём подъём мышь тишь большой. Перо 
+желательно не поднимать внутри связного слова, если геометрия глифа и safe-connection 
+позволяют соединение.
+2. быстрый рыжий лисёнок перепрыгивает через ленивую собаку. Перо желательно не 
+поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.
+3. minimum maximum aluminum continuum rhythm handwriting connection. Перо желательно не 
+поднимать внутри связного слова, если геометрия глифа и safe-connection позволяют соединение.
+4. аааа мммм шшш щщщ ыыы ььь ъъъ ййй ёёё жжж. Перо желательно не поднимать внутри 
+связного слова, если геометрия глифа и safe-connection позволяют соединение.
+8. Final acceptance markers
+
+All content remains inside page margins on A4 source and A5 target.
+
+No text overlaps image or table borders; rotated image remains rotated.
+
+Centerline glyphs are recognizable; ъ/ь/ы and joins are visually acceptable.
+
+Underline is below text; strike crosses text; superscript/subscript positions are preserved.
+
+LaTeX and OMML equations are visible and use centerline strokes in the target run.
+
+Arrows have correct heads and table grids are preserved.
+
+Output has more than one page, centered page numbers, pen-up park move and page pause.
+
+The generated report.json contains import/layout/semantic/pagination/math/image metrics and 
+warnings.
+SOURCE CONTROL DOCUMENT - footer geometry marker

@@ -1,0 +1,15 @@
+{
+  "name": "git-status",
+  "command": [
+    "git",
+    "status",
+    "--short"
+  ],
+  "rendered_command": "git status --short",
+  "started_utc": "2026-08-21T09:41:06.901153+00:00",
+  "ended_utc": "2026-08-21T09:41:06.910909+00:00",
+  "duration_seconds": 0.009744972001499264,
+  "exit_code": 0,
+  "stdout_chars": 500,
+  "stderr_chars": 0
+}

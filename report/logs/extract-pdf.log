@@ -1,0 +1,11 @@
+COMMAND: .venv/bin/python -m plotter_processor extract plotter_pipeline_full_test.pdf --output report/analysis/pdf-extracted.txt
+STARTED_UTC: 2026-08-21T09:42:25.806915+00:00
+ENDED_UTC: 2026-08-21T09:42:27.375037+00:00
+DURATION_SECONDS: 1.568110
+EXIT_CODE: 0
+
+--- STDOUT ---
+Extracted 285 lines to report/analysis/pdf-extracted.txt
+
+--- STDERR ---
+

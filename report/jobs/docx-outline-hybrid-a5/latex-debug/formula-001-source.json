@@ -1,0 +1,8 @@
+{
+  "formula_index": 1,
+  "expression": "E=mc^2",
+  "display_mode": false,
+  "source_syntax": "dollar-inline",
+  "stroke_mode": "outline",
+  "source_kind": "semantic-latex"
+}

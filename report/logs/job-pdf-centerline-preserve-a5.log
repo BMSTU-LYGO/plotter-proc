@@ -1,0 +1,12 @@
+COMMAND: .venv/bin/python -m plotter_processor run plotter_pipeline_full_test.pdf --font assets/1.ttf --font-mode centerline --page A5 --size normal --document-layout preserve --pdf-math auto --math-debug --layout-debug --semantic-debug --images auto --image-debug --page-numbers --page-pause-seconds 1 --park-corner top_right --output-dir report/jobs/pdf-centerline-preserve-a5
+STARTED_UTC: 2026-08-21T09:46:19.898354+00:00
+ENDED_UTC: 2026-08-21T09:46:22.515955+00:00
+DURATION_SECONDS: 2.617587
+EXIT_CODE: 0
+
+--- STDOUT ---
+Error: Source page 1, source element 'page-001-math-001': Non-adjacent route jump at edge 20: Point(x=np.float64(52.0), y=np.float64(1.75)) != Point(x=np.float64(52.0), y=np.float64(1.7916666666666665))
+Report: report/jobs/pdf-centerline-preserve-a5/report.json
+
+--- STDERR ---
+

@@ -5,7 +5,9 @@ from PIL import Image, ImageDraw
 
 from plotter_processor.document_models import (
     SourceDocument,
+    SourceLineElement,
     SourcePage,
+    SourcePoint,
     SourceRasterImageElement,
     SourceTextElement,
 )
@@ -95,3 +97,36 @@ def test_image_moves_whole_to_next_page_and_stays_above_footer(
     assert image_page.graphic_strokes
     footer_top = page.height_mm - config["margins_mm"]["bottom"] - 8.0
     assert max(point.y for stroke in image_page.graphic_strokes for point in stroke.points) < footer_top
+
+
+def test_a4_semantic_line_is_scaled_into_a5_page(test_font: Path) -> None:
+    config = _config()
+    line = SourceLineElement(
+        "page-001-line-001",
+        0,
+        0,
+        SourcePoint(10.0, 36.0),
+        SourcePoint(200.0, 36.0),
+        semantic_role="underline",
+    )
+    document = SourceDocument(
+        Path("input.pdf"),
+        (SourcePage(0, 595.2756, 841.8898, (line,)),),
+    )
+    page = PageSpec("A5", 148.0, 210.0)
+
+    with load_font(test_font) as font:
+        result = paginate_document(
+            document,
+            font,
+            page,
+            config["margins_mm"],
+            config["sizes"]["normal"],
+            config["images"],
+            config["pagination"],
+            document_layout_mode="preserve",
+        )
+
+    stroke = result.pages[0].graphic_strokes[0]
+    assert max(point.x for point in stroke.points) <= page.width_mm
+    assert stroke.points[1].x - stroke.points[0].x < 190.0

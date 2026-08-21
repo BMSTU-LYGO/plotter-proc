@@ -1,0 +1,21 @@
+COMMAND: .venv/bin/python -m plotter_processor gcode --help
+STARTED_UTC: 2026-08-21T09:41:18.794550+00:00
+ENDED_UTC: 2026-08-21T09:41:20.108797+00:00
+DURATION_SECONDS: 1.314235
+EXIT_CODE: 0
+
+--- STDOUT ---
+usage: plotter-processor gcode [-h] [--machine-config MACHINE_CONFIG]
+                               [--output OUTPUT]
+                               input
+
+positional arguments:
+  input
+
+options:
+  -h, --help            show this help message and exit
+  --machine-config MACHINE_CONFIG
+  --output OUTPUT
+
+--- STDERR ---
+

@@ -1,0 +1,20 @@
+{
+  "name": "compare-connections-off-safe",
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "plotter_processor",
+    "compare-jobs",
+    "report/jobs/connections-off",
+    "report/jobs/connections-safe",
+    "--output",
+    "report/analysis/compare-connections-off-safe.json"
+  ],
+  "rendered_command": ".venv/bin/python -m plotter_processor compare-jobs report/jobs/connections-off report/jobs/connections-safe --output report/analysis/compare-connections-off-safe.json",
+  "started_utc": "2026-08-21T09:50:50.572460+00:00",
+  "ended_utc": "2026-08-21T09:50:51.949211+00:00",
+  "duration_seconds": 1.3767389160020684,
+  "exit_code": 0,
+  "stdout_chars": 70,
+  "stderr_chars": 0
+}

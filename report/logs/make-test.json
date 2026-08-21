@@ -1,0 +1,14 @@
+{
+  "name": "make-test",
+  "command": [
+    "make",
+    "test"
+  ],
+  "rendered_command": "make test",
+  "started_utc": "2026-08-21T09:41:51.011372+00:00",
+  "ended_utc": "2026-08-21T09:42:01.080698+00:00",
+  "duration_seconds": 10.069313730000431,
+  "exit_code": 0,
+  "stdout_chars": 370,
+  "stderr_chars": 0
+}

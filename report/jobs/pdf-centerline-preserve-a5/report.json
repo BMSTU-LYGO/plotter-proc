@@ -1,0 +1,119 @@
+{
+  "status": "error",
+  "pipeline": "ttf-centerline",
+  "font_mode": "centerline",
+  "input": "plotter_pipeline_full_test.pdf",
+  "font": "assets/1.ttf",
+  "error": "Source page 1, source element 'page-001-math-001': Non-adjacent route jump at edge 20: Point(x=np.float64(52.0), y=np.float64(1.75)) != Point(x=np.float64(52.0), y=np.float64(1.7916666666666665))",
+  "warnings": [
+    "pdf_math_candidate_low_confidence:b5-l22-s0:0.47:page-001",
+    "pdf_math_candidate_low_confidence:b7-l3-s0:0.45:page-001",
+    "pdf_math_candidate_low_confidence:b14-l0-s0:0.68:page-001",
+    "pdf_math_candidate_low_confidence:b16-l0-s6:0.70:page-001",
+    "pdf_complex_drawing_rasterized: page 1, drawing 1",
+    "pdf_complex_drawing_rasterized: page 1, drawing 2",
+    "pdf_complex_drawing_rasterized: page 1, drawing 3",
+    "pdf_complex_drawing_rasterized: page 1, drawing 4",
+    "pdf_math_candidate_low_confidence:b3-l0-s1:0.71:page-002",
+    "pdf_math_candidate_low_confidence:b3-l1-s1:0.71:page-002",
+    "pdf_complex_drawing_rasterized: page 3, drawing 1",
+    "pdf_complex_drawing_rasterized: page 3, drawing 2",
+    "pdf_complex_drawing_rasterized: page 3, drawing 3",
+    "pdf_complex_drawing_rasterized: page 3, drawing 4",
+    "pdf_complex_drawing_rasterized: page 3, drawing 5",
+    "pdf_complex_drawing_rasterized: page 3, drawing 6",
+    "pdf_complex_drawing_rasterized: page 3, drawing 7",
+    "pdf_complex_drawing_rasterized: page 3, drawing 8",
+    "pdf_complex_drawing_rasterized: page 3, drawing 10",
+    "pdf_complex_drawing_rasterized: page 3, drawing 12",
+    "pdf_complex_drawing_rasterized: page 3, drawing 13",
+    "pdf_complex_drawing_rasterized: page 3, drawing 15",
+    "pdf_complex_drawing_rasterized: page 3, drawing 16",
+    "pdf_complex_drawing_rasterized: page 3, drawing 17",
+    "pdf_complex_drawing_rasterized: page 3, drawing 18",
+    "pdf_complex_drawing_rasterized: page 3, drawing 19",
+    "pdf_complex_drawing_rasterized: page 3, drawing 20",
+    "pdf_complex_drawing_rasterized: page 3, drawing 21",
+    "pdf_complex_drawing_rasterized: page 3, drawing 22",
+    "pdf_complex_drawing_rasterized: page 3, drawing 23",
+    "pdf_complex_drawing_rasterized: page 4, drawing 1",
+    "pdf_complex_drawing_rasterized: page 4, drawing 2",
+    "pdf_complex_drawing_rasterized: page 4, drawing 3",
+    "pdf_complex_drawing_rasterized: page 4, drawing 4",
+    "pdf_complex_drawing_rasterized: page 4, drawing 5",
+    "pdf_complex_drawing_rasterized: page 4, drawing 6",
+    "pdf_complex_drawing_rasterized: page 4, drawing 7",
+    "pdf_complex_drawing_rasterized: page 4, drawing 8"
+  ],
+  "performance": {
+    "total_ms": 1258.469,
+    "read_document_ms": 267.818,
+    "layout_ms": 906.326,
+    "font_compile_ms": 0.0,
+    "image_vectorization_ms": 57.278,
+    "latex_render_ms": 824.95,
+    "build_paths_ms": 0.0,
+    "handwriting_ms": 0.0,
+    "simplification_ms": 0.0,
+    "preview_ms": 0.0,
+    "gcode_ms": 0.0,
+    "report_ms": 0.0,
+    "stages": {
+      "read_document": {
+        "calls": 1,
+        "total_ms": 267.818,
+        "max_ms": 267.818
+      },
+      "layout": {
+        "calls": 1,
+        "total_ms": 906.326,
+        "max_ms": 906.326
+      },
+      "font_compile": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "image_vectorization": {
+        "calls": 4,
+        "total_ms": 57.278,
+        "max_ms": 20.382
+      },
+      "latex_render": {
+        "calls": 1,
+        "total_ms": 824.95,
+        "max_ms": 824.95
+      },
+      "build_paths": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "handwriting": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "simplification": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "preview": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "gcode": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "report": {
+        "calls": 0,
+        "total_ms": 0.0,
+        "max_ms": 0.0
+      }
+    }
+  }
+}

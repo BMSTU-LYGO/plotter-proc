@@ -1,0 +1,13 @@
+COMMAND: make smoke
+STARTED_UTC: 2026-08-21T09:42:01.192516+00:00
+ENDED_UTC: 2026-08-21T09:42:24.235646+00:00
+DURATION_SECONDS: 23.043118
+EXIT_CODE: 0
+
+--- STDOUT ---
+.venv/bin/python tools/smoke_full_pipeline.py tests/fixtures/layout/mixed_layout_demo.docx \
+	--font assets/1.ttf --layout-debug
+Smoke completed successfully. Report: build/manual-smoke/report.json
+
+--- STDERR ---
+

@@ -207,33 +207,39 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         lines = pict.xpath(".//*[local-name()='line']")
         if not lines:
             return False
-        line = lines[0]
-        start = _vml_point(line.get("from", "0,0"))
-        end = _vml_point(line.get("to", "0,0"))
-        strokes = line.xpath("./*[local-name()='stroke']")
-        start_head = bool(strokes and strokes[0].get("startarrow", "none") != "none")
-        end_head = bool(strokes and strokes[0].get("endarrow", "none") != "none")
-        style = (
-            strokes[0].get("endarrow") or strokes[0].get("startarrow") or "open"
-            if strokes
-            else "open"
-        )
-        elements.append(SourceArrowElement(
-            f"page-001-arrow-{len(elements) + 1:03d}",
-            len(elements),
-            0,
-            (start, end),
-            start_head,
-            end_head,
-            style,
-            SourceBBox(
-                min(start.x_mm, end.x_mm),
-                min(start.y_mm, end.y_mm),
-                max(start.x_mm, end.x_mm),
-                max(start.y_mm, end.y_mm),
-            ),
-            1.0,
-        ))
+        pict_identity = f"page-001-pict-{len(elements) + 1:03d}"
+        for line_index, line in enumerate(lines):
+            start = _vml_point(line.get("from", "0,0"))
+            end = _vml_point(line.get("to", "0,0"))
+            strokes = line.xpath("./*[local-name()='stroke']")
+            stroke = strokes[0] if strokes else line
+            start_style = stroke.get("startarrow", "none")
+            end_style = stroke.get("endarrow", "none")
+            start_head = start_style != "none"
+            end_head = end_style != "none"
+            style = end_style if end_head else start_style if start_head else "open"
+            width = line.get("strokeweight")
+            elements.append(SourceArrowElement(
+                f"page-001-arrow-{len(elements) + 1:03d}",
+                len(elements),
+                0,
+                (start, end),
+                start_head,
+                end_head,
+                style,
+                SourceBBox(
+                    min(start.x_mm, end.x_mm),
+                    min(start.y_mm, end.y_mm),
+                    max(start.x_mm, end.x_mm),
+                    max(start.y_mm, end.y_mm),
+                ),
+                1.0,
+                start_style,
+                end_style,
+                line.get("strokecolor"),
+                _vml_length(width) if width else None,
+                f"{pict_identity}:line-{line_index + 1:03d}",
+            ))
         return True
 
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:

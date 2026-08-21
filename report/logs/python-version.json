@@ -1,0 +1,14 @@
+{
+  "name": "python-version",
+  "command": [
+    ".venv/bin/python",
+    "--version"
+  ],
+  "rendered_command": ".venv/bin/python --version",
+  "started_utc": "2026-08-21T09:41:07.461849+00:00",
+  "ended_utc": "2026-08-21T09:41:07.463758+00:00",
+  "duration_seconds": 0.0018948020006064326,
+  "exit_code": 0,
+  "stdout_chars": 14,
+  "stderr_chars": 0
+}

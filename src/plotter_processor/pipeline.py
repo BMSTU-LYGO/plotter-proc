@@ -44,7 +44,11 @@ from plotter_processor.performance import StageTimings
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
-from plotter_processor.validator import validate_page_spec, validate_path_document
+from plotter_processor.validator import (
+    validate_page_spec,
+    validate_page_workspace,
+    validate_path_document,
+)
 
 
 @dataclass(slots=True)
@@ -131,6 +135,15 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
         _apply_page_change_overrides(machine_config, options)
+        page_values = _mapping(_mapping(layout_config, "pages"), options.page)
+        page = PageSpec(
+            options.page,
+            _positive(page_values, "width_mm"),
+            _positive(page_values, "height_mm"),
+        )
+        margins = _mapping(layout_config, "margins_mm")
+        validate_page_spec(page, margins)
+        validate_page_workspace(page, machine_config)
         initial_latex_options = _mapping(layout_config, "latex")
         initial_pdf_math_options = initial_latex_options.get("pdf_math", {})
         if not isinstance(initial_pdf_math_options, dict):
@@ -153,13 +166,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         extracted_path.write_text(text, encoding="utf-8")
         warnings.extend(document.warnings)
 
-        page_values = _mapping(_mapping(layout_config, "pages"), options.page)
-        page = PageSpec(
-            options.page, _positive(page_values, "width_mm"), _positive(page_values, "height_mm")
-        )
         sizes = _mapping(layout_config, "sizes")
         size_options = _mapping(sizes, options.size)
-        margins = _mapping(layout_config, "margins_mm")
         vector = _mapping(layout_config, "vector")
         preview = _mapping(layout_config, "preview")
         layout_options = _mapping(layout_config, "layout")
@@ -194,7 +202,6 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             for paragraph in element.paragraphs
         ):
             warnings.append("latex_disabled_delimiters_left_literal")
-        validate_page_spec(page, margins)
         engine = options.layout_engine or str(layout_options.get("engine", "legacy"))
         language = str(layout_options.get("language", "ru"))
         script = str(layout_options.get("script", "Cyrl"))

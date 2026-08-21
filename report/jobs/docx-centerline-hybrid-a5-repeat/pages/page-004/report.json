@@ -1,0 +1,1559 @@
+{
+  "status": "ok",
+  "page": 4,
+  "page_count": 20,
+  "statistics": {
+    "contours": 517,
+    "strokes": 517,
+    "points": 10019,
+    "closed_contours": 8,
+    "open_contours": 509,
+    "draw_distance_mm": 4697.526,
+    "travel_distance_mm": 2444.404,
+    "bounding_box_mm": {
+      "min_x": 10.24658,
+      "min_y": 12.069015,
+      "max_x": 138.48541,
+      "max_y": 205.311436
+    },
+    "characters": 761,
+    "glyphs": 562,
+    "lines": 17,
+    "estimated_time_minutes": 14.645995
+  },
+  "motion": {
+    "profile": "safe",
+    "stroke_count": 517,
+    "point_count": 10019,
+    "xy_draw_commands": 9510,
+    "xy_travel_commands": 517,
+    "pen_down_count": 517,
+    "pen_up_count": 518,
+    "pen_lift_count": 517,
+    "pen_lift_distance_mm": 2068.0,
+    "pen_lower_distance_mm": 2068.0,
+    "total_z_distance_mm": 4136.0,
+    "draw_distance_mm": 4697.526498,
+    "travel_distance_mm": 2444.404302,
+    "dwell_count": 517,
+    "dwell_time_seconds": 51.7,
+    "ideal_draw_time_seconds": 281.85159,
+    "ideal_travel_time_seconds": 48.888086,
+    "ideal_z_time_seconds": 496.32,
+    "ideal_total_time_seconds": 878.759676,
+    "ideal_total_time_minutes": 14.645995,
+    "short_segment_count": 351,
+    "very_short_segment_count": 54,
+    "short_segment_ratio": 0.036909,
+    "average_segment_length_mm": 0.493957,
+    "median_segment_length_mm": 0.414915,
+    "p95_segment_length_mm": 1.090265,
+    "planner_risk": "low",
+    "gcode_command_count": 11583,
+    "draw_feed_mm_min": 1000.0,
+    "travel_feed_mm_min": 3000.0,
+    "z_feed_mm_min": 500.0,
+    "up_z_mm": 5.0,
+    "down_z_mm": 1.0,
+    "down_settle_ms": 100,
+    "gcode_analysis": {
+      "gcode_command_count": 11583,
+      "motion_command_count": 11062,
+      "z_command_count": 1035,
+      "dwell_count": 517,
+      "dwell_time_seconds": 51.7,
+      "ideal_total_time_seconds": 883.449521
+    }
+  },
+  "handwriting": {
+    "enabled": true,
+    "mode": "safe",
+    "words": 107,
+    "letter_pairs_total": 454,
+    "eligible_pairs": 454,
+    "connected_pairs": 80,
+    "rejected_pairs": 374,
+    "join_candidates": 454,
+    "joins_created": 80,
+    "joins_rejected": 374,
+    "pen_lifts_before_word_routing": 597,
+    "pen_lifts_after_word_routing": 517,
+    "pen_lifts_saved_between_glyphs": 80,
+    "pen_lifts_inside_words_before": 454,
+    "pen_lifts_inside_words_after": 374,
+    "pen_lifts_saved": 80,
+    "connector_draw_length_mm": 103.616301,
+    "average_join_gap_mm": 1.125527,
+    "rejections_by_reason": {
+      "distance": 33,
+      "tangent_mismatch": 179,
+      "collision": 107,
+      "punctuation_rule": 22,
+      "backward_motion": 14,
+      "not_letters": 9,
+      "anchor_not_routeable": 9,
+      "vertical_offset": 1
+    },
+    "per_word": [
+      {
+        "text": "этих",
+        "line_index": 0,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "мягких",
+        "line_index": 0,
+        "glyph_count": 6,
+        "connections": 2,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "французских",
+        "line_index": 0,
+        "glyph_count": 11,
+        "connections": 1,
+        "remaining_internal_lifts": 9,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "булок,",
+        "line_index": 0,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "да",
+        "line_index": 0,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision"
+        ]
+      },
+      {
+        "text": "выпей",
+        "line_index": 0,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "чаю;",
+        "line_index": 0,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "подъём,",
+        "line_index": 0,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "backward_motion",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "объём,",
+        "line_index": 1,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "distance",
+          "collision",
+          "tangent_mismatch",
+          "backward_motion",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "шьёшь,",
+        "line_index": 1,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "мышь,",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "чаща,",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "йод,",
+        "line_index": 1,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "ёлка,",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "backward_motion",
+          "collision",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "цифры",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "distance",
+          "distance"
+        ]
+      },
+      {
+        "text": "0123456789.",
+        "line_index": 1,
+        "glyph_count": 11,
+        "connections": 0,
+        "remaining_internal_lifts": 10,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "not_letters",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Latin:",
+        "line_index": 2,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "The",
+        "line_index": 2,
+        "glyph_count": 3,
+        "connections": 1,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance"
+        ]
+      },
+      {
+        "text": "quick",
+        "line_index": 2,
+        "glyph_count": 5,
+        "connections": 3,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "distance"
+        ]
+      },
+      {
+        "text": "brown",
+        "line_index": 2,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "fox",
+        "line_index": 2,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "jumps",
+        "line_index": 2,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "over",
+        "line_index": 2,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "the",
+        "line_index": 2,
+        "glyph_count": 3,
+        "connections": 2,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "lazy",
+        "line_index": 2,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "dog.",
+        "line_index": 2,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Punctuation:",
+        "line_index": 3,
+        "glyph_count": 12,
+        "connections": 3,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": ".",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": ",",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": ":",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": ";",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "!",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "?",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "(",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": ")",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "[",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "]",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "+",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 2,
+        "rejected_pairs": []
+      },
+      {
+        "text": "-",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "=",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "/",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "%",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "#",
+        "line_index": 3,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "№.",
+        "line_index": 3,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Висячий",
+        "line_index": 4,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "distance",
+          "collision",
+          "backward_motion",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "отступ:",
+        "line_index": 4,
+        "glyph_count": 7,
+        "connections": 0,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "первая",
+        "line_index": 4,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "collision"
+        ]
+      },
+      {
+        "text": "строка",
+        "line_index": 4,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "collision"
+        ]
+      },
+      {
+        "text": "выступает",
+        "line_index": 4,
+        "glyph_count": 9,
+        "connections": 0,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "влево,",
+        "line_index": 4,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "последующие",
+        "line_index": 5,
+        "glyph_count": 11,
+        "connections": 3,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 5,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "должны",
+        "line_index": 5,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance"
+        ]
+      },
+      {
+        "text": "сохранять",
+        "line_index": 5,
+        "glyph_count": 9,
+        "connections": 2,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "общий",
+        "line_index": 5,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "левый",
+        "line_index": 6,
+        "glyph_count": 5,
+        "connections": 1,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "collision",
+          "distance",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "отступ.",
+        "line_index": 6,
+        "glyph_count": 7,
+        "connections": 0,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Это",
+        "line_index": 6,
+        "glyph_count": 3,
+        "connections": 1,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance"
+        ]
+      },
+      {
+        "text": "намеренно",
+        "line_index": 6,
+        "glyph_count": 9,
+        "connections": 1,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "backward_motion",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "длинное",
+        "line_index": 6,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "предложение,",
+        "line_index": 7,
+        "glyph_count": 12,
+        "connections": 0,
+        "remaining_internal_lifts": 11,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "чтобы",
+        "line_index": 7,
+        "glyph_count": 5,
+        "connections": 1,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "distance"
+        ]
+      },
+      {
+        "text": "перенос",
+        "line_index": 7,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 7,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "был",
+        "line_index": 7,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "backward_motion"
+        ]
+      },
+      {
+        "text": "неизбежен",
+        "line_index": 8,
+        "glyph_count": 9,
+        "connections": 2,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "и",
+        "line_index": 8,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "положение",
+        "line_index": 8,
+        "glyph_count": 9,
+        "connections": 1,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "второй",
+        "line_index": 8,
+        "glyph_count": 6,
+        "connections": 2,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 8,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "можно",
+        "line_index": 8,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "было",
+        "line_index": 9,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "backward_motion",
+          "collision"
+        ]
+      },
+      {
+        "text": "сравнить",
+        "line_index": 9,
+        "glyph_count": 8,
+        "connections": 0,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "с",
+        "line_index": 9,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "исходным",
+        "line_index": 9,
+        "glyph_count": 8,
+        "connections": 1,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "distance",
+          "backward_motion"
+        ]
+      },
+      {
+        "text": "документом.",
+        "line_index": 9,
+        "glyph_count": 11,
+        "connections": 1,
+        "remaining_internal_lifts": 9,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "backward_motion",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "LEFT",
+        "line_index": 10,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "backward_motion",
+          "distance"
+        ]
+      },
+      {
+        "text": "/",
+        "line_index": 10,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "слева",
+        "line_index": 10,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision"
+        ]
+      },
+      {
+        "text": "-",
+        "line_index": 10,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "контроль",
+        "line_index": 10,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "положения",
+        "line_index": 10,
+        "glyph_count": 9,
+        "connections": 2,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 10,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "относительно",
+        "line_index": 10,
+        "glyph_count": 12,
+        "connections": 2,
+        "remaining_internal_lifts": 9,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "backward_motion",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "полей",
+        "line_index": 11,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "страницы.",
+        "line_index": 11,
+        "glyph_count": 9,
+        "connections": 0,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "CENTER",
+        "line_index": 12,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "vertical_offset",
+          "distance",
+          "distance"
+        ]
+      },
+      {
+        "text": "/",
+        "line_index": 12,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "по",
+        "line_index": 12,
+        "glyph_count": 2,
+        "connections": 1,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "центру",
+        "line_index": 12,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "-",
+        "line_index": 12,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "контроль",
+        "line_index": 12,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "положения",
+        "line_index": 12,
+        "glyph_count": 9,
+        "connections": 2,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 12,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "относительно",
+        "line_index": 13,
+        "glyph_count": 12,
+        "connections": 2,
+        "remaining_internal_lifts": 9,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "backward_motion",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "полей",
+        "line_index": 13,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "страницы.",
+        "line_index": 13,
+        "glyph_count": 9,
+        "connections": 0,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "RIGHT",
+        "line_index": 14,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "backward_motion",
+          "distance"
+        ]
+      },
+      {
+        "text": "/",
+        "line_index": 14,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "справа",
+        "line_index": 14,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "collision",
+          "collision"
+        ]
+      },
+      {
+        "text": "-",
+        "line_index": 14,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "контроль",
+        "line_index": 14,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "положения",
+        "line_index": 14,
+        "glyph_count": 9,
+        "connections": 2,
+        "remaining_internal_lifts": 6,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки",
+        "line_index": 14,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "относительно",
+        "line_index": 15,
+        "glyph_count": 12,
+        "connections": 2,
+        "remaining_internal_lifts": 9,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "backward_motion",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "полей",
+        "line_index": 15,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "страницы.",
+        "line_index": 15,
+        "glyph_count": 9,
+        "connections": 0,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "punctuation_rule"
+        ]
+      }
+    ],
+    "pairs_total": 454,
+    "accepted": 80,
+    "rejected": 374,
+    "rejected_distance": 33,
+    "rejected_tangent": 179,
+    "rejected_collision": 107,
+    "rejected_corridor": 0,
+    "snapped_existing_contact": 11,
+    "connector_length_mm": 103.616301
+  },
+  "simplification": {
+    "enabled": true,
+    "points_before_simplification": 630515,
+    "points_after_simplification": 10019,
+    "segments_before_simplification": 630006,
+    "segments_after_simplification": 9510,
+    "point_reduction_ratio": 0.98411,
+    "max_observed_deviation_mm": 0.05981
+  },
+  "source_element_ids": [
+    "page-001-text-007",
+    "page-001-text-008",
+    "page-001-text-009",
+    "page-001-text-010",
+    "page-001-text-011"
+  ],
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right",
+    "Glyph \".\" needs centerline review",
+    "Glyph \":\" needs centerline review",
+    "Glyph \";\" needs centerline review",
+    "Glyph \"?\" needs centerline review",
+    "Glyph \"U\" needs centerline review",
+    "Glyph \"И\" needs centerline review",
+    "Glyph \"Й\" needs centerline review",
+    "Glyph \"Ц\" needs centerline review",
+    "Glyph \"Ш\" needs centerline review",
+    "Glyph \"Щ\" needs centerline review",
+    "Glyph \"Ю\" needs centerline review",
+    "Glyph \"…\" needs centerline review"
+  ]
+}

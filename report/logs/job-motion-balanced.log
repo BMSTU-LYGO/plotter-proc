@@ -1,0 +1,11 @@
+COMMAND: .venv/bin/python -m plotter_processor run report/analysis/connection-corpus.txt --font assets/1.ttf --font-mode centerline --page A5 --size normal --document-layout reflow --connections safe --connection-debug --motion-profile balanced --no-page-numbers --page-pause-seconds 1 --output-dir report/jobs/motion-balanced
+STARTED_UTC: 2026-08-21T09:50:26.250150+00:00
+ENDED_UTC: 2026-08-21T09:50:39.622263+00:00
+DURATION_SECONDS: 13.372102
+EXIT_CODE: 0
+
+--- STDOUT ---
+Processing completed successfully. Report: report/jobs/motion-balanced/report.json
+
+--- STDERR ---
+

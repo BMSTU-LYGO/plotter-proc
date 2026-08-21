@@ -1,0 +1,17 @@
+{
+  "name": "font-cache-info-help",
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "plotter_processor",
+    "font-cache-info",
+    "--help"
+  ],
+  "rendered_command": ".venv/bin/python -m plotter_processor font-cache-info --help",
+  "started_utc": "2026-08-21T09:41:14.586995+00:00",
+  "ended_utc": "2026-08-21T09:41:15.849387+00:00",
+  "duration_seconds": 1.2623801459994866,
+  "exit_code": 0,
+  "stdout_chars": 365,
+  "stderr_chars": 0
+}

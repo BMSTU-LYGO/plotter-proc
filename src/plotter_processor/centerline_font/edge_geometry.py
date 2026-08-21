@@ -51,7 +51,39 @@ def build_smoothed_edge_geometry(
             length,
             edge.closed,
         )
-    return result, warnings
+    node_positions = {
+        node.id: _point(node.x, node.y, raster)
+        for node in nodes
+    }
+    return normalize_shared_node_endpoints(result, node_positions), warnings
+
+
+def normalize_shared_node_endpoints(
+    edge_geometry: dict[int, SmoothedEdge],
+    node_positions: dict[int, Point],
+) -> dict[int, SmoothedEdge]:
+    """Anchor every edge endpoint to its graph node's canonical coordinate."""
+    result: dict[int, SmoothedEdge] = {}
+    for edge_id, edge in edge_geometry.items():
+        try:
+            start = node_positions[edge.start_node_id]
+            end = node_positions[edge.end_node_id]
+        except KeyError as error:
+            raise ValueError(f"Missing canonical position for graph node {error.args[0]}") from error
+        points = list(edge.points)
+        if not points:
+            raise ValueError(f"Edge {edge_id} has no geometry")
+        points[0], points[-1] = start, end
+        result[edge_id] = SmoothedEdge(
+            edge.edge_id,
+            edge.start_node_id,
+            edge.end_node_id,
+            edge.component_id,
+            tuple(points),
+            edge.length_font_units,
+            edge.closed,
+        )
+    return result
 
 
 def _point(x: float, y: float, raster: RasterGlyph) -> Point:

@@ -1,0 +1,14 @@
+{
+  "name": "make-lint-post-analysis",
+  "command": [
+    "make",
+    "lint"
+  ],
+  "rendered_command": "make lint",
+  "started_utc": "2026-08-21T10:10:18.691782+00:00",
+  "ended_utc": "2026-08-21T10:10:18.726438+00:00",
+  "duration_seconds": 0.03464328900008695,
+  "exit_code": 0,
+  "stdout_chars": 52,
+  "stderr_chars": 0
+}

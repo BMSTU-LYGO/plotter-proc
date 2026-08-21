@@ -1,0 +1,15 @@
+{
+  "name": "font-cache-status",
+  "command": [
+    "make",
+    "font-cache-status",
+    "FONT=assets/1.ttf"
+  ],
+  "rendered_command": "make font-cache-status FONT=assets/1.ttf",
+  "started_utc": "2026-08-21T09:42:29.067420+00:00",
+  "ended_utc": "2026-08-21T09:42:31.020960+00:00",
+  "duration_seconds": 1.953525796001486,
+  "exit_code": 0,
+  "stdout_chars": 664,
+  "stderr_chars": 0
+}

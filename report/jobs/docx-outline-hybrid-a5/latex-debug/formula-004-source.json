@@ -1,0 +1,8 @@
+{
+  "formula_index": 4,
+  "expression": "y=\\frac{{x}^{2}+1}{x+1}",
+  "display_mode": true,
+  "source_syntax": "omml",
+  "stroke_mode": "outline",
+  "source_kind": "omml"
+}

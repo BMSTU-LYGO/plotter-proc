@@ -938,6 +938,19 @@ def paginate_document(
                 )
                 if not source_strokes:
                     continue
+                source_strokes = [
+                    replace(
+                        stroke,
+                        points=[
+                            Point(
+                                page_transform.scale_length(point.x),
+                                page_transform.scale_length(point.y),
+                            )
+                            for point in stroke.points
+                        ],
+                    )
+                    for stroke in source_strokes
+                ]
                 xs = [point.x for stroke in source_strokes for point in stroke.points]
                 ys = [point.y for stroke in source_strokes for point in stroke.points]
                 width = max(xs) - min(xs)

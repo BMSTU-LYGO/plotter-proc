@@ -1,0 +1,19 @@
+{
+  "name": "extract-pdf",
+  "command": [
+    ".venv/bin/python",
+    "-m",
+    "plotter_processor",
+    "extract",
+    "plotter_pipeline_full_test.pdf",
+    "--output",
+    "report/analysis/pdf-extracted.txt"
+  ],
+  "rendered_command": ".venv/bin/python -m plotter_processor extract plotter_pipeline_full_test.pdf --output report/analysis/pdf-extracted.txt",
+  "started_utc": "2026-08-21T09:42:25.806915+00:00",
+  "ended_utc": "2026-08-21T09:42:27.375037+00:00",
+  "duration_seconds": 1.568109945001197,
+  "exit_code": 0,
+  "stdout_chars": 57,
+  "stderr_chars": 0
+}

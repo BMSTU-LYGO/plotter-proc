@@ -1,0 +1,1169 @@
+{
+  "status": "ok",
+  "page": 8,
+  "page_count": 20,
+  "statistics": {
+    "contours": 355,
+    "strokes": 355,
+    "points": 6415,
+    "closed_contours": 31,
+    "open_contours": 324,
+    "draw_distance_mm": 3599.552,
+    "travel_distance_mm": 2606.101,
+    "bounding_box_mm": {
+      "min_x": 10.0,
+      "min_y": 12.06413,
+      "max_x": 138.090665,
+      "max_y": 205.313304
+    },
+    "characters": 621,
+    "glyphs": 419,
+    "lines": 12,
+    "estimated_time_minutes": 10.739919
+  },
+  "motion": {
+    "profile": "safe",
+    "stroke_count": 355,
+    "point_count": 6415,
+    "xy_draw_commands": 6091,
+    "xy_travel_commands": 355,
+    "pen_down_count": 355,
+    "pen_up_count": 356,
+    "pen_lift_count": 355,
+    "pen_lift_distance_mm": 1420.0,
+    "pen_lower_distance_mm": 1420.0,
+    "total_z_distance_mm": 2840.0,
+    "draw_distance_mm": 3599.552332,
+    "travel_distance_mm": 2606.100675,
+    "dwell_count": 355,
+    "dwell_time_seconds": 35.5,
+    "ideal_draw_time_seconds": 215.97314,
+    "ideal_travel_time_seconds": 52.122014,
+    "ideal_z_time_seconds": 340.8,
+    "ideal_total_time_seconds": 644.395153,
+    "ideal_total_time_minutes": 10.739919,
+    "short_segment_count": 383,
+    "very_short_segment_count": 21,
+    "short_segment_ratio": 0.06288,
+    "average_segment_length_mm": 0.590962,
+    "median_segment_length_mm": 0.438855,
+    "p95_segment_length_mm": 1.252738,
+    "planner_risk": "low",
+    "gcode_command_count": 7516,
+    "draw_feed_mm_min": 1000.0,
+    "travel_feed_mm_min": 3000.0,
+    "z_feed_mm_min": 500.0,
+    "up_z_mm": 5.0,
+    "down_z_mm": 1.0,
+    "down_settle_ms": 100,
+    "gcode_analysis": {
+      "gcode_command_count": 7516,
+      "motion_command_count": 7153,
+      "z_command_count": 711,
+      "dwell_count": 355,
+      "dwell_time_seconds": 35.5,
+      "ideal_total_time_seconds": 649.079303
+    }
+  },
+  "handwriting": {
+    "enabled": true,
+    "mode": "safe",
+    "words": 80,
+    "letter_pairs_total": 338,
+    "eligible_pairs": 338,
+    "connected_pairs": 103,
+    "rejected_pairs": 235,
+    "join_candidates": 338,
+    "joins_created": 103,
+    "joins_rejected": 235,
+    "pen_lifts_before_word_routing": 458,
+    "pen_lifts_after_word_routing": 355,
+    "pen_lifts_saved_between_glyphs": 103,
+    "pen_lifts_inside_words_before": 338,
+    "pen_lifts_inside_words_after": 235,
+    "pen_lifts_saved": 103,
+    "connector_draw_length_mm": 125.414619,
+    "average_join_gap_mm": 1.121346,
+    "rejections_by_reason": {
+      "tangent_mismatch": 79,
+      "collision": 30,
+      "punctuation_rule": 22,
+      "distance": 32,
+      "not_letters": 5,
+      "anchor_not_routeable": 57,
+      "corridor": 6,
+      "backward_motion": 1,
+      "vertical_offset": 3
+    },
+    "per_word": [
+      {
+        "text": "полную",
+        "line_index": 0,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "ширину",
+        "line_index": 0,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "строки.",
+        "line_index": 0,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "collision",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Hybrid/preserve",
+        "line_index": 0,
+        "glyph_count": 15,
+        "connections": 3,
+        "remaining_internal_lifts": 11,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "not_letters",
+          "not_letters",
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "mode",
+        "line_index": 0,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "should",
+        "line_index": 0,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "collision"
+        ]
+      },
+      {
+        "text": "keep",
+        "line_index": 0,
+        "glyph_count": 4,
+        "connections": 3,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "the",
+        "line_index": 1,
+        "glyph_count": 3,
+        "connections": 2,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "image",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 1,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "corridor",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "close",
+        "line_index": 1,
+        "glyph_count": 5,
+        "connections": 1,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "to",
+        "line_index": 1,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "its",
+        "line_index": 1,
+        "glyph_count": 3,
+        "connections": 2,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "original",
+        "line_index": 1,
+        "glyph_count": 8,
+        "connections": 3,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "distance",
+          "tangent_mismatch",
+          "corridor"
+        ]
+      },
+      {
+        "text": "anchor;",
+        "line_index": 1,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "reflow",
+        "line_index": 1,
+        "glyph_count": 6,
+        "connections": 3,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "may",
+        "line_index": 1,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "corridor",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "move",
+        "line_index": 1,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "it",
+        "line_index": 1,
+        "glyph_count": 2,
+        "connections": 1,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "but",
+        "line_index": 1,
+        "glyph_count": 3,
+        "connections": 1,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision"
+        ]
+      },
+      {
+        "text": "must",
+        "line_index": 2,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "collision"
+        ]
+      },
+      {
+        "text": "not",
+        "line_index": 2,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "overlap",
+        "line_index": 2,
+        "glyph_count": 7,
+        "connections": 2,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "text.",
+        "line_index": 2,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "4.",
+        "line_index": 3,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "VML",
+        "line_index": 3,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "backward_motion",
+          "distance"
+        ]
+      },
+      {
+        "text": "arrows",
+        "line_index": 3,
+        "glyph_count": 6,
+        "connections": 0,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "vertical_offset"
+        ]
+      },
+      {
+        "text": "and",
+        "line_index": 3,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "distance"
+        ]
+      },
+      {
+        "text": "line",
+        "line_index": 3,
+        "glyph_count": 4,
+        "connections": 2,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "semantics",
+        "line_index": 3,
+        "glyph_count": 9,
+        "connections": 1,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "distance",
+          "distance",
+          "vertical_offset",
+          "distance",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "Three",
+        "line_index": 4,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "arrow",
+        "line_index": 4,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "primitives",
+        "line_index": 4,
+        "glyph_count": 10,
+        "connections": 5,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 3,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "follow:",
+        "line_index": 4,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "one-headed,",
+        "line_index": 4,
+        "glyph_count": 11,
+        "connections": 3,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "not_letters",
+          "punctuation_rule",
+          "collision",
+          "distance",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "two-headed,",
+        "line_index": 4,
+        "glyph_count": 11,
+        "connections": 2,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "not_letters",
+          "punctuation_rule",
+          "collision",
+          "distance",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "and",
+        "line_index": 4,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance"
+        ]
+      },
+      {
+        "text": "classic",
+        "line_index": 5,
+        "glyph_count": 7,
+        "connections": 3,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "arrowhead.",
+        "line_index": 5,
+        "glyph_count": 10,
+        "connections": 2,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "collision",
+          "distance",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "The",
+        "line_index": 5,
+        "glyph_count": 3,
+        "connections": 1,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance"
+        ]
+      },
+      {
+        "text": "DOCX",
+        "line_index": 5,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "distance"
+        ]
+      },
+      {
+        "text": "semantic",
+        "line_index": 5,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "corridor",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "importer",
+        "line_index": 5,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "should",
+        "line_index": 5,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "collision"
+        ]
+      },
+      {
+        "text": "report",
+        "line_index": 6,
+        "glyph_count": 6,
+        "connections": 3,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "them",
+        "line_index": 6,
+        "glyph_count": 4,
+        "connections": 2,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "separately.",
+        "line_index": 6,
+        "glyph_count": 11,
+        "connections": 3,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Arrow",
+        "line_index": 7,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "labels:",
+        "line_index": 7,
+        "glyph_count": 7,
+        "connections": 2,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch",
+          "collision",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "A",
+        "line_index": 7,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "->",
+        "line_index": 7,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "B;",
+        "line_index": 7,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "C",
+        "line_index": 7,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "<->",
+        "line_index": 7,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "not_letters",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "D;",
+        "line_index": 7,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "long",
+        "line_index": 7,
+        "glyph_count": 4,
+        "connections": 0,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "route",
+        "line_index": 7,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "E",
+        "line_index": 7,
+        "glyph_count": 1,
+        "connections": 0,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "->",
+        "line_index": 7,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "F.",
+        "line_index": 7,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Exact",
+        "line_index": 7,
+        "glyph_count": 5,
+        "connections": 1,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "collision",
+          "collision"
+        ]
+      },
+      {
+        "text": "arrow",
+        "line_index": 8,
+        "glyph_count": 5,
+        "connections": 0,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "tangent_mismatch",
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "geometry",
+        "line_index": 8,
+        "glyph_count": 8,
+        "connections": 3,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "matters",
+        "line_index": 8,
+        "glyph_count": 7,
+        "connections": 3,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "corridor",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "more",
+        "line_index": 8,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "than",
+        "line_index": 8,
+        "glyph_count": 4,
+        "connections": 1,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "corridor",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "typography",
+        "line_index": 8,
+        "glyph_count": 10,
+        "connections": 1,
+        "remaining_internal_lifts": 8,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "in",
+        "line_index": 8,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "this",
+        "line_index": 8,
+        "glyph_count": 4,
+        "connections": 3,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 1,
+        "rejected_pairs": []
+      },
+      {
+        "text": "block.",
+        "line_index": 8,
+        "glyph_count": 6,
+        "connections": 1,
+        "remaining_internal_lifts": 4,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "5.",
+        "line_index": 9,
+        "glyph_count": 2,
+        "connections": 0,
+        "remaining_internal_lifts": 1,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "Tables,",
+        "line_index": 9,
+        "glyph_count": 7,
+        "connections": 1,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "borders,",
+        "line_index": 9,
+        "glyph_count": 8,
+        "connections": 2,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "anchor_not_routeable",
+          "anchor_not_routeable",
+          "collision",
+          "tangent_mismatch",
+          "punctuation_rule"
+        ]
+      },
+      {
+        "text": "cell",
+        "line_index": 9,
+        "glyph_count": 4,
+        "connections": 3,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "alignment",
+        "line_index": 9,
+        "glyph_count": 9,
+        "connections": 3,
+        "remaining_internal_lifts": 5,
+        "secondary_strokes": 1,
+        "rejected_pairs": [
+          "distance",
+          "distance",
+          "distance",
+          "tangent_mismatch",
+          "vertical_offset"
+        ]
+      },
+      {
+        "text": "and",
+        "line_index": 9,
+        "glyph_count": 3,
+        "connections": 0,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "distance",
+          "distance"
+        ]
+      },
+      {
+        "text": "merges",
+        "line_index": 9,
+        "glyph_count": 6,
+        "connections": 2,
+        "remaining_internal_lifts": 3,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "ID",
+        "line_index": 10,
+        "glyph_count": 2,
+        "connections": 1,
+        "remaining_internal_lifts": 0,
+        "secondary_strokes": 0,
+        "rejected_pairs": []
+      },
+      {
+        "text": "Description",
+        "line_index": 10,
+        "glyph_count": 11,
+        "connections": 3,
+        "remaining_internal_lifts": 7,
+        "secondary_strokes": 2,
+        "rejected_pairs": [
+          "distance",
+          "tangent_mismatch",
+          "distance",
+          "tangent_mismatch",
+          "collision",
+          "anchor_not_routeable",
+          "anchor_not_routeable"
+        ]
+      },
+      {
+        "text": "Value",
+        "line_index": 10,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch"
+        ]
+      },
+      {
+        "text": "State",
+        "line_index": 10,
+        "glyph_count": 5,
+        "connections": 2,
+        "remaining_internal_lifts": 2,
+        "secondary_strokes": 0,
+        "rejected_pairs": [
+          "collision",
+          "tangent_mismatch"
+        ]
+      }
+    ],
+    "pairs_total": 338,
+    "accepted": 103,
+    "rejected": 235,
+    "rejected_distance": 32,
+    "rejected_tangent": 79,
+    "rejected_collision": 30,
+    "rejected_corridor": 6,
+    "snapped_existing_contact": 1,
+    "connector_length_mm": 125.414619
+  },
+  "simplification": {
+    "enabled": true,
+    "points_before_simplification": 411899,
+    "points_after_simplification": 6415,
+    "segments_before_simplification": 411575,
+    "segments_after_simplification": 6091,
+    "point_reduction_ratio": 0.984426,
+    "max_observed_deviation_mm": 0.059975
+  },
+  "source_element_ids": [
+    "page-001-text-030",
+    "page-001-text-031",
+    "page-001-text-032",
+    "page-001-arrow-033",
+    "page-001-text-034",
+    "page-001-text-035",
+    "page-001-table-036"
+  ],
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right",
+    "Glyph \".\" needs centerline review",
+    "Glyph \":\" needs centerline review",
+    "Glyph \";\" needs centerline review",
+    "Glyph \"?\" needs centerline review",
+    "Glyph \"U\" needs centerline review",
+    "Glyph \"И\" needs centerline review",
+    "Glyph \"Й\" needs centerline review",
+    "Glyph \"Ц\" needs centerline review",
+    "Glyph \"Ш\" needs centerline review",
+    "Glyph \"Щ\" needs centerline review",
+    "Glyph \"Ю\" needs centerline review",
+    "Glyph \"…\" needs centerline review"
+  ]
+}

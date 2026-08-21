@@ -1,0 +1,12 @@
+COMMAND: .venv/bin/python -m plotter_processor run plotter_pipeline_full_test.docx --font assets/1.ttf --font-mode centerline --page A4 --size normal --document-layout hybrid --latex mathtext --latex-stroke-mode centerline --connections safe --images auto --image-debug --layout-debug --semantic-debug --connection-debug --page-numbers --page-pause-seconds 1 --park-corner top_right --output-dir report/jobs/docx-centerline-a4-reference
+STARTED_UTC: 2026-08-21T09:45:49.211189+00:00
+ENDED_UTC: 2026-08-21T09:46:13.740983+00:00
+DURATION_SECONDS: 24.529780
+EXIT_CODE: 0
+
+--- STDOUT ---
+Error: Machine coordinate X25.835 Y290.448 is outside workspace limits.
+Report: report/jobs/docx-centerline-a4-reference/report.json
+
+--- STDERR ---
+

@@ -38,7 +38,13 @@ python3 -m venv .venv
   --output-dir build
 ```
 
-Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
+Доступны форматы страницы `A4`/`A5` и размеры `small`/`normal`/`large`.
+Формат вывода всегда проверяется вместе с `--machine-config`: штатный
+Ender 3 profile `configs/machine.yaml` с workspace 220×220 mm и origin 10×10 mm
+физически вмещает portrait A5, но не portrait A4. Для A4 нужен
+реально совместимый machine profile; pipeline откажется от такой
+комбинации до чтения документа и компиляции шрифта. Флаг
+`--no-optimize-travel` отключает перестановку контуров внутри глифа.
 
 ## Формулы LaTeX (MVP)
 

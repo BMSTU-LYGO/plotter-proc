@@ -1,0 +1,2479 @@
+{
+  "source": "plotter_pipeline_full_test.docx",
+  "layout_mode": "hybrid",
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right"
+  ],
+  "pages": [
+    {
+      "source_page_index": 0,
+      "width_mm": 210.00861111111112,
+      "height_mm": 297.0036111111111,
+      "coordinate_unit": "mm",
+      "elements": [
+        {
+          "id": "page-001-text-001",
+          "source_order": 0,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-001-paragraph-001",
+              "source_element_id": "page-001-text-001",
+              "source_page_index": 0,
+              "target_page_start": 0,
+              "target_page_end": 0,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 18.79525,
+              "semantic_role": "title",
+              "alignment": "center",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.35
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "center",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 5.291666666666666,
+              "line_spacing": 1.0,
+              "tab_stops_mm": [],
+              "style_id": "Title",
+              "style_name": "Title",
+              "semantic_role": "title"
+            }
+          ],
+          "characters": 38,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-002",
+          "source_order": 1,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-002-paragraph-001",
+              "source_element_id": "page-001-text-002",
+              "source_page_index": 0,
+              "target_page_start": 0,
+              "target_page_end": 0,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 33.659667,
+              "semantic_role": "body",
+              "alignment": "center",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "center",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 54,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-003",
+          "source_order": 2,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-003-paragraph-001",
+              "source_element_id": "page-001-text-003",
+              "source_page_index": 0,
+              "target_page_start": 0,
+              "target_page_end": 0,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 57.381444,
+              "semantic_role": "body",
+              "alignment": "center",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "center",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "TestNote",
+              "style_name": "Test Note",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 118,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-004",
+          "source_order": 3,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-004-paragraph-001",
+              "source_element_id": "page-001-text-004",
+              "source_page_index": 0,
+              "target_page_start": 0,
+              "target_page_end": 0,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 81.101639,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 15,
+          "formulas": []
+        },
+        {
+          "id": "page-001-table-005",
+          "source_order": 4,
+          "type": "table",
+          "source_bbox_mm": null,
+          "rows": 9,
+          "columns": 2,
+          "cells": 18,
+          "repeat_header_rows": 1,
+          "source_kind": "docx-table",
+          "merged_cells": 0,
+          "pages": 2,
+          "source_width_mm": 174.02527777777777,
+          "target_width_mm": 177.3203714839313,
+          "scale": 1.0189345694385916,
+          "column_widths_mm": [
+            88.66018574196565,
+            88.66018574196565
+          ],
+          "row_heights_mm": [
+            16.070220744430397,
+            26.167220744430395,
+            46.36122074443039,
+            26.167220744430395,
+            26.167220744430395,
+            26.167220744430395,
+            26.167220744430395,
+            26.167220744430395,
+            36.26422074443039
+          ],
+          "auto_height_rows": 9,
+          "warnings": []
+        },
+        {
+          "id": "page-001-text-006",
+          "source_order": 5,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-006-paragraph-001",
+              "source_element_id": "page-001-text-006",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 133.2793,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 42,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-007",
+          "source_order": 6,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-007-paragraph-001",
+              "source_element_id": "page-001-text-007",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 20.00125,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 177.1968,
+              "semantic_role": "body",
+              "alignment": "justify",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 10.001249999999999,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 4,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": 10.001249999999999,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 2.469444444444444,
+              "line_spacing": 1.25,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 305,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-008",
+          "source_order": 7,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-008-paragraph-001",
+              "source_element_id": "page-001-text-008",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 21.994444,
+              "first_line_left_mm": 14.991806,
+              "paragraph_right_mm": 191.991944,
+              "baseline_mm": 220.932244,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 11.994444444444444,
+              "right_indent_mm": 8.008055555555556,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 7.002638888888889,
+              "tab_stops_mm": [],
+              "line_count": 4,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "left",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": 7.002638888888889,
+              "left_indent_mm": 11.994444444444444,
+              "right_indent_mm": 8.008055555555556,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 241,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-009",
+          "source_order": 8,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-009-paragraph-001",
+              "source_element_id": "page-001-text-009",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 234.557022,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "left",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 69,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-010",
+          "source_order": 9,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-010-paragraph-001",
+              "source_element_id": "page-001-text-010",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 248.1818,
+              "semantic_role": "body",
+              "alignment": "center",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "center",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 75,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-011",
+          "source_order": 10,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-011-paragraph-001",
+              "source_element_id": "page-001-text-011",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 1,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 261.806577,
+              "semantic_role": "body",
+              "alignment": "right",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "right",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 71,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-012",
+          "source_order": 11,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-012-paragraph-001",
+              "source_element_id": "page-001-text-012",
+              "source_page_index": 0,
+              "target_page_start": 1,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 16.515,
+              "semantic_role": "body",
+              "alignment": "justify",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 76,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-013",
+          "source_order": 12,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-013-paragraph-001",
+              "source_element_id": "page-001-text-013",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 30.139778,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [
+                50.005,
+                105.003056,
+                160.001111
+              ],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [
+                40.004999999999995,
+                95.00305555555555,
+                150.0011111111111
+              ],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 24,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-014",
+          "source_order": 13,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-014-paragraph-001",
+              "source_element_id": "page-001-text-014",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 73.632333,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 3,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 3.5277777777777777,
+              "space_after_mm": 4.233333333333333,
+              "line_spacing": 1.5,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 143,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-015",
+          "source_order": 14,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-015-paragraph-001",
+              "source_element_id": "page-001-text-015",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 91.035667,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 48,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-016",
+          "source_order": 15,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-016-paragraph-001",
+              "source_element_id": "page-001-text-016",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 114.755861,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 40,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-017",
+          "source_order": 16,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 68,
+          "formulas": [
+            {
+              "formula_index": 1,
+              "expression": "E=mc^2",
+              "display_mode": false,
+              "source_syntax": "dollar-inline",
+              "delimiter": "$",
+              "source_position": 20,
+              "element_id": "page-001-text-017-formula-001",
+              "width_mm": 19.145833333333332,
+              "height_mm": 4.895833333333333,
+              "strokes": 6,
+              "points": 83,
+              "stroke_mode": "centerline",
+              "source_kind": "semantic-latex",
+              "source_page_index": 0,
+              "quality": {
+                "mask_foreground_pixels": 34588,
+                "components_before_pruning": 6,
+                "components_after_pruning": 6,
+                "graph_nodes": 22,
+                "graph_edges": 16,
+                "junction_count": 5,
+                "strokes": 6,
+                "points": 83,
+                "draw_length_mm": 42.760637,
+                "retraced_length_mm": 5.247547,
+                "retrace_ratio": 0.122719,
+                "small_components_removed": 0,
+                "centerline_coverage_ratio": 0.945704,
+                "needs_review": false
+              },
+              "warnings": [],
+              "source_bbox": null,
+              "target_bbox": {
+                "x": 53.535,
+                "y": 121.00419444444444,
+                "width": 19.145833333333332,
+                "height": 4.895833333333333
+              }
+            },
+            {
+              "formula_index": 2,
+              "expression": "y=\\frac{x^2+1}{x+1}",
+              "display_mode": false,
+              "source_syntax": "dollar-inline",
+              "delimiter": "$",
+              "source_position": 47,
+              "element_id": "page-001-text-017-formula-002",
+              "width_mm": 20.0625,
+              "height_mm": 6.9375,
+              "strokes": 11,
+              "points": 89,
+              "stroke_mode": "centerline",
+              "source_kind": "semantic-latex",
+              "source_page_index": 0,
+              "quality": {
+                "mask_foreground_pixels": 39850,
+                "components_before_pruning": 11,
+                "components_after_pruning": 11,
+                "graph_nodes": 44,
+                "graph_edges": 33,
+                "junction_count": 10,
+                "strokes": 11,
+                "points": 89,
+                "draw_length_mm": 65.196579,
+                "retraced_length_mm": 12.273584,
+                "retrace_ratio": 0.188255,
+                "small_components_removed": 0,
+                "centerline_coverage_ratio": 0.914404,
+                "needs_review": false
+              },
+              "warnings": [],
+              "source_bbox": null,
+              "target_bbox": {
+                "x": 112.47583333333336,
+                "y": 120.68369444444444,
+                "width": 20.0625,
+                "height": 6.9375
+              }
+            }
+          ]
+        },
+        {
+          "id": "page-001-text-018",
+          "source_order": 17,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [],
+          "paragraph_formatting": [
+            {
+              "alignment": "center",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 32,
+          "formulas": [
+            {
+              "formula_index": 3,
+              "expression": "\\int_0^1 x^2\\,dx=\\frac{1}{3}",
+              "display_mode": true,
+              "source_syntax": "dollar-block",
+              "delimiter": "$$",
+              "source_position": 0,
+              "element_id": "page-001-text-018-formula-003",
+              "width_mm": 32.020833333333336,
+              "height_mm": 11.166666666666666,
+              "strokes": 12,
+              "points": 160,
+              "stroke_mode": "centerline",
+              "source_kind": "semantic-latex",
+              "source_page_index": 0,
+              "quality": {
+                "mask_foreground_pixels": 77442,
+                "components_before_pruning": 12,
+                "components_after_pruning": 12,
+                "graph_nodes": 45,
+                "graph_edges": 35,
+                "junction_count": 12,
+                "strokes": 12,
+                "points": 160,
+                "draw_length_mm": 88.381902,
+                "retraced_length_mm": 11.524092,
+                "retrace_ratio": 0.13039,
+                "small_components_removed": 0,
+                "centerline_coverage_ratio": 0.84276,
+                "needs_review": false
+              },
+              "warnings": [],
+              "source_bbox": null,
+              "target_bbox": {
+                "x": 88.98958333333333,
+                "y": 134.70836111111112,
+                "width": 32.020833333333336,
+                "height": 11.166666666666666
+              }
+            }
+          ]
+        },
+        {
+          "id": "page-001-text-019",
+          "source_order": 18,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-019-paragraph-001",
+              "source_element_id": "page-001-text-019",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 169.778694,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 83,
+          "formulas": []
+        },
+        {
+          "id": "page-001-math-020",
+          "source_order": 19,
+          "type": "math",
+          "source_bbox_mm": null,
+          "expression": "y=\\frac{{x}^{2}+1}{x+1}",
+          "display_mode": true,
+          "source_syntax": "omml",
+          "visual_image_path": null,
+          "visual_ppmm": null,
+          "absorbed_element_ids": [],
+          "detection_confidence": null,
+          "formula_index": 4
+        },
+        {
+          "id": "page-001-text-021",
+          "source_order": 20,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-021-paragraph-001",
+              "source_element_id": "page-001-text-021",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 207.420764,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 47,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-022",
+          "source_order": 21,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-022-paragraph-001",
+              "source_element_id": "page-001-text-022",
+              "source_page_index": 0,
+              "target_page_start": 2,
+              "target_page_end": 2,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 228.510264,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 123,
+          "formulas": []
+        },
+        {
+          "id": "page-001-image-023",
+          "source_order": 22,
+          "type": "raster-image",
+          "source_bbox_mm": null,
+          "asset_path": "report/jobs/docx-centerline-a4-reference/extracted-assets/image-001-e485f897a47c.png",
+          "width_px": 1200,
+          "height_px": 520,
+          "displayed_width": 150.0,
+          "displayed_height": 65.0,
+          "anchor_type": "flow",
+          "wrap_mode": "inline",
+          "wrap_side": "both",
+          "distance_left_mm": 0.0,
+          "distance_right_mm": 0.0,
+          "distance_top_mm": 0.0,
+          "distance_bottom_mm": 0.0,
+          "relative_to_h": null,
+          "relative_to_v": null,
+          "behind_text": false,
+          "z_order": 0,
+          "rotation_deg": 0.0,
+          "mode": "centerline",
+          "width_mm": 152.8402,
+          "height_mm": 66.2307,
+          "strokes": 39,
+          "points": 333,
+          "element_type": "raster-image",
+          "source_page_index": 0,
+          "mapped_bbox_mm": null,
+          "output_bbox_mm": {
+            "x": 28.579907,
+            "y": 12.0,
+            "width": 152.840185,
+            "height": 66.230747
+          },
+          "target_page_index": 3,
+          "anchor": "flow",
+          "scale": 1.018935,
+          "center_displacement_mm": null,
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "fallbacks": [],
+          "placement_reason": "activated_at_source_order"
+        },
+        {
+          "id": "page-001-text-024",
+          "source_order": 23,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-024-paragraph-001",
+              "source_element_id": "page-001-text-024",
+              "source_page_index": 0,
+              "target_page_start": 3,
+              "target_page_end": 3,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 96.842747,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 108,
+          "formulas": []
+        },
+        {
+          "id": "page-001-image-025",
+          "source_order": 24,
+          "type": "raster-image",
+          "source_bbox_mm": null,
+          "asset_path": "report/jobs/docx-centerline-a4-reference/extracted-assets/image-001-e485f897a47c.png",
+          "width_px": 1200,
+          "height_px": 520,
+          "displayed_width": 52.0,
+          "displayed_height": 22.533333333333335,
+          "anchor_type": "flow",
+          "wrap_mode": "inline",
+          "wrap_side": "both",
+          "distance_left_mm": 0.0,
+          "distance_right_mm": 0.0,
+          "distance_top_mm": 0.0,
+          "distance_bottom_mm": 0.0,
+          "relative_to_h": null,
+          "relative_to_v": null,
+          "behind_text": false,
+          "z_order": 0,
+          "rotation_deg": 12.0,
+          "mode": "centerline",
+          "width_mm": 56.6004,
+          "height_mm": 33.4744,
+          "strokes": 31,
+          "points": 112,
+          "element_type": "raster-image",
+          "source_page_index": 0,
+          "mapped_bbox_mm": null,
+          "output_bbox_mm": {
+            "x": 76.699796,
+            "y": 105.952525,
+            "width": 56.600408,
+            "height": 33.474379
+          },
+          "target_page_index": 3,
+          "anchor": "flow",
+          "scale": 1.088469,
+          "center_displacement_mm": null,
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "fallbacks": [],
+          "placement_reason": "activated_at_source_order"
+        },
+        {
+          "id": "page-001-text-026",
+          "source_order": 25,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-026-paragraph-001",
+              "source_element_id": "page-001-text-026",
+              "source_page_index": 0,
+              "target_page_start": 3,
+              "target_page_end": 3,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 147.941903,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 42,
+          "formulas": []
+        },
+        {
+          "id": "page-001-image-027",
+          "source_order": 26,
+          "type": "raster-image",
+          "source_bbox_mm": {
+            "x": 112.991667,
+            "y": 0.0,
+            "width": 64.0,
+            "height": 27.733333
+          },
+          "asset_path": "report/jobs/docx-centerline-a4-reference/extracted-assets/image-001-e485f897a47c.png",
+          "width_px": 1200,
+          "height_px": 520,
+          "displayed_width": 64.0,
+          "displayed_height": 27.733333333333334,
+          "anchor_type": "anchored",
+          "wrap_mode": "square",
+          "wrap_side": "both",
+          "distance_left_mm": 3.0,
+          "distance_right_mm": 3.0,
+          "distance_top_mm": 2.0,
+          "distance_bottom_mm": 2.0,
+          "relative_to_h": "column",
+          "relative_to_v": "paragraph",
+          "behind_text": false,
+          "z_order": 251658240,
+          "rotation_deg": 0.0,
+          "mode": "centerline",
+          "width_mm": 65.2118,
+          "height_mm": 28.2585,
+          "strokes": 31,
+          "points": 117,
+          "element_type": "raster-image",
+          "source_page_index": 0,
+          "mapped_bbox_mm": {
+            "x": 113.138598,
+            "y": 159.051681,
+            "width": 65.211812,
+            "height": 28.258452
+          },
+          "output_bbox_mm": {
+            "x": 113.138598,
+            "y": 157.051681,
+            "width": 65.211812,
+            "height": 28.258452
+          },
+          "target_page_index": 3,
+          "anchor": "anchored",
+          "scale": 1.018935,
+          "center_displacement_mm": 2.0,
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "fallbacks": [],
+          "placement_reason": "activated_at_source_order"
+        },
+        {
+          "id": "page-001-text-028",
+          "source_order": 27,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 295,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-029",
+          "source_order": 28,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-029-paragraph-001",
+              "source_element_id": "page-001-text-029",
+              "source_page_index": 0,
+              "target_page_start": 3,
+              "target_page_end": 3,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 260.207681,
+              "semantic_role": "body",
+              "alignment": "justify",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 4,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 295,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-030",
+          "source_order": 29,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-030-paragraph-001",
+              "source_element_id": "page-001-text-030",
+              "source_page_index": 0,
+              "target_page_start": 3,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 36.709,
+              "semantic_role": "body",
+              "alignment": "justify",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 4,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 295,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-031",
+          "source_order": 30,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-031-paragraph-001",
+              "source_element_id": "page-001-text-031",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 60.429194,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 32,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-032",
+          "source_order": 31,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-032-paragraph-001",
+              "source_element_id": "page-001-text-032",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 81.518694,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 135,
+          "formulas": []
+        },
+        {
+          "id": "page-001-arrow-033",
+          "source_order": 32,
+          "type": "arrow",
+          "source_bbox_mm": {
+            "x0_mm": 7.055555555555555,
+            "y0_mm": 6.35,
+            "x1_mm": 52.916666666666664,
+            "y1_mm": 6.35
+          },
+          "head_at_start": false,
+          "head_at_end": true,
+          "head_style": "open",
+          "confidence": 1.0,
+          "strokes": 2
+        },
+        {
+          "id": "page-001-text-034",
+          "source_order": 33,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-034-paragraph-001",
+              "source_element_id": "page-001-text-034",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 112.376596,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 114,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-035",
+          "source_order": 34,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-035-paragraph-001",
+              "source_element_id": "page-001-text-035",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 136.09679,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 45,
+          "formulas": []
+        },
+        {
+          "id": "page-001-table-036",
+          "source_order": 35,
+          "type": "table",
+          "source_bbox_mm": null,
+          "rows": 5,
+          "columns": 4,
+          "cells": 18,
+          "repeat_header_rows": 1,
+          "source_kind": "docx-table",
+          "merged_cells": 2,
+          "pages": 1,
+          "source_width_mm": 173.98999999999998,
+          "target_width_mm": 177.28442573662053,
+          "scale": 1.0189345694385916,
+          "column_widths_mm": [
+            44.32110643415513,
+            44.32110643415513,
+            44.32110643415513,
+            44.32110643415513
+          ],
+          "row_heights_mm": [
+            16.070220744430397,
+            16.070220744430397,
+            26.167220744430395,
+            16.070220744430397,
+            26.167220744430395
+          ],
+          "auto_height_rows": 5,
+          "warnings": []
+        },
+        {
+          "id": "page-001-text-037",
+          "source_order": 36,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-037-paragraph-001",
+              "source_element_id": "page-001-text-037",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 4,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 261.72981,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 51,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-038",
+          "source_order": 37,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-038-paragraph-001",
+              "source_element_id": "page-001-text-038",
+              "source_page_index": 0,
+              "target_page_start": 4,
+              "target_page_end": 5,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 20.00125,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 36.709,
+              "semantic_role": "body",
+              "alignment": "justify",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 10.001249999999999,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 4,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": "justify",
+              "first_line_indent_mm": 10.001249999999999,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 301,
+          "formulas": []
+        },
+        {
+          "id": "page-001-table-039",
+          "source_order": 38,
+          "type": "table",
+          "source_bbox_mm": null,
+          "rows": 17,
+          "columns": 4,
+          "cells": 68,
+          "repeat_header_rows": 1,
+          "source_kind": "docx-table",
+          "merged_cells": 0,
+          "pages": 4,
+          "source_width_mm": 173.98999999999998,
+          "target_width_mm": 177.28442573662053,
+          "scale": 1.0189345694385916,
+          "column_widths_mm": [
+            44.32110643415513,
+            44.32110643415513,
+            44.32110643415513,
+            44.32110643415513
+          ],
+          "row_heights_mm": [
+            16.070220744430397,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039,
+            46.36122074443039
+          ],
+          "auto_height_rows": 17,
+          "warnings": []
+        },
+        {
+          "id": "page-001-text-040",
+          "source_order": 39,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-040-paragraph-001",
+              "source_element_id": "page-001-text-040",
+              "source_page_index": 0,
+              "target_page_start": 8,
+              "target_page_end": 8,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 137.403079,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 43,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-041",
+          "source_order": 40,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-041-paragraph-001",
+              "source_element_id": "page-001-text-041",
+              "source_page_index": 0,
+              "target_page_start": 8,
+              "target_page_end": 8,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 17.002639,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 168.589579,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 3,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 182,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-042",
+          "source_order": 41,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-042-paragraph-001",
+              "source_element_id": "page-001-text-042",
+              "source_page_index": 0,
+              "target_page_start": 8,
+              "target_page_end": 8,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 17.002639,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 202.408357,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 3,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 173,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-043",
+          "source_order": 42,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-043-paragraph-001",
+              "source_element_id": "page-001-text-043",
+              "source_page_index": 0,
+              "target_page_start": 8,
+              "target_page_end": 8,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 17.002639,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 236.227134,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 3,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 181,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-044",
+          "source_order": 43,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-044-paragraph-001",
+              "source_element_id": "page-001-text-044",
+              "source_page_index": 0,
+              "target_page_start": 8,
+              "target_page_end": 8,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 17.002639,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 270.045912,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 3,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": 7.002638888888889,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": null,
+              "style_name": null,
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 158,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-045",
+          "source_order": 44,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-045-paragraph-001",
+              "source_element_id": "page-001-text-045",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 26.610417,
+              "semantic_role": "heading_1",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.25
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": 8.466666666666667,
+              "space_after_mm": 0.0,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "Heading1",
+              "style_name": "heading 1",
+              "semantic_role": "heading_1"
+            }
+          ],
+          "characters": 27,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-046",
+          "source_order": 45,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-046-paragraph-001",
+              "source_element_id": "page-001-text-046",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 37.602917,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 67,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-047",
+          "source_order": 46,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-047-paragraph-001",
+              "source_element_id": "page-001-text-047",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 51.227694,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 71,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-048",
+          "source_order": 47,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-048-paragraph-001",
+              "source_element_id": "page-001-text-048",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 64.852472,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 76,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-049",
+          "source_order": 48,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-049-paragraph-001",
+              "source_element_id": "page-001-text-049",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 78.47725,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 92,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-050",
+          "source_order": 49,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-050-paragraph-001",
+              "source_element_id": "page-001-text-050",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 92.102028,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 82,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-051",
+          "source_order": 50,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-051-paragraph-001",
+              "source_element_id": "page-001-text-051",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 105.726806,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 56,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-052",
+          "source_order": 51,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-052-paragraph-001",
+              "source_element_id": "page-001-text-052",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 119.351583,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 1,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 86,
+          "formulas": []
+        },
+        {
+          "id": "page-001-text-053",
+          "source_order": 52,
+          "type": "text",
+          "source_bbox_mm": null,
+          "paragraphs": [
+            {
+              "paragraph_id": "page-001-text-053-paragraph-001",
+              "source_element_id": "page-001-text-053",
+              "source_page_index": 0,
+              "target_page_start": 9,
+              "target_page_end": 9,
+              "content_left_mm": 10.0,
+              "paragraph_left_mm": 10.0,
+              "first_line_left_mm": 10.0,
+              "paragraph_right_mm": 200.0,
+              "baseline_mm": 143.073361,
+              "semantic_role": "body",
+              "alignment": "left",
+              "left_indent_mm": 0.0,
+              "right_indent_mm": 0.0,
+              "first_line_indent_mm": 0.0,
+              "hanging_indent_mm": 0.0,
+              "tab_stops_mm": [],
+              "line_count": 2,
+              "font_scale": 1.0
+            }
+          ],
+          "paragraph_formatting": [
+            {
+              "alignment": null,
+              "first_line_indent_mm": null,
+              "hanging_indent_mm": null,
+              "left_indent_mm": null,
+              "right_indent_mm": null,
+              "space_before_mm": null,
+              "space_after_mm": 3.5277777777777777,
+              "line_spacing": 1.15,
+              "tab_stops_mm": [],
+              "style_id": "ListBullet",
+              "style_name": "List Bullet",
+              "semantic_role": "body"
+            }
+          ],
+          "characters": 101,
+          "formulas": []
+        }
+      ]
+    }
+  ]
+}

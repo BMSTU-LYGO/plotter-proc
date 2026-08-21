@@ -1,0 +1,88 @@
+{
+  "status": "ok",
+  "page": 12,
+  "page_count": 20,
+  "statistics": {
+    "contours": 408,
+    "strokes": 408,
+    "points": 7961,
+    "closed_contours": 375,
+    "open_contours": 33,
+    "draw_distance_mm": 4721.272,
+    "travel_distance_mm": 2910.954,
+    "bounding_box_mm": {
+      "min_x": 14.02645820805774,
+      "min_y": 10.0,
+      "max_x": 133.97354179194227,
+      "max_y": 205.29972
+    },
+    "characters": 0,
+    "glyphs": 227,
+    "lines": 4,
+    "estimated_time_minutes": 12.89959
+  },
+  "motion": {
+    "profile": "safe",
+    "stroke_count": 408,
+    "point_count": 7961,
+    "xy_draw_commands": 7928,
+    "xy_travel_commands": 408,
+    "pen_down_count": 408,
+    "pen_up_count": 409,
+    "pen_lift_count": 408,
+    "pen_lift_distance_mm": 1632.0,
+    "pen_lower_distance_mm": 1632.0,
+    "total_z_distance_mm": 3264.0,
+    "draw_distance_mm": 4721.271637,
+    "travel_distance_mm": 2910.954327,
+    "dwell_count": 408,
+    "dwell_time_seconds": 40.8,
+    "ideal_draw_time_seconds": 283.276298,
+    "ideal_travel_time_seconds": 58.219087,
+    "ideal_z_time_seconds": 391.68,
+    "ideal_total_time_seconds": 773.975385,
+    "ideal_total_time_minutes": 12.89959,
+    "short_segment_count": 1410,
+    "very_short_segment_count": 0,
+    "short_segment_ratio": 0.177851,
+    "average_segment_length_mm": 0.595519,
+    "median_segment_length_mm": 0.346883,
+    "p95_segment_length_mm": 1.07392,
+    "planner_risk": "medium",
+    "gcode_command_count": 9565,
+    "draw_feed_mm_min": 1000.0,
+    "travel_feed_mm_min": 3000.0,
+    "z_feed_mm_min": 500.0,
+    "up_z_mm": 5.0,
+    "down_z_mm": 1.0,
+    "down_settle_ms": 100,
+    "gcode_analysis": {
+      "gcode_command_count": 9565,
+      "motion_command_count": 9147,
+      "z_command_count": 817,
+      "dwell_count": 408,
+      "dwell_time_seconds": 40.8,
+      "ideal_total_time_seconds": 778.911757
+    }
+  },
+  "handwriting": {
+    "enabled": false
+  },
+  "simplification": {
+    "enabled": true,
+    "points_before_simplification": 11072,
+    "points_after_simplification": 7961,
+    "segments_before_simplification": 11039,
+    "segments_after_simplification": 7928,
+    "point_reduction_ratio": 0.280979,
+    "max_observed_deviation_mm": 0.049988
+  },
+  "source_element_ids": [
+    "page-001-table-039"
+  ],
+  "warnings": [
+    "docx_tab_stop_approximated:center",
+    "docx_tab_stop_approximated:right",
+    "Outline mode follows both boundaries of filled TTF strokes"
+  ]
+}
