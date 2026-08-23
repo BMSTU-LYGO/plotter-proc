@@ -78,15 +78,40 @@ def _rdp(points: list[Point], epsilon: float) -> list[Point]:
 def _rdp_with_deviation(points: list[Point], epsilon: float) -> tuple[list[Point], float]:
     if len(points) <= 2 or epsilon == 0:
         return points, 0.0
-    start, end = points[0], points[-1]
-    distances = [_point_segment_distance(point, start, end) for point in points[1:-1]]
-    maximum = max(distances, default=0)
-    if maximum <= epsilon:
-        return [start, end], maximum
-    index = distances.index(maximum) + 1
-    left, left_deviation = _rdp_with_deviation(points[: index + 1], epsilon)
-    right, right_deviation = _rdp_with_deviation(points[index:], epsilon)
-    return left[:-1] + right, max(left_deviation, right_deviation)
+    keep = [False] * len(points)
+    keep[0] = keep[-1] = True
+    observed = 0.0
+    pending = [(0, len(points) - 1)]
+    while pending:
+        start_index, end_index = pending.pop()
+        start, end = points[start_index], points[end_index]
+        dx, dy = end.x - start.x, end.y - start.y
+        length_squared = dx * dx + dy * dy
+        maximum = 0.0
+        maximum_index = start_index
+        for index in range(start_index + 1, end_index):
+            point = points[index]
+            if length_squared == 0:
+                distance = math.hypot(point.x - start.x, point.y - start.y)
+            else:
+                position = (
+                    (point.x - start.x) * dx + (point.y - start.y) * dy
+                ) / length_squared
+                position = max(0.0, min(1.0, position))
+                distance = math.hypot(
+                    point.x - (start.x + position * dx),
+                    point.y - (start.y + position * dy),
+                )
+            if distance > maximum:
+                maximum = distance
+                maximum_index = index
+        if maximum <= epsilon:
+            observed = max(observed, maximum)
+            continue
+        keep[maximum_index] = True
+        pending.append((maximum_index, end_index))
+        pending.append((start_index, maximum_index))
+    return [point for index, point in enumerate(points) if keep[index]], observed
 
 
 def _point_segment_distance(point: Point, start: Point, end: Point) -> float:

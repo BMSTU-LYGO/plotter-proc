@@ -19,6 +19,7 @@ from plotter_processor.document_models import (
     SourceRasterImageElement,
     SourceTableCell,
     SourceTableElement,
+    SourceTabStop,
     SourceTextElement,
     SourceTextRun,
     SourceTextStyle,
@@ -39,7 +40,7 @@ class _ParagraphFormat:
     space_before_mm: float | None = None
     space_after_mm: float | None = None
     line_spacing: float | None = None
-    tab_stops_mm: tuple[float, ...] | None = None
+    tab_stops: tuple[SourceTabStop, ...] | None = None
 
 
 _ALIGNMENTS = {
@@ -461,10 +462,11 @@ class _ParagraphFormatResolver:
             space_before_mm=effective.space_before_mm,
             space_after_mm=effective.space_after_mm,
             line_spacing=effective.line_spacing,
-            tab_stops_mm=effective.tab_stops_mm or (),
+            tab_stops_mm=tuple(stop.position_mm for stop in effective.tab_stops or ()),
             style_id=style_id,
             style_name=style_name,
             semantic_role=role,
+            tab_stops=effective.tab_stops or (),
         )
 
     def _style_chain(self, style_id: str | None) -> list[object]:
@@ -496,7 +498,7 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
     indent = indent_nodes[0] if indent_nodes else None
     spacing_nodes = properties.xpath("./*[local-name()='spacing']")
     spacing = spacing_nodes[0] if spacing_nodes else None
-    tabs: list[float] | None = None
+    tabs: list[SourceTabStop] | None = None
     tab_nodes = properties.xpath("./*[local-name()='tabs']/*[local-name()='tab']")
     if tab_nodes:
         tabs = []
@@ -506,12 +508,18 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
             if kind == "clear":
                 if position is not None:
                     cleared = float(position) * TWIP_TO_MM
-                    tabs = [value for value in tabs if abs(value - cleared) > 1e-6]
+                    tabs = [
+                        stop for stop in tabs
+                        if abs(stop.position_mm - cleared) > 1e-6
+                    ]
                 continue
-            if kind != "left":
+            if kind == "bar":
+                continue
+            if kind not in {"left", "center", "right", "decimal"}:
                 warnings.append(f"docx_tab_stop_approximated:{kind}")
-            if position is not None and kind != "bar":
-                tabs.append(float(position) * TWIP_TO_MM)
+                kind = "left"
+            if position is not None:
+                tabs.append(SourceTabStop(float(position) * TWIP_TO_MM, kind))
 
     line_spacing = None
     if spacing is not None and spacing.get(qn("w:line")) is not None:
@@ -532,7 +540,15 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
         space_before_mm=_twip_attribute(spacing, "before"),
         space_after_mm=_twip_attribute(spacing, "after"),
         line_spacing=line_spacing,
-        tab_stops_mm=tuple(sorted(set(tabs))) if tabs is not None else None,
+        tab_stops=(
+            tuple(
+                sorted(
+                    {stop.position_mm: stop for stop in tabs}.values(),
+                    key=lambda stop: stop.position_mm,
+                )
+            )
+            if tabs is not None else None
+        ),
     )
 
 

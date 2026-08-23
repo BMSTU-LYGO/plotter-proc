@@ -39,6 +39,7 @@ class TableFragment:
     border_count: int
     row_heights_mm: tuple[float, ...]
     warnings: tuple[str, ...] = ()
+    shared_borders_suppressed: int = 0
 
 
 def table_row_height(size_options: dict[str, object]) -> float:
@@ -118,6 +119,7 @@ def plan_table_layout(
                     content_right_mm=padding + content_width,
                     base_size_options=scaled_size,
                     paragraph_options=paragraph_options or {},
+                    tab_scale=page_scale,
                 )
             except ValueError as error:
                 if "indents leave no usable" not in str(error):
@@ -136,6 +138,7 @@ def plan_table_layout(
                     content_right_mm=padding + content_width,
                     base_size_options=scaled_size,
                     paragraph_options=paragraph_options or {},
+                    tab_scale=page_scale,
                 )
             layouts.append(layout)
         text_height = sum(
@@ -277,7 +280,10 @@ def layout_table_fragment(
                 * layout.font_scale,
             ))
 
-    strokes = _table_borders(table, row_indices, occupied, x_edges, y_edges)
+    strokes, shared_borders_suppressed = _table_borders(
+        table, row_indices, occupied, x_edges, y_edges
+    )
+    border_count = len(strokes)
     for decoration in decorations:
         decoration.id = len(strokes)
         strokes.append(decoration)
@@ -286,9 +292,10 @@ def layout_table_fragment(
         strokes,
         sum(fragment_heights),
         tuple(row_indices),
-        len(strokes),
+        border_count,
         fragment_heights,
         plan.warnings,
+        shared_borders_suppressed,
     )
 
 
@@ -298,7 +305,7 @@ def _table_borders(
     occupied: dict[tuple[int, int], str],
     x_edges: list[float],
     y_edges: list[float],
-) -> list[PlotterStroke]:
+) -> tuple[list[PlotterStroke], int]:
     segments: list[tuple[Point, Point]] = []
     for boundary in range(table.columns + 1):
         for row in range(len(rows)):
@@ -318,7 +325,12 @@ def _table_borders(
                     Point(x_edges[column], y_edges[boundary]),
                     Point(x_edges[column + 1], y_edges[boundary]),
                 ))
-    return [_border(table.id, start, end, index) for index, (start, end) in enumerate(segments)]
+    naive_cell_edges = len(occupied) * 4
+    suppressed = max(0, naive_cell_edges - len(segments))
+    return (
+        [_border(table.id, start, end, index) for index, (start, end) in enumerate(segments)],
+        suppressed,
+    )
 
 
 def _border(table_id: str, start: Point, end: Point, index: int) -> PlotterStroke:

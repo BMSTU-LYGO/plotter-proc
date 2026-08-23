@@ -7,14 +7,19 @@ _MULTIPLE_SPACES = re.compile(r" {2,}")
 _TOO_MANY_NEWLINES = re.compile(r"\n{4,}")
 
 
-def normalize_text(text: str) -> tuple[str, list[str]]:
+def normalize_text(text: str, *, preserve_tabs: bool = False) -> tuple[str, list[str]]:
     normalized = unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n"))
-    normalized = normalized.replace("\t", "    ")
+    if not preserve_tabs:
+        normalized = normalized.replace("\t", "    ")
     warnings: list[str] = []
     characters: list[str] = []
     unsupported: set[str] = set()
     for character in normalized:
-        if character in {"\n", "\u00a0"} or character.isprintable():
+        if (
+            character in {"\n", "\u00a0"}
+            or preserve_tabs and character == "\t"
+            or character.isprintable()
+        ):
             characters.append(character)
         else:
             characters.append(" ")

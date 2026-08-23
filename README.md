@@ -232,7 +232,10 @@ Quality v3 сравнивает `skeletonize` и `medial_axis` по геомет
 буквами одного слова. `safe` использует entry/exit anchors, проверяет distance,
 vertical offset, tangent, backtracking, corridor и collisions; сомнительная
 пара остаётся с подъёмом пера. `aggressive` расширяет геометрические допуски,
-но не отключает collision validation. Точки `ё`, дуга `й` и другая диакритика
+но не отключает punctuation, backtracking и collision validation. Режимы
+различаются только на парах, пересекающих расширенные distance/angle/vertical
+пороги; на конкретном тексте их output может совпадать. Точки `ё`, дуга `й` и
+другая диакритика
 остаются отдельными strokes. `--join-writing` сохранён как compatibility-флаг
 для safe-поведения.
 
@@ -268,6 +271,18 @@ Centerline cache version 2 строит topology-aware граф с crossing numb
 .venv/bin/python -m plotter_processor font-info assets/handwriting.ttf
 .venv/bin/python -m plotter_processor gcode build/paths.json --output build/output.gcode
 ```
+
+Команда `gcode` гарантирует functional equivalence с page-level G-code полного
+`run`: последовательность всех non-comment motion-команд одинакова для одного
+`paths.json` и machine config. Byte identity не является контрактом, потому что
+полный pipeline добавляет job-local комментарии о странице, motion profile и
+расчётном времени, которых нет в `paths.json`. Поэтому регенерированный файл
+следует сравнивать после исключения строк-комментариев (`; ...`).
+
+`extract` выдаёт стабильную текстовую проекцию в source reading order:
+абзацы, logical cells таблиц по строкам/столбцам и LaTeX-like representation
+доступных OMML expressions. Merged cells не дублируются, а repeated
+header выводится один раз как source content.
 
 ## Результаты
 

@@ -11,6 +11,7 @@ from plotter_processor.centerline_font.models import (
 )
 from plotter_processor.centerline_font.route_assembler import assemble_component_route
 from plotter_processor.centerline_font.route_planner import plan_glyph_routes
+from plotter_processor.centerline_font.route_quality import routing_metrics
 from plotter_processor.config import load_yaml
 from plotter_processor.models import Point
 
@@ -45,6 +46,9 @@ def test_t_graph_is_one_route_with_minimum_retrace() -> None:
     assert len(routes) == 1
     assert routes[0].retraced_length_px == 1.0
     assert {step.edge_id for step in routes[0].steps} == {0, 1, 2}
+    metrics = routing_metrics(edges, routes)
+    assert metrics["minimum_one_route_retrace_length"] == 1.0
+    assert metrics["excess_retrace_length"] == 0.0
 
 
 def test_two_components_remain_two_routes() -> None:

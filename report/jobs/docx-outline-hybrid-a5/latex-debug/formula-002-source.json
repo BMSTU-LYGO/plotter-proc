@@ -1,8 +1,0 @@
-{
-  "formula_index": 2,
-  "expression": "y=\\frac{x^2+1}{x+1}",
-  "display_mode": false,
-  "source_syntax": "dollar-inline",
-  "stroke_mode": "outline",
-  "source_kind": "semantic-latex"
-}

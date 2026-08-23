@@ -38,3 +38,5 @@ def test_outline_and_centerline_create_bounded_strokes(tmp_path: Path) -> None:
 
     assert outline.strokes and centerline.strokes
     assert all(0 <= point.x <= 40 and 0 <= point.y <= 25 for s in centerline.strokes for point in s.points)
+    assert isinstance(outline.micro_strokes_suppressed, int)
+    assert isinstance(centerline.micro_strokes_suppressed, int)

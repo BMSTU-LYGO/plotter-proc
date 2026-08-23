@@ -67,6 +67,7 @@ def layout_structured_document(
     characters = 0
     max_width = 0.0
     image_found = image_vectorized = image_strokes = image_points = vector_count = 0
+    image_micro_strokes_suppressed = 0
 
     for page_source in document.pages:
         for element in page_source.elements:
@@ -131,6 +132,7 @@ def layout_structured_document(
                 image_vectorized += int(bool(vectorized.strokes))
                 image_strokes += len(vectorized.strokes)
                 image_points += vectorized.point_count
+                image_micro_strokes_suppressed += vectorized.micro_strokes_suppressed
                 warnings.extend(f"{warning}: {element.id}" for warning in vectorized.warnings)
                 details[element.id] = {
                     "type": "raster-image", "mode": vectorized.mode,
@@ -175,6 +177,7 @@ def layout_structured_document(
         "images_skipped": image_found - image_vectorized,
         "image_strokes": image_strokes,
         "image_points": image_points,
+        "image_micro_strokes_suppressed": image_micro_strokes_suppressed,
     }
     return StructuredLayout(layout, graphics, list(dict.fromkeys(warnings)), stats, details)
 
@@ -217,6 +220,13 @@ def save_document_structure(
                                         "space_after_mm": paragraph.space_after_mm,
                                         "line_spacing": paragraph.line_spacing,
                                         "tab_stops_mm": list(paragraph.tab_stops_mm),
+                                        "tab_stops": [
+                                            {
+                                                "position_mm": stop.position_mm,
+                                                "alignment": stop.alignment,
+                                            }
+                                            for stop in paragraph.tab_stops
+                                        ],
                                         "style_id": paragraph.style_id,
                                         "style_name": paragraph.style_name,
                                         "semantic_role": paragraph.semantic_role,

@@ -7,6 +7,7 @@ from scipy import ndimage
 
 from plotter_processor.centerline_font.counter_analysis import analyze_counters
 from plotter_processor.centerline_font.models import CenterlineStroke, RasterGlyph
+from plotter_processor.centerline_font.skeletonizer import reconstruct_with_local_radius
 
 
 def score_quality(
@@ -20,8 +21,8 @@ def score_quality(
     max_endpoint_factor: float,
 ) -> tuple[dict[str, object], list[str]]:
     del raster
-    radius = max(1, round(float(np.median(ndimage.distance_transform_edt(mask)[skeleton]))))
-    reconstructed = ndimage.binary_dilation(skeleton, iterations=radius)
+    distance = ndimage.distance_transform_edt(mask)
+    reconstructed = reconstruct_with_local_radius(skeleton, distance)
     counters = analyze_counters(mask, reconstructed)
     overlap = int((reconstructed & mask).sum())
     coverage = overlap / max(1, int(mask.sum()))
@@ -55,6 +56,7 @@ def score_quality(
         "endpoints": endpoints,
         "counter_count": counters.significant_count,
         "counter_preservation_ratio": counters.preservation_ratio,
+        "reconstruction_method": "local_radius",
         "needs_review": bool(warnings),
         "quality_status": "needs_review" if warnings else "auto_passed",
     }

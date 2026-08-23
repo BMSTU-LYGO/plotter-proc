@@ -15,7 +15,13 @@ from plotter_processor.models import PageSpec
 from plotter_processor.paragraph_layout import layout_paragraph
 
 
-def _layout(paragraph: SourceParagraph, test_font: Path, *, right: float = 70):
+def _layout(
+    paragraph: SourceParagraph,
+    test_font: Path,
+    *,
+    right: float = 70,
+    tab_scale: float = 1.0,
+):
     config = yaml.safe_load(Path("configs/layout.yaml").read_text(encoding="utf-8"))
     with load_font(test_font) as font:
         return layout_paragraph(
@@ -25,6 +31,7 @@ def _layout(paragraph: SourceParagraph, test_font: Path, *, right: float = 70):
             content_right_mm=right,
             base_size_options=config["sizes"]["normal"],
             paragraph_options=config["paragraphs"],
+            tab_scale=tab_scale,
         )
 
 

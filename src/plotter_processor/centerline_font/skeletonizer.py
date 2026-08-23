@@ -98,12 +98,14 @@ def _coverage_loss(
 ) -> float:
     if ink_mask is None:
         return 0.0
-    old = _reconstruct_with_local_radius(before, distance) & ink_mask
-    new = _reconstruct_with_local_radius(after, distance) & ink_mask
+    old = reconstruct_with_local_radius(before, distance) & ink_mask
+    new = reconstruct_with_local_radius(after, distance) & ink_mask
     return max(0.0, float(old.sum() - new.sum()) / max(1, int(ink_mask.sum())))
 
 
-def _reconstruct_with_local_radius(skeleton: np.ndarray, radius_map: np.ndarray) -> np.ndarray:
+def reconstruct_with_local_radius(
+    skeleton: np.ndarray, radius_map: np.ndarray
+) -> np.ndarray:
     if not skeleton.any():
         return np.zeros_like(skeleton)
     nearest_distance, indices = ndimage.distance_transform_edt(

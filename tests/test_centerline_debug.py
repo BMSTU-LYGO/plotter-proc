@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -39,6 +40,11 @@ def test_debug_export_has_stable_complete_artifact_set(tmp_path: Path) -> None:
         text = svg.read_text(encoding="utf-8")
         assert "nan" not in text.lower()
         assert "infinity" not in text.lower()
+    metrics = json.loads((target / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["short_edges"] >= 0
+    assert metrics["micro_loops"] >= 0
+    assert metrics["minimum_one_route_retrace_length"] >= 0
+    assert metrics["excess_retrace_length"] == 0
 
 
 def test_debug_export_does_not_change_compiled_geometry(tmp_path: Path) -> None:

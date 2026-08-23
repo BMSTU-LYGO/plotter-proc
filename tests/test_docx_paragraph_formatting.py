@@ -9,6 +9,7 @@ from docx.shared import Mm, Pt
 
 from plotter_processor.document_models import SourceTableElement, SourceTextElement
 from plotter_processor.structured_document_reader import read_structured_document
+from tests.test_paragraph_layout import _layout
 
 
 def _paragraphs(path: Path, tmp_path: Path):
@@ -78,16 +79,20 @@ def test_style_inheritance_direct_override_and_semantic_roles(tmp_path: Path) ->
     assert paragraphs[2].semantic_role == "heading_1"
 
 
-def test_unsupported_tab_warns_and_table_cell_keeps_format(tmp_path: Path) -> None:
+def test_tab_kinds_and_table_cell_format_are_preserved(
+    tmp_path: Path, test_font: Path
+) -> None:
     document = Document()
-    paragraph = document.add_paragraph("decimal\tvalue")
-    ppr = paragraph._p.get_or_add_pPr()
-    tabs = OxmlElement("w:tabs")
-    tab = OxmlElement("w:tab")
-    tab.set(qn("w:val"), "decimal")
-    tab.set(qn("w:pos"), "1440")
-    tabs.append(tab)
-    ppr.append(tabs)
+    for kind in ("left", "center", "right", "decimal"):
+        token = "12,34" if kind == "decimal" else "value"
+        paragraph = document.add_paragraph(f"{kind}\t{token}")
+        ppr = paragraph._p.get_or_add_pPr()
+        tabs = OxmlElement("w:tabs")
+        tab = OxmlElement("w:tab")
+        tab.set(qn("w:val"), kind)
+        tab.set(qn("w:pos"), "1440")
+        tabs.append(tab)
+        ppr.append(tabs)
     cell_paragraph = document.add_table(rows=1, cols=1).cell(0, 0).paragraphs[0]
     cell_paragraph.text = "Cell"
     cell_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -97,6 +102,24 @@ def test_unsupported_tab_warns_and_table_cell_keeps_format(tmp_path: Path) -> No
     result = read_structured_document(path, assets_dir=tmp_path / "assets")
     table = next(item for item in result.elements if isinstance(item, SourceTableElement))
 
-    assert "docx_tab_stop_approximated:decimal" in result.warnings
+    paragraphs = _paragraphs(path, tmp_path)
+    assert [item.tab_stops[0].alignment for item in paragraphs[:4]] == [
+        "left", "center", "right", "decimal"
+    ]
+    assert not any(warning.startswith("docx_tab_stop_approximated") for warning in result.warnings)
     assert table.cells[0].paragraphs[0].alignment == "center"
-
+    expected = 10 + 25.4
+    for kind, paragraph in zip(("left", "center", "right", "decimal"), paragraphs):
+        layout = _layout(paragraph, test_font, right=100)
+        glyphs = [glyph for glyph in layout.lines[0].glyphs if glyph.word_index == 1]
+        left = min(glyph.x_mm for glyph in glyphs)
+        right = max(glyph.x_mm + glyph.advance_mm for glyph in glyphs)
+        if kind == "left":
+            anchor = left
+        elif kind == "center":
+            anchor = (left + right) / 2
+        elif kind == "right":
+            anchor = right
+        else:
+            anchor = next(glyph.x_mm for glyph in glyphs if glyph.char == ",")
+        assert abs(anchor - expected) < 0.01

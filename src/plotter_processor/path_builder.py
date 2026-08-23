@@ -90,7 +90,7 @@ def save_path_document(document: PathDocument, output_path: str | Path) -> None:
                 "element_type": stroke.element_type,
                 "font_role": stroke.font_role,
                 "font_sha256": stroke.font_sha256,
-                "source_path": stroke.source_path,
+                "source_path": _stable_source_path(stroke.source_path),
                 "source_page_index": stroke.source_page_index,
                 "semantic_role": stroke.semantic_role,
                 "layout_group": stroke.layout_group,
@@ -185,6 +185,16 @@ def _stroke_length(points: list[Point], closed: bool) -> float:
     if closed and len(points) > 1:
         pairs.append((points[-1], points[0]))
     return sum(math.hypot(end.x - start.x, end.y - start.y) for start, end in pairs)
+
+
+def _stable_source_path(source_path: str | None) -> str | None:
+    """Keep extracted-asset provenance without serializing a job-local directory."""
+    if source_path is None:
+        return None
+    path = Path(source_path)
+    if path.parent.name == "extracted-assets":
+        return f"asset://{path.name}"
+    return source_path
 
 
 def _number(values: Mapping[str, object], key: str) -> float:

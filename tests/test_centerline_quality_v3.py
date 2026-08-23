@@ -6,8 +6,11 @@ import pytest
 
 from plotter_processor.centerline_font.compiler import _config_for_glyph
 from plotter_processor.centerline_font.config import load_centerline_config
+from plotter_processor.centerline_font.models import CenterlineStroke, RasterGlyph
+from plotter_processor.centerline_font.quality import score_quality
 from plotter_processor.centerline_font.skeleton_selector import select_best_skeleton
 from plotter_processor.config import load_yaml
+from plotter_processor.models import Point
 
 
 def _config():
@@ -86,3 +89,26 @@ def test_extended_override_validation() -> None:
     assert effective.candidate_methods == ("medial_axis",)
     with pytest.raises(ValueError, match="threshold"):
         _config_for_glyph(replace(base, glyph_overrides={"ы": {"threshold": 999}}), "ы")
+
+
+def test_quality_uses_local_radius_for_a_tiny_variable_width_mark() -> None:
+    yy, xx = np.ogrid[:31, :31]
+    mask = (xx - 15) ** 2 + (yy - 15) ** 2 <= 9**2
+    skeleton = np.zeros_like(mask)
+    skeleton[15, 15] = True
+    raster = RasterGlyph(".", ord("."), "period", 31, 31, 0, 0, 1, 10, mask.astype(np.uint8))
+    strokes = [CenterlineStroke(0, (Point(6, 15), Point(24, 15)), False)]
+
+    quality, warnings = score_quality(
+        mask,
+        skeleton,
+        strokes,
+        raster,
+        min_coverage=0.70,
+        max_extra=0.25,
+        max_endpoint_factor=8.0,
+    )
+
+    assert quality["reconstruction_method"] == "local_radius"
+    assert quality["mask_coverage"] >= 0.90
+    assert not warnings

@@ -180,7 +180,7 @@ tables:
   min_text_scale: 0.75
 
 centerline:
-  algorithm_version: 6
+  algorithm_version: 7
   render:
     em_resolution_px: 2048
     padding_px: 128

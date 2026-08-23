@@ -11,6 +11,21 @@
 make benchmark FONT=assets/1.ttf PROFILE=safe
 ```
 
+Для замера полной конверсии с отдельными cold/warm режимами:
+
+```bash
+.venv/bin/python tools/benchmark_conversion.py plotter_pipeline_full_test.docx \
+  --font assets/1.ttf --cold-only
+
+.venv/bin/python tools/benchmark_conversion.py plotter_pipeline_full_test.docx \
+  --font assets/1.ttf --warm-only --warm-runs 3 --connections safe
+```
+
+`--cold-only` использует изолированный временный font cache.
+`--warm-only` использует канонический cache и не тратит cold compile
+перед замером. Во время каждого прогона печатаются stage progress и
+длительности.
+
 ## Результаты
 
 | Метрика | safe | balanced | fast |

@@ -90,6 +90,22 @@ def test_closed_stroke_stays_closed() -> None:
     assert len(result.strokes[0].points) >= 3
 
 
+def test_simplification_handles_long_adversarial_stroke_without_recursion() -> None:
+    points = [Point(float(index), float(index % 2)) for index in range(1500)]
+    source = PathDocument(1600, 10, [PlotterStroke(0, points, False)], [])
+
+    result, stats = simplify_path_document(
+        source,
+        duplicate_epsilon_mm=0,
+        min_segment_length_mm=0,
+        max_deviation_mm=0.1,
+    )
+
+    assert result.strokes[0].points[0] == points[0]
+    assert result.strokes[0].points[-1] == points[-1]
+    assert stats["max_observed_deviation_mm"] <= 0.1
+
+
 def test_gcode_analyzer_handles_modal_feedrate() -> None:
     result = analyze_gcode("G21\nG90\nG1 X60 F60\nG1 X120\nG4 P100\nM400\nM84\n")
     assert result["motion_command_count"] == 2

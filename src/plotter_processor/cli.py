@@ -391,7 +391,10 @@ def build_parser() -> argparse.ArgumentParser:
     compose_parser.add_argument("--strict-latex-quality", action="store_true")
     compose_parser.set_defaults(handler=_compose)
 
-    gcode_parser = commands.add_parser("gcode", help="Generate G-code from paths JSON v2.")
+    gcode_parser = commands.add_parser(
+        "gcode",
+        help="Generate motion-equivalent G-code from paths JSON v2.",
+    )
     gcode_parser.add_argument("input", type=Path)
     gcode_parser.add_argument("--machine-config", type=Path, default=Path("configs/machine.yaml"))
     gcode_parser.add_argument("--output", type=Path, default=Path("build/output.gcode"))

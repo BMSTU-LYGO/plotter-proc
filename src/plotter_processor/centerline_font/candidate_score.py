@@ -38,7 +38,7 @@ class CenterlineCandidateScore:
 
 
 def score_candidate(
-    metrics: dict[str, float | int], weights: CandidateScoringWeights
+    metrics: dict[str, float | int | str], weights: CandidateScoringWeights
 ) -> CenterlineCandidateScore:
     coverage = (1.0 - float(metrics["mask_coverage"])) * weights.coverage
     outside = float(metrics["reconstruction_extra"]) * weights.outside

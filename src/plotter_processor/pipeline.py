@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +43,7 @@ from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import simplify_path_document
 from plotter_processor.performance import StageTimings
 from plotter_processor.semantic_debug import export_semantic_debug
+from plotter_processor.semantic_metrics import semantic_report
 from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.validator import (
@@ -86,6 +88,7 @@ class PipelineOptions:
     strict_latex_quality: bool = False
     pdf_math: str = "auto"
     math_debug: bool = False
+    stage_progress: Callable[[str, str, float | None], None] | None = None
 
 
 @dataclass(slots=True)
@@ -96,7 +99,7 @@ class PipelineResult:
 
 
 def run_pipeline(options: PipelineOptions) -> PipelineResult:
-    timings = StageTimings()
+    timings = StageTimings(options.stage_progress)
     output_dir = options.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "report.json"
@@ -290,7 +293,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         ),
                     )
                 if options.font_mode == "centerline":
-                    centerline_info = _centerline_report(compiled, cache_path)
+                    centerline_info = _centerline_report(
+                        compiled, cache_path, [*body_glyphs, *number_glyphs]
+                    )
 
             unique_preview_glyphs = list({
                 (glyph.char, glyph.glyph_name): glyph
@@ -495,6 +500,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 page,
                 [stroke for page_job in page_jobs for stroke in page_job.path_document.strokes],
             )
+        semantic_metrics = _semantic_report(
+            [stroke for page_job in page_jobs for stroke in page_job.path_document.strokes]
+        )
         report = {
             "status": "ok",
             "pipeline": "ttf-centerline" if options.font_mode == "centerline" else "ttf-vector",
@@ -518,8 +526,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "tables": paginated.import_statistics.get("tables", 0),
                 "table_cells": paginated.import_statistics.get("table_cells", 0),
                 "table_pages": paginated.import_statistics.get("table_pages", 0),
-                "classification_conflicts": 0,
-                "duplicate_primitives_suppressed": 0,
+                **semantic_metrics,
+                "table_splits": paginated.import_statistics.get("table_splits", 0),
+                "repeated_headers_emitted": paginated.import_statistics.get(
+                    "repeated_headers_emitted", 0
+                ),
+                "shared_borders_suppressed": paginated.import_statistics.get(
+                    "shared_borders_suppressed", 0
+                ),
             },
             "latex": {
                 **paginated.latex_statistics,
@@ -679,10 +693,40 @@ def _paragraph_formatting_report(document: SourceDocument) -> dict[str, int]:
     }
 
 
-def _centerline_report(compiled: object, cache_path: Path | None) -> dict[str, object]:
+def _centerline_report(
+    compiled: object,
+    cache_path: Path | None,
+    positioned_glyphs: list[object] | None = None,
+) -> dict[str, object]:
     glyphs = compiled.glyphs
     graph_edges = sum(int(glyph.quality.get("graph_edges", 0)) for glyph in glyphs.values())
     routed_strokes = sum(len(glyph.strokes) for glyph in glyphs.values())
+    retraced_font_units = sum(
+        stroke.retraced_length_font_units
+        for glyph in glyphs.values()
+        for stroke in glyph.strokes
+    )
+    retraced_mm = sum(
+        sum(stroke.retraced_length_font_units for stroke in glyphs[item.char].strokes)
+        * item.scale_mm_per_font_unit
+        for item in (positioned_glyphs or [])
+        if item.char in glyphs
+    )
+    problematic = [
+        glyph
+        for glyph in glyphs.values()
+        if glyph.quality.get("needs_review")
+        or glyph.warnings
+        or float(glyph.quality.get("retrace_ratio", 0.0)) > 0
+    ]
+    problematic.sort(
+        key=lambda glyph: (
+            not bool(glyph.quality.get("needs_review")),
+            -float(glyph.quality.get("retrace_ratio", 0.0)),
+            float(glyph.quality.get("mask_coverage", 1.0)),
+            glyph.codepoint,
+        )
+    )
     return {
         "routing_strategy": "one_stroke_per_component",
         "compiled_glyphs": len(glyphs),
@@ -702,12 +746,36 @@ def _centerline_report(compiled: object, cache_path: Path | None) -> dict[str, o
         "pen_lifts_before_routing": graph_edges,
         "pen_lifts_after_routing": routed_strokes,
         "pen_lifts_saved": max(0, graph_edges - routed_strokes),
-        "retraced_length_mm": 0.0,
+        "retraced_length_font_units": round(retraced_font_units, 6),
+        "retraced_length_mm": round(retraced_mm, 6),
+        "retraced_length_measured": positioned_glyphs is not None,
         "fallback_glyphs": [
             char for char, glyph in glyphs.items() if glyph.quality.get("fallback_used")
         ],
-        "worst_glyphs": [],
+        "worst_glyphs": [
+            {
+                "glyph": glyph.char,
+                "codepoint": f"U+{glyph.codepoint:04X}",
+                "coverage": glyph.quality.get("mask_coverage"),
+                "inside_mask": glyph.quality.get("centerline_inside_mask_ratio"),
+                "components": glyph.quality.get("centerline_components"),
+                "routes_before": glyph.quality.get("strokes_before_routing"),
+                "routes_after": glyph.quality.get("strokes_after_routing"),
+                "retrace_ratio": glyph.quality.get("retrace_ratio"),
+                "method": glyph.quality.get("skeleton_method"),
+                "quality_status": glyph.quality.get(
+                    "quality_status",
+                    "needs_review" if glyph.quality.get("needs_review") else "auto_passed",
+                ),
+                "warning": glyph.warnings[0] if glyph.warnings else None,
+            }
+            for glyph in problematic[:10]
+        ],
     }
+
+
+def _semantic_report(strokes: list[object]) -> dict[str, object]:
+    return semantic_report(strokes)
 
 
 def _aggregate_statistics(page_reports: list[dict[str, object]]) -> dict[str, object]:

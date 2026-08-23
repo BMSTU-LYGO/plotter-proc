@@ -21,10 +21,11 @@ reconstruction extra, balance расстояния до границы, endpoint
 junctions, micro loops, short edges, components и odd vertices. Selector
 выбирает кандидата по взвешенной совокупности метрик.
 
-Порог coverage откалиброван на 0,70: прежние 0,82 ложно
-отправляли на review тонкие, но топологически целые глифы. Новый порог
-сохраняет review для малых знаков со слабой реконструкцией. Строгий
-режим останавливает генерацию на таком глифе и сохраняет debug.
+Порог coverage остаётся 0,70. Final quality evaluation реконструирует
+штрих по local radius map skeleton, а не одним global median radius. Это
+корректно оценивает штрихи переменной толщины и tiny punctuation,
+не ослабляя quality gate. Candidate selection сохраняет свою отдельную
+median-radius scoring metric, что явно отмечено в debug JSON.
 
 ## Per-glyph overrides
 
@@ -45,13 +46,15 @@ Override влияет только на указанный Unicode-символ 
 | Метрика | Значение |
 |---|---:|
 | Уникальных глифов | 87 |
-| Auto passed | 83 (95,40%) |
-| Needs review | 4 (`.`, `:`, `;`, `?`) |
+| Auto passed | 87 (100%) |
+| Needs review | 0 |
 | Failed / lost components | 0 |
 | Минимальный inside-mask ratio | 1,0 |
-| `medial_axis` / `skeletonize` | 24 / 63 |
-| Удалено spur-пикселей | 8113 |
+| Минимальный local-radius coverage | 0,918286 |
+| `medial_axis` / `skeletonize` | 72 / 15 |
+| Удалено spur-пикселей | 487 |
 
-Целевой gate 95% выполнен. Все centerline-пиксели остались внутри
-маски; потерянных связных компонентов нет. Четыре малых знака оставлены
-для ручного осмотра, а не искусственно подняты агрессивным repair.
+Целевой gate выполнен для всех 87 regression glyphs. Все centerline-пиксели
+остались внутри маски; потерянных связных компонентов нет. Canonical
+corpus из 169 glyphs также имеет 169 auto-pass, 0 needs-review и 0 lost
+components.

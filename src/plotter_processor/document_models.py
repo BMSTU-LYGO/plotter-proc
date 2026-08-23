@@ -25,6 +25,12 @@ class SourceTextRun:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceTabStop:
+    position_mm: float
+    alignment: str = "left"
+
+
+@dataclass(frozen=True, slots=True)
 class SourceParagraph:
     runs: tuple[SourceTextRun, ...]
     alignment: str | None = None
@@ -40,6 +46,7 @@ class SourceParagraph:
     style_name: str | None = None
     semantic_role: str | None = None
     bbox: SourceBBox | None = None
+    tab_stops: tuple[SourceTabStop, ...] = ()
 
     @property
     def text(self) -> str:
