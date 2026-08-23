@@ -64,6 +64,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         page_numbers=args.page_numbers,
         page_pause_seconds=args.page_pause_seconds,
         park_corner=args.park_corner,
+        workers=args.workers,
     )
 
 
@@ -310,7 +311,26 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--strict-latex-quality", action="store_true")
     parser.add_argument("--pdf-math", choices=("auto", "visual", "off"), default="auto")
     parser.add_argument("--math-debug", action="store_true")
+    parser.add_argument(
+        "--workers",
+        default="auto",
+        type=_workers_value,
+        metavar="auto|N",
+        help="Page worker processes (default: auto, capped at 4).",
+    )
     parser.set_defaults(paginate=None, page_numbers=None)
+
+
+def _workers_value(value: str) -> str | int:
+    if value == "auto":
+        return value
+    try:
+        count = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be auto or a positive integer") from error
+    if count < 1:
+        raise argparse.ArgumentTypeError("must be auto or a positive integer")
+    return count
 
 
 def build_parser() -> argparse.ArgumentParser:

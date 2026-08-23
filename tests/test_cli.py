@@ -25,6 +25,15 @@ def test_parser_exposes_expected_commands() -> None:
 def test_run_parser_defaults_to_outline_mode() -> None:
     args = build_parser().parse_args(["run", "input.txt", "--font", "font.ttf"])
     assert args.font_mode == "outline"
+    assert args.workers == "auto"
+
+
+def test_run_parser_accepts_explicit_page_worker_count() -> None:
+    args = build_parser().parse_args(
+        ["run", "input.txt", "--font", "font.ttf", "--workers", "3"]
+    )
+
+    assert args.workers == 3
 
 
 def test_extract_reports_missing_input(capsys) -> None:

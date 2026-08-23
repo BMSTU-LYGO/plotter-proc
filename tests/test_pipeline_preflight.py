@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 from plotter_processor import pipeline
-from plotter_processor.pipeline import PipelineOptions, run_pipeline
+from plotter_processor.pipeline import PipelineOptions, resolve_worker_count, run_pipeline
 
 
 def _options(
@@ -68,3 +68,11 @@ def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) ->
 
     assert result.status == "ok"
     assert (tmp_path / "compatible" / "output.gcode").exists()
+
+
+def test_worker_count_is_bounded_by_memory_policy_and_page_count(monkeypatch) -> None:
+    monkeypatch.setattr(pipeline.os, "cpu_count", lambda: 12)
+
+    assert resolve_worker_count("auto", 20) == 4
+    assert resolve_worker_count(8, 3) == 3
+    assert resolve_worker_count(1, 20) == 1

@@ -7,6 +7,8 @@ import numpy as np
 from scipy import ndimage
 from skimage.morphology import medial_axis, skeletonize
 
+from plotter_processor.performance import GLYPH_TIMING_STAGES, measure_glyph_stage
+
 
 @dataclass(frozen=True, slots=True)
 class SkeletonResult:
@@ -15,20 +17,33 @@ class SkeletonResult:
     component_labels: np.ndarray
 
 
-def build_skeleton(mask: np.ndarray, *, method: str = "medial_axis") -> SkeletonResult:
+def build_skeleton(
+    mask: np.ndarray,
+    *,
+    method: str = "medial_axis",
+    candidate_index: int = 1,
+) -> SkeletonResult:
     source = np.asarray(mask, dtype=bool)
-    labels, count = ndimage.label(source, structure=np.ones((3, 3), dtype=np.uint8))
+    with measure_glyph_stage("label_components"):
+        labels, count = ndimage.label(
+            source, structure=np.ones((3, 3), dtype=np.uint8)
+        )
     result = np.zeros_like(source)
-    distance = ndimage.distance_transform_edt(source)
-    for label in range(1, count + 1):
-        component = labels == label
-        if method == "medial_axis":
-            part = medial_axis(component, rng=0)
-        elif method == "skeletonize":
-            part = skeletonize(component)
-        else:
-            raise ValueError(f"Unknown skeleton method: {method}")
-        result |= part
+    with measure_glyph_stage("distance_transform"):
+        distance = ndimage.distance_transform_edt(source)
+    candidate_stage = f"candidate_{candidate_index}"
+    if candidate_stage not in GLYPH_TIMING_STAGES:
+        candidate_stage = "candidate_2"
+    with measure_glyph_stage(candidate_stage):
+        for label in range(1, count + 1):
+            component = labels == label
+            if method == "medial_axis":
+                part = medial_axis(component, rng=0)
+            elif method == "skeletonize":
+                part = skeletonize(component)
+            else:
+                raise ValueError(f"Unknown skeleton method: {method}")
+            result |= part
     return SkeletonResult(result, distance, labels)
 
 

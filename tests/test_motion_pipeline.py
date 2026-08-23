@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from plotter_processor import path_simplifier
 from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import (
     generate_gcode,
@@ -11,7 +12,11 @@ from plotter_processor.gcode_exporter import (
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.motion_statistics import calculate_motion_statistics
-from plotter_processor.path_simplifier import simplify_path_document
+from plotter_processor.path_simplifier import (
+    SimplificationTemplateCache,
+    path_complexity,
+    simplify_path_document,
+)
 
 
 def _machine() -> dict[str, object]:
@@ -104,6 +109,95 @@ def test_simplification_handles_long_adversarial_stroke_without_recursion() -> N
     assert result.strokes[0].points[0] == points[0]
     assert result.strokes[0].points[-1] == points[-1]
     assert stats["max_observed_deviation_mm"] <= 0.1
+
+
+def test_vectorized_rdp_matches_scalar_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    points = [Point(index / 10, math.sin(index / 11) * 0.2) for index in range(500)]
+    source = PathDocument(100, 100, [PlotterStroke(0, points, False)], [])
+    monkeypatch.setattr(path_simplifier, "_VECTOR_INTERVAL_THRESHOLD", 10_000)
+    scalar, scalar_stats = simplify_path_document(
+        source,
+        duplicate_epsilon_mm=0,
+        min_segment_length_mm=0,
+        max_deviation_mm=0.06,
+    )
+    monkeypatch.setattr(path_simplifier, "_VECTOR_INTERVAL_THRESHOLD", 1)
+    vectorized, vectorized_stats = simplify_path_document(
+        source,
+        duplicate_epsilon_mm=0,
+        min_segment_length_mm=0,
+        max_deviation_mm=0.06,
+    )
+
+    assert vectorized.strokes[0].points == scalar.strokes[0].points
+    assert vectorized_stats["max_observed_deviation_mm"] == scalar_stats[
+        "max_observed_deviation_mm"
+    ]
+
+
+def test_template_cache_reuses_translated_glyph_and_reports_complexity() -> None:
+    points = [Point(index / 10, math.sin(index / 8) * 0.1) for index in range(200)]
+    translated = [Point(point.x + 20, point.y + 30) for point in points]
+    strokes = [
+        PlotterStroke(
+            index,
+            stroke_points,
+            False,
+            glyph_index=index,
+            char="a",
+            contour_index=0,
+            source_glyph_indices=(index,),
+            source_chars="a",
+            segment_types=("glyph",),
+        )
+        for index, stroke_points in enumerate((points, translated))
+    ]
+    source = PathDocument(100, 100, strokes, [])
+    cache = SimplificationTemplateCache()
+    result, stats = simplify_path_document(
+        source,
+        duplicate_epsilon_mm=0,
+        min_segment_length_mm=0,
+        max_deviation_mm=0.06,
+        template_cache=cache,
+        template_identities={0: ("font", "a", 0.01), 1: ("font", "a", 0.01)},
+    )
+
+    assert stats["unique_templates_simplified"] == 1
+    assert stats["glyph_occurrences_reused"] == 1
+    assert len(result.strokes[0].points) == len(result.strokes[1].points)
+    assert stats["complexity_after_route"] == path_complexity(source)
+    assert stats["complexity_after_simplification"] == path_complexity(result)
+
+
+def test_template_cache_does_not_reuse_incompatible_point_sequences() -> None:
+    first = [Point(float(index), math.sin(index)) for index in range(100)]
+    second = [*first[:-1], Point(98.5, 0.25), first[-1]]
+    strokes = [
+        PlotterStroke(
+            index,
+            points,
+            False,
+            glyph_index=index,
+            char="a",
+            contour_index=0,
+            source_glyph_indices=(index,),
+            source_chars="a",
+            segment_types=("glyph",),
+        )
+        for index, points in enumerate((first, second))
+    ]
+    _, stats = simplify_path_document(
+        PathDocument(100, 100, strokes, []),
+        duplicate_epsilon_mm=0,
+        min_segment_length_mm=0,
+        max_deviation_mm=0.06,
+        template_cache=SimplificationTemplateCache(),
+        template_identities={0: ("font", "a", 0.01), 1: ("font", "a", 0.01)},
+    )
+
+    assert stats["unique_templates_simplified"] == 2
+    assert stats["glyph_occurrences_reused"] == 0
 
 
 def test_gcode_analyzer_handles_modal_feedrate() -> None:

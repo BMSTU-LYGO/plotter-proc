@@ -12,6 +12,7 @@ from plotter_processor.centerline_font.models import (
     CompiledCenterlineFont,
 )
 from plotter_processor.models import Point
+from plotter_processor.performance import glyph_performance, measure_glyph_stage
 
 FORMAT = "plotter-centerline-font"
 VERSION = 2
@@ -31,27 +32,32 @@ def to_data(font: CompiledCenterlineFont, *, config: dict[str, object]) -> dict[
             "line_gap": font.line_gap,
         },
         "glyphs": {
-            char: {
-                "codepoint": glyph.codepoint,
-                "glyph_name": glyph.glyph_name,
-                "advance_font_units": glyph.advance_font_units,
-                "strokes": [
-                    {
-                        "id": stroke.id,
-                        "component_id": stroke.component_id,
-                        "closed": stroke.closed,
-                        "retraced_length_font_units": stroke.retraced_length_font_units,
-                        "points": [[point.x, point.y] for point in stroke.points],
-                    }
-                    for stroke in glyph.strokes
-                ],
-                "warnings": list(glyph.warnings),
-                "quality": glyph.quality,
-            }
+            char: _glyph_to_data(char, glyph)
             for char, glyph in sorted(font.glyphs.items(), key=lambda item: ord(item[0]))
         },
         "warnings": font.warnings,
     }
+
+
+def _glyph_to_data(char: str, glyph: CenterlineGlyph) -> dict[str, object]:
+    with glyph_performance(char), measure_glyph_stage("serialization"):
+        return {
+            "codepoint": glyph.codepoint,
+            "glyph_name": glyph.glyph_name,
+            "advance_font_units": glyph.advance_font_units,
+            "strokes": [
+                {
+                    "id": stroke.id,
+                    "component_id": stroke.component_id,
+                    "closed": stroke.closed,
+                    "retraced_length_font_units": stroke.retraced_length_font_units,
+                    "points": [[point.x, point.y] for point in stroke.points],
+                }
+                for stroke in glyph.strokes
+            ],
+            "warnings": list(glyph.warnings),
+            "quality": glyph.quality,
+        }
 
 
 def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterlineFont:

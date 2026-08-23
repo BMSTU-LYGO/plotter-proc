@@ -26,6 +26,7 @@ from plotter_processor.centerline_font.serializer import (
 )
 from plotter_processor.centerline_font.skeleton_selector import select_best_skeleton
 from plotter_processor.font_loader import load_font
+from plotter_processor.performance import glyph_performance, measure_glyph_stage
 
 
 def compile_centerline_font(
@@ -68,7 +69,8 @@ def compile_centerline_font(
         compiled.cache_misses = len(missing)
         for char in missing:
             try:
-                glyph = _compile_glyph(source, char, font, config, debug_dir, digest)
+                with glyph_performance(char):
+                    glyph = _compile_glyph(source, char, font, config, debug_dir, digest)
             except Exception as error:
                 raise ValueError(
                     f'Centerline compilation failed for "{char}" (U+{ord(char):04X}): {error}'
@@ -114,33 +116,38 @@ def _compile_glyph(
     font_digest: str,
 ) -> CenterlineGlyph:
     config = _config_for_glyph(config, char, font_digest)
-    raster = render_glyph(
-        source,
-        char,
-        units_per_em=font.metrics.units_per_em,
-        em_resolution_px=config.em_resolution_px,
-        padding_px=config.padding_px,
-        loaded_font=font,
-    )
-    mask = build_ink_mask(
-        raster, threshold=config.threshold, closing_radius_px=config.closing_radius_px
-    )
+    with measure_glyph_stage("render"):
+        raster = render_glyph(
+            source,
+            char,
+            units_per_em=font.metrics.units_per_em,
+            em_resolution_px=config.em_resolution_px,
+            padding_px=config.padding_px,
+            loaded_font=font,
+        )
+    with measure_glyph_stage("mask"):
+        mask = build_ink_mask(
+            raster, threshold=config.threshold, closing_radius_px=config.closing_radius_px
+        )
     selected = select_best_skeleton(mask, config)
     nodes, edges = list(selected.nodes), list(selected.edges)
-    edge_geometry, warnings = build_smoothed_edge_geometry(nodes, edges, raster, config)
-    routes = plan_glyph_routes(nodes, edges, config)
-    strokes = [assemble_component_route(route, edge_geometry) for route in routes]
-    validate_strokes(strokes)
-    quality, quality_warnings = score_quality(
-        mask,
-        selected.skeleton,
-        strokes,
-        raster,
-        min_coverage=config.min_mask_coverage,
-        max_extra=config.max_reconstruction_extra,
-        max_endpoint_factor=config.max_endpoint_factor,
-    )
-    quality.update(routing_metrics(edges, routes))
+    with measure_glyph_stage("smoothing"):
+        edge_geometry, warnings = build_smoothed_edge_geometry(nodes, edges, raster, config)
+    with measure_glyph_stage("routing"):
+        routes = plan_glyph_routes(nodes, edges, config)
+        strokes = [assemble_component_route(route, edge_geometry) for route in routes]
+        validate_strokes(strokes)
+    with measure_glyph_stage("quality"):
+        quality, quality_warnings = score_quality(
+            mask,
+            selected.skeleton,
+            strokes,
+            raster,
+            min_coverage=config.min_mask_coverage,
+            max_extra=config.max_reconstruction_extra,
+            max_endpoint_factor=config.max_endpoint_factor,
+        )
+        quality.update(routing_metrics(edges, routes))
     selected_metrics = selected.candidate_metrics[selected.method]
     quality.update(
         {

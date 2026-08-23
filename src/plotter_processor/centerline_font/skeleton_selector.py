@@ -17,6 +17,7 @@ from plotter_processor.centerline_font.route_planner import plan_glyph_routes
 from plotter_processor.centerline_font.route_quality import routing_metrics
 from plotter_processor.centerline_font.skeleton_graph import build_skeleton_graph
 from plotter_processor.centerline_font.skeletonizer import build_skeleton, prune_short_spurs
+from plotter_processor.performance import measure_glyph_stage
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,33 +41,41 @@ def select_best_skeleton(mask: np.ndarray, config: CenterlineConfig) -> Selected
     )
     candidates = []
     failures: list[str] = []
-    for method in methods:
+    for candidate_index, method in enumerate(methods, start=1):
         try:
-            result = build_skeleton(mask, method=method)
-            pruned = (
-                prune_short_spurs(
-                    result.mask,
-                    result.distance,
-                    min_branch_width_factor=config.min_branch_width_factor,
-                    ink_mask=mask,
-                    max_coverage_loss=config.spur_max_coverage_loss,
-                    preserve_connector_terminals=config.preserve_connector_terminals,
+            result = build_skeleton(
+                mask, method=method, candidate_index=candidate_index
+            )
+            with measure_glyph_stage("spur_pruning"):
+                pruned = (
+                    prune_short_spurs(
+                        result.mask,
+                        result.distance,
+                        min_branch_width_factor=config.min_branch_width_factor,
+                        ink_mask=mask,
+                        max_coverage_loss=config.spur_max_coverage_loss,
+                        preserve_connector_terminals=config.preserve_connector_terminals,
+                    )
+                    if config.spur_pruning_enabled
+                    else result.mask.copy()
                 )
-                if config.spur_pruning_enabled
-                else result.mask.copy()
-            )
-            nodes, edges = build_skeleton_graph(
-                pruned,
-                suppress_corner_diagonals=config.suppress_corner_diagonals,
-            )
-            nodes, edges, report = simplify_skeleton_graph(
-                nodes, edges, distance=result.distance, config=config
-            )
+            with measure_glyph_stage("graph_build"):
+                nodes, edges = build_skeleton_graph(
+                    pruned,
+                    suppress_corner_diagonals=config.suppress_corner_diagonals,
+                )
+            with measure_glyph_stage("graph_simplify"):
+                nodes, edges, report = simplify_skeleton_graph(
+                    nodes, edges, distance=result.distance, config=config
+                )
             report = replace(report, spurs_removed=int(result.mask.sum() - pruned.sum()))
             metrics = _candidate_metrics(mask, pruned, result.distance, nodes, edges)
-            metrics["estimated_retrace_ratio"] = float(
-                routing_metrics(edges, plan_glyph_routes(nodes, edges, config))["retrace_ratio"]
-            )
+            with measure_glyph_stage("routing"):
+                metrics["estimated_retrace_ratio"] = float(
+                    routing_metrics(edges, plan_glyph_routes(nodes, edges, config))[
+                        "retrace_ratio"
+                    ]
+                )
             score_details = score_candidate(metrics, config.candidate_scoring)
             score = score_details.total
             candidates.append(
