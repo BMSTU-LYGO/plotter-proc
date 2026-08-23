@@ -13,6 +13,7 @@ from plotter_processor.centerline_font.models import (
     SkeletonEdge,
     SkeletonNode,
 )
+from plotter_processor.centerline_font.skeletonizer import reconstruct_with_local_radius
 
 
 def export_glyph_debug(
@@ -46,9 +47,7 @@ def export_glyph_debug(
     stroke_svg = _stroke_svg(raster, strokes)
     (target / "07_routes.svg").write_text(stroke_svg, encoding="utf-8")
     (target / "08_smoothed_strokes.svg").write_text(stroke_svg, encoding="utf-8")
-    radii = distance[pruned]
-    radius = max(1, round(float(np.median(radii)))) if radii.size else 1
-    reconstructed = ndimage.binary_dilation(pruned, iterations=radius)
+    reconstructed = reconstruct_with_local_radius(pruned, distance)
     _save_binary(reconstructed, target / "09_reconstructed_mask.png")
     difference = np.zeros((*mask.shape, 3), dtype=np.uint8)
     difference[:] = (255, 255, 255)

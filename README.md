@@ -38,7 +38,13 @@ python3 -m venv .venv
   --output-dir build
 ```
 
-Поддерживаются страницы `A4`/`A5` и размеры `small`/`normal`/`large`. Флаг `--no-optimize-travel` отключает перестановку контуров внутри глифа.
+Доступны форматы страницы `A4`/`A5` и размеры `small`/`normal`/`large`.
+Формат вывода всегда проверяется вместе с `--machine-config`: штатный
+Ender 3 profile `configs/machine.yaml` с workspace 220×220 mm и origin 10×10 mm
+физически вмещает portrait A5, но не portrait A4. Для A4 нужен
+реально совместимый machine profile; pipeline откажется от такой
+комбинации до чтения документа и компиляции шрифта. Флаг
+`--no-optimize-travel` отключает перестановку контуров внутри глифа.
 
 ## Формулы LaTeX (MVP)
 
@@ -226,7 +232,10 @@ Quality v3 сравнивает `skeletonize` и `medial_axis` по геомет
 буквами одного слова. `safe` использует entry/exit anchors, проверяет distance,
 vertical offset, tangent, backtracking, corridor и collisions; сомнительная
 пара остаётся с подъёмом пера. `aggressive` расширяет геометрические допуски,
-но не отключает collision validation. Точки `ё`, дуга `й` и другая диакритика
+но не отключает punctuation, backtracking и collision validation. Режимы
+различаются только на парах, пересекающих расширенные distance/angle/vertical
+пороги; на конкретном тексте их output может совпадать. Точки `ё`, дуга `й` и
+другая диакритика
 остаются отдельными strokes. `--join-writing` сохранён как compatibility-флаг
 для safe-поведения.
 
@@ -262,6 +271,18 @@ Centerline cache version 2 строит topology-aware граф с crossing numb
 .venv/bin/python -m plotter_processor font-info assets/handwriting.ttf
 .venv/bin/python -m plotter_processor gcode build/paths.json --output build/output.gcode
 ```
+
+Команда `gcode` гарантирует functional equivalence с page-level G-code полного
+`run`: последовательность всех non-comment motion-команд одинакова для одного
+`paths.json` и machine config. Byte identity не является контрактом, потому что
+полный pipeline добавляет job-local комментарии о странице, motion profile и
+расчётном времени, которых нет в `paths.json`. Поэтому регенерированный файл
+следует сравнивать после исключения строк-комментариев (`; ...`).
+
+`extract` выдаёт стабильную текстовую проекцию в source reading order:
+абзацы, logical cells таблиц по строкам/столбцам и LaTeX-like representation
+доступных OMML expressions. Merged cells не дублируются, а repeated
+header выводится один раз как source content.
 
 ## Результаты
 

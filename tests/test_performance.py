@@ -20,6 +20,18 @@ def test_stage_timings_reports_calls_total_and_max() -> None:
     assert report["total_ms"] >= report["layout_ms"]
 
 
+def test_stage_timings_emits_optional_progress_events() -> None:
+    events: list[tuple[str, str, float | None]] = []
+    timings = StageTimings(lambda stage, state, elapsed: events.append((stage, state, elapsed)))
+
+    with timings.measure("handwriting"):
+        sum(range(10))
+
+    assert events[0] == ("handwriting", "started", None)
+    assert events[1][0:2] == ("handwriting", "completed")
+    assert events[1][2] is not None and events[1][2] >= 0
+
+
 def test_latex_renderer_reuses_identical_local_geometry() -> None:
     renderer = MathTextRenderer(stroke_mode="outline")
     expression = r"x_{cache_test}^{17}"

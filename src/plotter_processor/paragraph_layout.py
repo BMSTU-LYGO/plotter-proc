@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from plotter_processor.document_models import SourceParagraph
+from plotter_processor.document_models import SourceParagraph, SourceTabStop
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.models import PositionedGlyph
 from plotter_processor.text_shaper import shape_text_run
@@ -52,7 +52,10 @@ def layout_paragraph(
     script: str = "Cyrl",
     direction: str = "ltr",
     features: tuple[str, ...] = (),
+    tab_scale: float = 1.0,
 ) -> ParagraphLayout:
+    if tab_scale <= 0:
+        raise ValueError("tab_scale must be positive")
     role = paragraph.semantic_role or "body"
     font_scale = _font_scale(paragraph, paragraph_options, role)
     em_size = float(base_size_options["em_size_mm"]) * font_scale
@@ -76,8 +79,13 @@ def layout_paragraph(
     interval = float(paragraph_options.get("default_tab_interval_mm", 12.5))
     if interval <= 0:
         raise ValueError("paragraphs.default_tab_interval_mm must be positive")
+    source_stops = paragraph.tab_stops or tuple(
+        SourceTabStop(position) for position in paragraph.tab_stops_mm
+    )
     custom_stops = tuple(
-        paragraph_left + stop for stop in paragraph.tab_stops_mm if stop > 0
+        SourceTabStop(paragraph_left + stop.position_mm * tab_scale, stop.alignment)
+        for stop in source_stops
+        if stop.position_mm > 0
     )
     lines: list[_MutableLine] = []
 
@@ -90,16 +98,29 @@ def layout_paragraph(
     line = new_line()
     pending_space = 0.0
     space_width = _advance(" ", font, scale)
-    for kind, value in _tokens(paragraph.text):
+    tokens = _tokens(paragraph.text)
+    for token_index, (kind, value) in enumerate(tokens):
         if kind == "space":
             pending_space += len(value) * space_width
             continue
         if kind == "tab":
+            following = next(
+                (token for token_kind, token in tokens[token_index + 1 :] if token_kind == "word"),
+                "",
+            )
             line.cursor = _next_tab_stop(
                 line.cursor,
                 paragraph_left,
                 custom_stops,
                 interval,
+                following,
+                font,
+                scale,
+                engine,
+                language,
+                script,
+                direction,
+                features,
             )
             line.has_tab = True
             pending_space = 0.0
@@ -192,7 +213,7 @@ def layout_paragraph(
         font_scale,
         min(maximum_before, max(0.0, paragraph.space_before_mm or 0.0)),
         min(maximum_after, max(0.0, paragraph.space_after_mm or 0.0)),
-        custom_stops,
+        tuple(stop.position_mm for stop in custom_stops),
     )
 
 
@@ -247,12 +268,38 @@ def _tokens(text: str) -> list[tuple[str, str]]:
 def _next_tab_stop(
     current: float,
     paragraph_left: float,
-    custom_stops: tuple[float, ...],
+    custom_stops: tuple[SourceTabStop, ...],
     interval: float,
+    following: str,
+    font: LoadedFont,
+    scale: float,
+    engine: str,
+    language: str,
+    script: str,
+    direction: str,
+    features: tuple[str, ...],
 ) -> float:
     for stop in custom_stops:
-        if stop > current + 1e-9:
-            return stop
+        if stop.position_mm <= current + 1e-9:
+            continue
+        width = _advance(
+            following, font, scale, engine, language, script, direction, features
+        )
+        if stop.alignment == "left":
+            return stop.position_mm
+        if stop.alignment == "center":
+            return stop.position_mm - width / 2
+        if stop.alignment == "right":
+            return stop.position_mm - width
+        if stop.alignment == "decimal":
+            separators = [
+                index for index, char in enumerate(following) if char in {".", ","}
+            ]
+            prefix = following[: separators[0]] if separators else following
+            return stop.position_mm - _advance(
+                prefix, font, scale, engine, language, script, direction, features
+            )
+        raise ValueError(f"Unknown tab alignment: {stop.alignment}")
     steps = int(max(0.0, current - paragraph_left) // interval) + 1
     return paragraph_left + steps * interval
 

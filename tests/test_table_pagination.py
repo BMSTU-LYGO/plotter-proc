@@ -45,3 +45,6 @@ def test_headers_repeat_rows_stay_whole_and_row_span_is_protected(test_font: Pat
         == pytest.approx(sum(fragment["row_heights_mm"]), abs=1e-6)
         for fragment in fragments
     )
+    assert result.import_statistics["table_splits"] == len(fragments) - 1
+    assert result.import_statistics["repeated_headers_emitted"] == len(fragments) - 1
+    assert result.import_statistics["shared_borders_suppressed"] > 0

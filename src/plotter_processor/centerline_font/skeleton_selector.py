@@ -29,7 +29,7 @@ class SelectedSkeleton:
     edges: tuple[SkeletonEdge, ...]
     simplification: GraphSimplificationReport
     candidate_scores: dict[str, float]
-    candidate_metrics: dict[str, dict[str, float | int]]
+    candidate_metrics: dict[str, dict[str, float | int | str]]
     candidate_score_components: dict[str, dict[str, float]]
     candidate_skeletons: dict[str, np.ndarray]
 
@@ -121,7 +121,7 @@ def _candidate_metrics(
     distance: np.ndarray,
     nodes: list[SkeletonNode],
     edges: list[SkeletonEdge],
-) -> dict[str, float | int]:
+) -> dict[str, float | int | str]:
     radii = distance[skeleton]
     radius = max(1, round(float(np.median(radii)))) if radii.size else 1
     reconstructed = ndimage.binary_dilation(skeleton, iterations=radius)
@@ -141,6 +141,7 @@ def _candidate_metrics(
     endpoint_penalty /= max(1, len(endpoint_nodes) * max(mask.shape))
     counters = analyze_counters(mask, reconstructed)
     return {
+        "reconstruction_method": "median_radius_candidate_score",
         "mask_coverage": round(coverage, 6),
         "reconstruction_extra": round(extra, 6),
         "distance_balance_cv": round(radius_cv, 6),

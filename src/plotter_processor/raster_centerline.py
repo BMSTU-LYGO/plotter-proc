@@ -7,6 +7,7 @@ from itertools import pairwise
 import numpy as np
 from scipy import ndimage
 
+from plotter_processor.centerline_font.edge_geometry import normalize_shared_node_endpoints
 from plotter_processor.centerline_font.models import SmoothedEdge
 from plotter_processor.centerline_font.route_assembler import assemble_component_route
 from plotter_processor.centerline_font.route_planner import plan_glyph_routes
@@ -110,6 +111,13 @@ def raster_to_centerline(
         )
         for edge in edges
     }
+    edge_geometry = normalize_shared_node_endpoints(
+        edge_geometry,
+        {
+            node.id: Point(node.x * scale_x, node.y * scale_y)
+            for node in nodes
+        },
+    )
     strokes: list[PlotterStroke] = []
     retraced = 0.0
     for route in routes:

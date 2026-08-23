@@ -1,13 +1,17 @@
 from dataclasses import replace
 
 from plotter_processor.centerline_font.config import load_centerline_config
+from plotter_processor.centerline_font.edge_geometry import normalize_shared_node_endpoints
 from plotter_processor.centerline_font.models import (
+    ComponentRoute,
+    RouteEdgeStep,
     SkeletonEdge,
     SkeletonNode,
     SmoothedEdge,
 )
 from plotter_processor.centerline_font.route_assembler import assemble_component_route
 from plotter_processor.centerline_font.route_planner import plan_glyph_routes
+from plotter_processor.centerline_font.route_quality import routing_metrics
 from plotter_processor.config import load_yaml
 from plotter_processor.models import Point
 
@@ -42,6 +46,9 @@ def test_t_graph_is_one_route_with_minimum_retrace() -> None:
     assert len(routes) == 1
     assert routes[0].retraced_length_px == 1.0
     assert {step.edge_id for step in routes[0].steps} == {0, 1, 2}
+    metrics = routing_metrics(edges, routes)
+    assert metrics["minimum_one_route_retrace_length"] == 1.0
+    assert metrics["excess_retrace_length"] == 0.0
 
 
 def test_two_components_remain_two_routes() -> None:
@@ -81,3 +88,76 @@ def test_route_assembler_reuses_exact_edge_geometry_without_connector() -> None:
     stroke = assemble_component_route(route, geometry)
     assert len(stroke.points) == len(route.steps) + 1
     assert stroke.retraced_length_font_units == 1.0
+
+
+def test_shared_graph_node_normalizes_quantized_edge_endpoints() -> None:
+    route = ComponentRoute(
+        0,
+        (
+            RouteEdgeStep(0, False, False, 0),
+            RouteEdgeStep(1, False, False, 0),
+        ),
+        0,
+        2,
+        False,
+        2.0,
+        0.0,
+        0.0,
+    )
+    geometry = {
+        0: SmoothedEdge(0, 0, 1, 0, (Point(0, 0), Point(1, 1.75)), 1.0, False),
+        1: SmoothedEdge(
+            1,
+            1,
+            2,
+            0,
+            (Point(1, 1.7916666666666665), Point(2, 0)),
+            1.0,
+            False,
+        ),
+    }
+
+    normalized = normalize_shared_node_endpoints(
+        geometry,
+        {0: Point(0, 0), 1: Point(1, 1.7708333333333333), 2: Point(2, 0)},
+    )
+    stroke = assemble_component_route(route, normalized)
+
+    assert normalized[0].points[-1] == normalized[1].points[0]
+    assert len(stroke.points) == 3
+
+
+def test_distinct_graph_nodes_do_not_bridge_a_real_gap() -> None:
+    route = ComponentRoute(
+        0,
+        (
+            RouteEdgeStep(0, False, False, 0),
+            RouteEdgeStep(1, False, False, 0),
+        ),
+        0,
+        3,
+        False,
+        2.0,
+        0.0,
+        0.0,
+    )
+    geometry = {
+        0: SmoothedEdge(0, 0, 1, 0, (Point(0, 0), Point(1, 1.75)), 1.0, False),
+        1: SmoothedEdge(1, 2, 3, 0, (Point(1, 1.76), Point(2, 0)), 1.0, False),
+    }
+    normalized = normalize_shared_node_endpoints(
+        geometry,
+        {
+            0: Point(0, 0),
+            1: Point(1, 1.75),
+            2: Point(1, 1.76),
+            3: Point(2, 0),
+        },
+    )
+
+    try:
+        assemble_component_route(route, normalized)
+    except ValueError as error:
+        assert "Non-adjacent route jump" in str(error)
+    else:
+        raise AssertionError("Distinct graph nodes must not be bridged")

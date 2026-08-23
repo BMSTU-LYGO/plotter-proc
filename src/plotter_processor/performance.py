@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -30,12 +30,18 @@ class StageTimings:
         "report",
     )
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        progress: Callable[[str, str, float | None], None] | None = None,
+    ) -> None:
         self.started_at = time.perf_counter()
         self.metrics: dict[str, StageMetric] = {}
+        self.progress = progress
 
     @contextmanager
     def measure(self, stage: str) -> Iterator[None]:
+        if self.progress is not None:
+            self.progress(stage, "started", None)
         started = time.perf_counter()
         try:
             yield
@@ -45,6 +51,8 @@ class StageTimings:
             metric.calls += 1
             metric.total_ms += elapsed
             metric.max_ms = max(metric.max_ms, elapsed)
+            if self.progress is not None:
+                self.progress(stage, "completed", elapsed)
 
     def report(self) -> dict[str, object]:
         elapsed = (time.perf_counter() - self.started_at) * 1000.0

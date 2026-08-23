@@ -19,6 +19,7 @@ from plotter_processor.document_models import (
     SourceRasterImageElement,
     SourceTableCell,
     SourceTableElement,
+    SourceTabStop,
     SourceTextElement,
     SourceTextRun,
     SourceTextStyle,
@@ -39,7 +40,7 @@ class _ParagraphFormat:
     space_before_mm: float | None = None
     space_after_mm: float | None = None
     line_spacing: float | None = None
-    tab_stops_mm: tuple[float, ...] | None = None
+    tab_stops: tuple[SourceTabStop, ...] | None = None
 
 
 _ALIGNMENTS = {
@@ -207,33 +208,39 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
         lines = pict.xpath(".//*[local-name()='line']")
         if not lines:
             return False
-        line = lines[0]
-        start = _vml_point(line.get("from", "0,0"))
-        end = _vml_point(line.get("to", "0,0"))
-        strokes = line.xpath("./*[local-name()='stroke']")
-        start_head = bool(strokes and strokes[0].get("startarrow", "none") != "none")
-        end_head = bool(strokes and strokes[0].get("endarrow", "none") != "none")
-        style = (
-            strokes[0].get("endarrow") or strokes[0].get("startarrow") or "open"
-            if strokes
-            else "open"
-        )
-        elements.append(SourceArrowElement(
-            f"page-001-arrow-{len(elements) + 1:03d}",
-            len(elements),
-            0,
-            (start, end),
-            start_head,
-            end_head,
-            style,
-            SourceBBox(
-                min(start.x_mm, end.x_mm),
-                min(start.y_mm, end.y_mm),
-                max(start.x_mm, end.x_mm),
-                max(start.y_mm, end.y_mm),
-            ),
-            1.0,
-        ))
+        pict_identity = f"page-001-pict-{len(elements) + 1:03d}"
+        for line_index, line in enumerate(lines):
+            start = _vml_point(line.get("from", "0,0"))
+            end = _vml_point(line.get("to", "0,0"))
+            strokes = line.xpath("./*[local-name()='stroke']")
+            stroke = strokes[0] if strokes else line
+            start_style = stroke.get("startarrow", "none")
+            end_style = stroke.get("endarrow", "none")
+            start_head = start_style != "none"
+            end_head = end_style != "none"
+            style = end_style if end_head else start_style if start_head else "open"
+            width = line.get("strokeweight")
+            elements.append(SourceArrowElement(
+                f"page-001-arrow-{len(elements) + 1:03d}",
+                len(elements),
+                0,
+                (start, end),
+                start_head,
+                end_head,
+                style,
+                SourceBBox(
+                    min(start.x_mm, end.x_mm),
+                    min(start.y_mm, end.y_mm),
+                    max(start.x_mm, end.x_mm),
+                    max(start.y_mm, end.y_mm),
+                ),
+                1.0,
+                start_style,
+                end_style,
+                line.get("strokecolor"),
+                _vml_length(width) if width else None,
+                f"{pict_identity}:line-{line_index + 1:03d}",
+            ))
         return True
 
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:
@@ -455,10 +462,11 @@ class _ParagraphFormatResolver:
             space_before_mm=effective.space_before_mm,
             space_after_mm=effective.space_after_mm,
             line_spacing=effective.line_spacing,
-            tab_stops_mm=effective.tab_stops_mm or (),
+            tab_stops_mm=tuple(stop.position_mm for stop in effective.tab_stops or ()),
             style_id=style_id,
             style_name=style_name,
             semantic_role=role,
+            tab_stops=effective.tab_stops or (),
         )
 
     def _style_chain(self, style_id: str | None) -> list[object]:
@@ -490,7 +498,7 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
     indent = indent_nodes[0] if indent_nodes else None
     spacing_nodes = properties.xpath("./*[local-name()='spacing']")
     spacing = spacing_nodes[0] if spacing_nodes else None
-    tabs: list[float] | None = None
+    tabs: list[SourceTabStop] | None = None
     tab_nodes = properties.xpath("./*[local-name()='tabs']/*[local-name()='tab']")
     if tab_nodes:
         tabs = []
@@ -500,12 +508,18 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
             if kind == "clear":
                 if position is not None:
                     cleared = float(position) * TWIP_TO_MM
-                    tabs = [value for value in tabs if abs(value - cleared) > 1e-6]
+                    tabs = [
+                        stop for stop in tabs
+                        if abs(stop.position_mm - cleared) > 1e-6
+                    ]
                 continue
-            if kind != "left":
+            if kind == "bar":
+                continue
+            if kind not in {"left", "center", "right", "decimal"}:
                 warnings.append(f"docx_tab_stop_approximated:{kind}")
-            if position is not None and kind != "bar":
-                tabs.append(float(position) * TWIP_TO_MM)
+                kind = "left"
+            if position is not None:
+                tabs.append(SourceTabStop(float(position) * TWIP_TO_MM, kind))
 
     line_spacing = None
     if spacing is not None and spacing.get(qn("w:line")) is not None:
@@ -526,7 +540,15 @@ def _read_paragraph_properties(properties: object, warnings: list[str]) -> _Para
         space_before_mm=_twip_attribute(spacing, "before"),
         space_after_mm=_twip_attribute(spacing, "after"),
         line_spacing=line_spacing,
-        tab_stops_mm=tuple(sorted(set(tabs))) if tabs is not None else None,
+        tab_stops=(
+            tuple(
+                sorted(
+                    {stop.position_mm: stop for stop in tabs}.values(),
+                    key=lambda stop: stop.position_mm,
+                )
+            )
+            if tabs is not None else None
+        ),
     )
 
 

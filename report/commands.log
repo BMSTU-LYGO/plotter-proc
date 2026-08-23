@@ -1,0 +1,16 @@
+# Fresh audit command ledger — 2026-08-23
+make lint                                      # passed
+make test                                      # 268 passed in 20.81s
+make smoke                                     # passed
+
+# Full conversion matrix (outputs were under /tmp/plotter-reaudit-JSorR0)
+.venv/bin/python -m plotter_processor run plotter_pipeline_full_test.docx --font assets/1.ttf --font-mode centerline --page A5 --size normal --document-layout hybrid --latex mathtext --latex-stroke-mode centerline --strict-latex-quality --connections safe --images auto --image-debug --layout-debug --semantic-debug --connection-debug --page-numbers --page-pause-seconds 1 --park-corner top_right --output-dir <docx-primary-A|docx-primary-B>
+.venv/bin/python -m plotter_processor run plotter_pipeline_full_test.docx --font assets/1.ttf --font-mode outline --page A5 --size normal --document-layout hybrid --latex mathtext --latex-stroke-mode outline --connections off --images auto --image-debug --layout-debug --semantic-debug --latex-debug --page-numbers --page-pause-seconds 1 --park-corner top_right --output-dir <docx-outline>
+.venv/bin/python -m plotter_processor run plotter_pipeline_full_test.pdf --font assets/1.ttf --font-mode centerline --page A5 --size normal --document-layout <preserve|reflow> --pdf-math auto --math-debug --layout-debug --semantic-debug --images auto --image-debug --page-numbers --page-pause-seconds 1 --park-corner top_right --output-dir <pdf-mode>
+.venv/bin/python -m plotter_processor run report/analysis/connection-corpus.txt --font assets/1.ttf --font-mode centerline --page A5 --size normal --document-layout reflow --connections <off|safe|aggressive> --connection-debug --no-page-numbers --page-pause-seconds 1 --output-dir <connections-mode>
+
+# Performance and final gates
+.venv/bin/python tools/benchmark_conversion.py plotter_pipeline_full_test.docx --font assets/1.ttf --warm-only --warm-runs 3 --connections safe --page A5 --size normal --font-mode centerline --document-layout hybrid --output <performance/warm.json>
+make font-cache-status FONT=assets/1.ttf      # valid, v7, 169 glyphs
+git diff --check                              # passed
+<independent Python G-code scanner>           # 203 files, 2,555,004 active lines, 0 unsafe/XY/Z violations

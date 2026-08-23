@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field, replace
@@ -21,6 +20,13 @@ from plotter_processor.document_models import (
     SourceVectorElement,
 )
 from plotter_processor.font_loader import LoadedFont
+from plotter_processor.graphic_placement import payload_rect as _payload_rect
+from plotter_processor.graphic_placement import place_raster as _place_raster
+from plotter_processor.graphic_placement import place_vector as _place_vector
+from plotter_processor.graphic_placement import placement_record as _placement_record
+from plotter_processor.graphic_placement import rotate_image_point as _rotate_image_point
+from plotter_processor.graphic_placement import rotated_size as _rotated_size
+from plotter_processor.graphic_placement import scaled_padding as _scaled_padding
 from plotter_processor.image_preprocessor import preprocess_image
 from plotter_processor.image_vectorizer import vectorize_image
 from plotter_processor.latex_layout import FormulaInfo, layout_latex_paragraph, layout_math_element
@@ -32,7 +38,6 @@ from plotter_processor.layout_models import (
     PageTransform,
     RectMM,
     available_intervals,
-    center_displacement,
     choose_widest_interval,
     intersection_area,
     rect_payload,
@@ -161,9 +166,10 @@ def paginate_document(
     warnings = list(document.warnings)
     details: dict[str, dict[str, object]] = {}
     image_found = image_vectorized = image_strokes = image_points = vector_count = 0
-    image_cache_hits = image_cache_misses = 0
+    image_cache_hits = image_cache_misses = image_micro_strokes_suppressed = 0
     underline_count = line_count_semantic = arrow_count = table_count = table_cells = 0
     table_pages: set[tuple[str, int]] = set()
+    table_splits = repeated_headers_emitted = shared_borders_suppressed = 0
     formula_index = 0
     rendered_formulas: list[FormulaInfo] = []
     placement_records: list[dict[str, object]] = []
@@ -426,15 +432,17 @@ def paginate_document(
                 normalized_paragraphs: list[str] = []
                 normalized_models: list[SourceParagraph] = []
                 for raw_index, raw_paragraph in enumerate(element.paragraphs):
-                    normalized, normalization_warnings = normalize_text(raw_paragraph)
-                    warnings.extend(normalization_warnings)
-                    pieces = normalized.split("\n")
-                    normalized_paragraphs.extend(pieces)
                     source_model = (
                         element.styled_paragraphs[raw_index]
                         if raw_index < len(element.styled_paragraphs)
                         else SourceParagraph((SourceTextRun(raw_paragraph),), semantic_role="body")
                     )
+                    normalized, normalization_warnings = normalize_text(
+                        raw_paragraph, preserve_tabs=bool(source_model.tab_stops)
+                    )
+                    warnings.extend(normalization_warnings)
+                    pieces = normalized.split("\n")
+                    normalized_paragraphs.extend(pieces)
                     for piece in pieces:
                         if piece == source_model.text:
                             normalized_models.append(source_model)
@@ -607,6 +615,16 @@ def paginate_document(
                             element, "text", cursor_before, "latex_in_flow", zones_before,
                         )
                         continue
+                    if (
+                        document_layout_mode != "reflow"
+                        and paragraph_model.tab_stops
+                        and state.exclusion_zones
+                    ):
+                        state.cursor_y = max(
+                            state.cursor_y,
+                            max(zone.padded_bbox.bottom for zone in state.exclusion_zones),
+                        )
+                        _prune_expired_zones(state.exclusion_zones, state.cursor_y)
                     if document_layout_mode != "reflow" and state.exclusion_zones:
                         _layout_text_around_zones(
                             paragraph,
@@ -652,6 +670,11 @@ def paginate_document(
                             script=script,
                             direction=direction,
                             features=features,
+                            tab_scale=(
+                                page_transform.scale
+                                if document_layout_mode != "reflow"
+                                else 1.0
+                            ),
                         )
                     except ValueError as error:
                         too_wide = next(
@@ -857,6 +880,10 @@ def paginate_document(
                         page_scale=page_transform.scale,
                         plan=table_plan,
                     )
+                    if fragment_index > 0:
+                        table_splits += 1
+                    repeated_headers_emitted += len(headers)
+                    shared_borders_suppressed += fragment.shared_borders_suppressed
                     state.warnings.extend(fragment.warnings)
                     fragment_top = state.cursor_y
                     for glyph in fragment.glyphs:
@@ -938,6 +965,19 @@ def paginate_document(
                 )
                 if not source_strokes:
                     continue
+                source_strokes = [
+                    replace(
+                        stroke,
+                        points=[
+                            Point(
+                                page_transform.scale_length(point.x),
+                                page_transform.scale_length(point.y),
+                            )
+                            for point in stroke.points
+                        ],
+                    )
+                    for stroke in source_strokes
+                ]
                 xs = [point.x for stroke in source_strokes for point in stroke.points]
                 ys = [point.y for stroke in source_strokes for point in stroke.points]
                 width = max(xs) - min(xs)
@@ -1225,6 +1265,7 @@ def paginate_document(
                 image_cache_misses += int(not vectorized.cache_hit)
                 image_strokes += len(vectorized.strokes)
                 image_points += vectorized.point_count
+                image_micro_strokes_suppressed += vectorized.micro_strokes_suppressed
                 state.warnings.extend(f"{warning}: {element.id}" for warning in vectorized.warnings)
                 placement = _placement_record(
                     element.id,
@@ -1383,12 +1424,16 @@ def paginate_document(
         "image_points": image_points,
         "image_cache_hits": image_cache_hits,
         "image_cache_misses": image_cache_misses,
+        "image_micro_strokes_suppressed": image_micro_strokes_suppressed,
         "underlines": underline_count,
         "generic_lines": line_count_semantic,
         "arrows": arrow_count,
         "tables": table_count,
         "table_cells": table_cells,
         "table_pages": len(table_pages),
+        "table_splits": table_splits,
+        "repeated_headers_emitted": repeated_headers_emitted,
+        "shared_borders_suppressed": shared_borders_suppressed,
     }
     latex_stats = {
         "enabled": renderer is not None,
@@ -1688,242 +1733,6 @@ def _table_x(
     else:
         x = content.x + transform.scale_length(table.left_indent_mm or 0.0)
     return min(content.right - width, max(content.x, x)), alignment
-
-
-def _rotated_size(width: float, height: float, rotation_deg: float) -> tuple[float, float]:
-    angle = math.radians(rotation_deg % 360)
-    cosine = abs(math.cos(angle))
-    sine = abs(math.sin(angle))
-    return width * cosine + height * sine, width * sine + height * cosine
-
-
-def _rotate_image_point(
-    point: Point,
-    target_bbox: RectMM,
-    width: float,
-    height: float,
-    rotation_deg: float,
-) -> Point:
-    if abs(rotation_deg % 360) < 1e-9:
-        return Point(target_bbox.x + point.x, target_bbox.y + point.y)
-    angle = math.radians(rotation_deg)
-    cosine, sine = math.cos(angle), math.sin(angle)
-    local_x, local_y = point.x - width / 2, point.y - height / 2
-    rotated_x = local_x * cosine - local_y * sine
-    rotated_y = local_x * sine + local_y * cosine
-    return Point(
-        target_bbox.x + target_bbox.width / 2 + rotated_x,
-        target_bbox.y + target_bbox.height / 2 + rotated_y,
-    )
-
-
-def _scaled_padding(
-    value: float,
-    page_scale: float,
-    image_options: Mapping[str, object],
-) -> float:
-    if value <= 0:
-        return 0.0
-    scaled = value * page_scale
-    return min(
-        float(image_options.get("max_wrap_padding_mm", 8.0)),
-        max(float(image_options.get("min_wrap_padding_mm", 0.7)), scaled),
-    )
-
-
-def _place_raster(
-    element: SourceRasterImageElement,
-    mode: str,
-    mapped: RectMM | None,
-    width: float,
-    height: float,
-    cursor_y: float,
-    content: RectMM,
-    previous: list[dict[str, object]],
-    options: Mapping[str, object],
-    spacing_before: float,
-) -> tuple[RectMM, str, list[str]]:
-    inline = element.wrap_mode == "inline" or element.anchor_type == "flow"
-    return _place_graphic(
-        mode,
-        mapped,
-        width,
-        height,
-        cursor_y,
-        content,
-        previous,
-        options,
-        spacing_before,
-        element.wrap_mode,
-        inline=inline,
-        source_position_available=element.bbox is not None,
-        relative_to_v=element.relative_to_v,
-    )
-
-
-def _place_vector(
-    element: SourceVectorElement,
-    mode: str,
-    mapped: RectMM | None,
-    width: float,
-    height: float,
-    cursor_y: float,
-    content: RectMM,
-    previous: list[dict[str, object]],
-    options: Mapping[str, object],
-    spacing_before: float,
-) -> tuple[RectMM, str, list[str]]:
-    return _place_graphic(
-        mode,
-        mapped,
-        width,
-        height,
-        cursor_y,
-        content,
-        previous,
-        options,
-        spacing_before,
-        element.wrap_mode,
-        inline=False,
-        source_position_available=element.bbox is not None,
-        relative_to_v="page",
-    )
-
-
-def _place_graphic(
-    mode: str,
-    mapped: RectMM | None,
-    width: float,
-    height: float,
-    cursor_y: float,
-    content: RectMM,
-    previous: list[dict[str, object]],
-    options: Mapping[str, object],
-    spacing_before: float,
-    wrap_mode: str,
-    *,
-    inline: bool,
-    source_position_available: bool,
-    relative_to_v: str | None,
-) -> tuple[RectMM, str, list[str]]:
-    warnings: list[str] = []
-    if mode == "reflow" or inline:
-        return (
-            RectMM(
-                content.x + (content.width - width) / 2,
-                cursor_y + spacing_before,
-                width,
-                height,
-            ),
-            "inline" if inline else "top_bottom",
-            warnings,
-        )
-    if mapped is None:
-        warnings.append("image_source_position_unavailable")
-        rect = RectMM(content.x, cursor_y + spacing_before, width, height)
-    elif mode == "preserve":
-        rect = mapped
-    else:
-        x = min(max(mapped.x, content.x), content.right - width)
-        y = mapped.y if relative_to_v in {"page", "margin"} else cursor_y + spacing_before
-        y = min(max(y, content.y), content.bottom - height)
-        rect = RectMM(x, y, width, height)
-    effective_wrap = wrap_mode
-    if mode == "hybrid" and effective_wrap == "none":
-        effective_wrap = "square"
-        warnings.append("image_wrap_none_approximated_as_square")
-    if mode == "hybrid":
-        max_shift = float(options.get("max_vertical_shift_mm", 25.0))
-        attempts = max(1, int(options.get("max_placement_attempts", 20)))
-        initial_y = rect.y
-        for _attempt in range(attempts):
-            conflicts = [
-                existing
-                for item in previous
-                if (existing := _payload_rect(item.get("output_bbox_mm"))) is not None
-                and intersection_area(rect, existing) > 1e-9
-            ]
-            if not conflicts:
-                break
-            next_y = max(conflict.bottom for conflict in conflicts) + float(
-                options.get("image_padding_mm", 2.0)
-            )
-            if next_y - initial_y > max_shift or next_y + rect.height > content.bottom:
-                effective_wrap = "top_bottom"
-                warnings.append("image_wrap_fallback_top_bottom")
-                rect = RectMM(rect.x, max(cursor_y + spacing_before, initial_y), rect.width, rect.height)
-                break
-            rect = RectMM(rect.x, next_y, rect.width, rect.height)
-            warnings.append("image_overlap_avoided")
-    clamped = RectMM(
-        min(max(rect.x, content.x), content.right - rect.width),
-        min(max(rect.y, content.y), content.bottom - rect.height),
-        min(rect.width, content.width),
-        min(rect.height, content.height),
-    )
-    if center_displacement(rect, clamped) > 1e-6:
-        warnings.append("image_position_shifted")
-    if not source_position_available and "image_source_position_unavailable" not in warnings:
-        warnings.append("image_source_position_unavailable")
-    return clamped, effective_wrap, list(dict.fromkeys(warnings))
-
-
-def _placement_record(
-    element_id: str,
-    source_order: int,
-    source_page_index: int,
-    target_page_index: int,
-    source_bbox: object,
-    mapped: RectMM | None,
-    output: RectMM,
-    anchor: str,
-    wrap_mode: str,
-    wrap_side: str,
-    original_width: float | None,
-    warnings: list[str],
-    element_type: str,
-    placement_reason: str,
-) -> dict[str, object]:
-    source_rect = (
-        RectMM(source_bbox.x0, source_bbox.y0, source_bbox.width, source_bbox.height)
-        if source_bbox is not None
-        else None
-    )
-    displacement = center_displacement(mapped, output) if mapped is not None else None
-    scale = output.width / original_width if original_width and original_width > 0 else 1.0
-    return {
-        "id": element_id,
-        "element_type": element_type,
-        "source_order": source_order,
-        "source_page_index": source_page_index,
-        "source_bbox_mm": rect_payload(source_rect),
-        "mapped_bbox_mm": rect_payload(mapped),
-        "output_bbox_mm": rect_payload(output),
-        "target_page_index": target_page_index,
-        "anchor": anchor,
-        "wrap_mode": wrap_mode,
-        "wrap_side": wrap_side,
-        "scale": round(scale, 6),
-        "center_displacement_mm": round(displacement, 6) if displacement is not None else None,
-        "overlap_area_mm2": 0.0,
-        "page_overflow_area_mm2": 0.0,
-        "fallbacks": list(dict.fromkeys(warnings)),
-        "placement_reason": placement_reason,
-    }
-
-
-def _payload_rect(value: object) -> RectMM | None:
-    if not isinstance(value, Mapping):
-        return None
-    try:
-        return RectMM(
-            float(value["x"]),
-            float(value["y"]),
-            float(value["width"]),
-            float(value["height"]),
-        )
-    except (KeyError, TypeError, ValueError):
-        return None
 
 
 def _zone_payloads(zones: list[ExclusionZone]) -> list[dict[str, object]]:

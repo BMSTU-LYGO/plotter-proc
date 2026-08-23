@@ -1,8 +1,11 @@
+from dataclasses import replace
 from pathlib import Path
 
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
+    _StrokeObstacle,
+    _StrokeObstacleIndex,
     apply_variation,
     export_handwriting_debug,
     route_words,
@@ -79,3 +82,92 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
     assert 'id="strokes"' in svg
     assert 'id="entry-exit"' in svg
     assert 'id="travel"' in svg
+
+
+def test_obstacle_index_returns_overlapping_strokes_in_source_order() -> None:
+    strokes = [
+        PlotterStroke(0, [Point(0, 0), Point(1, 1)], False),
+        PlotterStroke(1, [Point(50, 50), Point(51, 51)], False),
+        PlotterStroke(2, [Point(2, 0), Point(3, 1)], False),
+    ]
+    obstacles = [
+        _StrokeObstacle(stroke, (stroke.points[0].x, stroke.points[0].y, stroke.points[-1].x, stroke.points[-1].y))
+        for stroke in strokes
+    ]
+    index = _StrokeObstacleIndex.build(obstacles, cell_size_mm=4)
+
+    assert [item.stroke.id for item in index.query((-1, -1, 4, 2))] == [0, 2]
+    assert index.query((10, 10, 11, 11)) == []
+
+
+def test_aggressive_accepts_bounded_gap_that_safe_rejects() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 4.5), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(4.5, 10), Point(6, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+    safe = _config()
+    aggressive = replace(
+        safe,
+        max_join_gap_mm=3,
+        max_join_angle_deg=85,
+        max_vertical_offset_mm=1.8,
+        mode="aggressive",
+    )
+
+    safe_result, safe_metrics = route_words(document, glyphs, safe)
+    aggressive_result, aggressive_metrics = route_words(document, glyphs, aggressive)
+
+    assert len(safe_result.strokes) == 2
+    assert safe_metrics["rejections_by_reason"] == {"distance": 1}
+    assert len(aggressive_result.strokes) == 1
+    assert aggressive_metrics["joins_created"] == 1
+
+
+def test_aggressive_keeps_collision_and_punctuation_guards() -> None:
+    safe = _config()
+    aggressive = replace(safe, max_join_gap_mm=3, mode="aggressive")
+    letters = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 4.5), word_index=0),
+    ]
+    blocked = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(4.5, 10), Point(6, 10)], False, 1, "б", 0),
+            PlotterStroke(2, [Point(3.25, 9), Point(3.25, 11)], False),
+        ],
+        [],
+    )
+    punctuation = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(2.5, 10), Point(3, 10)], False, 1, ".", 0),
+        ],
+        [],
+    )
+
+    _, collision_metrics = route_words(blocked, letters, aggressive)
+    _, punctuation_metrics = route_words(
+        punctuation,
+        [
+            replace(_glyph("а", 0, 0), word_index=0),
+            replace(_glyph(".", 1, 2.5), word_index=0),
+        ],
+        aggressive,
+    )
+
+    assert collision_metrics["rejections_by_reason"] == {"collision": 1}
+    assert punctuation_metrics["rejections_by_reason"] == {"punctuation_rule": 1}

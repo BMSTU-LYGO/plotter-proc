@@ -24,6 +24,7 @@ class VectorizedImage:
     point_count: int
     warnings: tuple[str, ...]
     cache_hit: bool = False
+    micro_strokes_suppressed: int = 0
 
 
 _PIXEL_STROKE_CACHE: OrderedDict[tuple[str, str, str], tuple[np.ndarray, ...]] = (
@@ -85,11 +86,13 @@ def vectorize_image(
     minimum_length = float(vector.get("min_stroke_length_mm", 0.35))
     sx = width_mm / max(1, image.working_size[0] - 1)
     sy = height_mm / max(1, image.working_size[1] - 1)
+    micro_strokes_suppressed = 0
     for raw in pixel_strokes:
         simplified = approximate_polygon(np.asarray(raw), tolerance=tolerance_px)
         points = [Point(float(point[0]) * sx, float(point[1]) * sy) for point in simplified]
         points = _deduplicate(points)
         if len(points) < 2 or _length(points) < minimum_length:
+            micro_strokes_suppressed += 1
             continue
         strokes.append(PlotterStroke(
             len(strokes), points, False, source_chars="", segment_types=(f"image-{selected}",),
@@ -107,7 +110,12 @@ def vectorize_image(
     if not strokes and "blank_image" not in warnings:
         warnings.append("image_produced_no_strokes")
     return VectorizedImage(
-        tuple(strokes), selected, point_count, tuple(warnings), cache_hit
+        tuple(strokes),
+        selected,
+        point_count,
+        tuple(warnings),
+        cache_hit,
+        micro_strokes_suppressed,
     )
 
 

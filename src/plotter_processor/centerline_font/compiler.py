@@ -141,6 +141,7 @@ def _compile_glyph(
         max_endpoint_factor=config.max_endpoint_factor,
     )
     quality.update(routing_metrics(edges, routes))
+    selected_metrics = selected.candidate_metrics[selected.method]
     quality.update(
         {
             "skeleton_method": selected.method,
@@ -149,6 +150,8 @@ def _compile_glyph(
             "candidate_score_components": selected.candidate_score_components,
             "graph_nodes": len(nodes),
             "junctions": sum(node.kind == "junction" for node in nodes),
+            "short_edges": int(selected_metrics["short_edge_count"]),
+            "micro_loops": int(selected_metrics["micro_loop_count"]),
             "spurs_removed": selected.simplification.spurs_removed,
             "junctions_merged": selected.simplification.junctions_merged,
             "false_junctions_removed": selected.simplification.false_junctions_removed,

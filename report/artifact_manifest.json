@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "policy": "compact-report-only; generated runtime artifacts are temporary",
+  "retained_report_files": [
+    "report/REPORT.md",
+    "report/TECH_DEBT.md",
+    "report/summary.json",
+    "report/artifact_manifest.json",
+    "report/commands.log",
+    "report/environment/snapshot.md",
+    "report/analysis/connection-corpus.txt"
+  ],
+  "inputs": [
+    {"path": "plotter_pipeline_full_test.docx", "size_bytes": 49131, "sha256": "a7e401c86182a811f43b39b881638e3917f482157203ea838b603173b930f3bb"},
+    {"path": "plotter_pipeline_full_test.pdf", "size_bytes": 207202, "sha256": "efaa17b974db8f6571830dae99bccea2a29a17f0ac09b9fd3e3da25b9bd32564"},
+    {"path": "assets/1.ttf", "size_bytes": 315408, "sha256": "4dac9db3fa9ca072f7861fd916bf04bdceac6069d0f3a886f5e523d922e918f1"},
+    {"path": "report/analysis/connection-corpus.txt", "size_bytes": 1164, "sha256": "091711808321de24834c36552f843091cd5059aa8409a5c62026700e2a987385"}
+  ],
+  "ephemeral_output_evidence": {
+    "paths_aggregate_sha256": "349071f6d2c4e5df4bc69d962acf960ae4f841abb75aeef2e32e2e82fb1f3550",
+    "page_gcode_aggregate_sha256": "867d2a7500d191c1a9dfb32659cd7167feee902a8b255c0ca61694748719a3a8",
+    "page_preview_aggregate_sha256": "51bda6ace27fb912e919aaf6cc8e52da663a716fd7a0b31e5914797387f4da83"
+  }
+}

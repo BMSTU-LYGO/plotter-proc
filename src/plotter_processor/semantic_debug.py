@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from plotter_processor.models import PageSpec, PlotterStroke
+from plotter_processor.semantic_metrics import semantic_report
 
 
 def export_semantic_debug(output: Path, page: PageSpec, strokes: list[PlotterStroke]) -> None:
@@ -13,7 +14,7 @@ def export_semantic_debug(output: Path, page: PageSpec, strokes: list[PlotterStr
         role = stroke.semantic_role or "generic"
         roles[role] = roles.get(role, 0) + 1
     (output / "classification.json").write_text(
-        json.dumps({"classification_conflicts": 0, "roles": roles}, indent=2) + "\n",
+        json.dumps({**semantic_report(strokes), "roles": roles}, indent=2) + "\n",
         encoding="utf-8",
     )
     subsets = {

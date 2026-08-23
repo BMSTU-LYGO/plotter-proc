@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-08-23",
+  "branch": "ref",
+  "head": "47524e25b0ec3634c4460df001e3d52f10a72ce0",
+  "worktree_dirty": true,
+  "overall_status": "passed_with_documented_debt",
+  "gates": {
+    "lint": "passed",
+    "tests": {"status": "passed", "passed": 268, "duration_seconds": 20.81},
+    "smoke": "passed",
+    "font_cache": {"status": "valid", "algorithm_version": 7, "glyphs": 169, "size_bytes": 18393613},
+    "diff_check": "passed"
+  },
+  "matrix": {
+    "docx_primary": {"status": "ok", "pages": 20, "strokes": 6453, "points": 111714, "warnings": 0, "overlaps_mm2": 0.0},
+    "docx_outline": {"status": "ok", "pages": 20, "strokes": 11840, "points": 241964, "warnings": 1, "overlaps_mm2": 0.0},
+    "pdf_preserve": {"status": "ok", "pages": 32, "strokes": 8215, "points": 104939, "warnings": 40, "overlaps_mm2": 1634.989986},
+    "pdf_reflow": {"status": "ok", "pages": 33, "strokes": 8217, "points": 104957, "warnings": 40, "overlaps_mm2": 0.0},
+    "connections_off": {"status": "ok", "connected_pairs": 0, "pairs": 510, "strokes": 634},
+    "connections_safe": {"status": "ok", "connected_pairs": 105, "pairs": 510, "strokes": 529, "connector_length_mm": 108.704851},
+    "connections_aggressive": {"status": "ok", "connected_pairs": 105, "pairs": 510, "strokes": 529, "connector_length_mm": 108.704851}
+  },
+  "determinism": {
+    "status": "passed",
+    "paths_files": 20,
+    "page_gcode_files": 20,
+    "page_preview_files": 20,
+    "byte_identical": true,
+    "root_gcode_sha256": "1d0642fb8e285beacb7e0e8a29e7abe6a2f0c69b9863fcb9eedc4d3c67426816",
+    "root_preview_sha256": "50dcdc5e90cd985bd9469cb33e8f541d7c688873fff142887258fde087049d4a"
+  },
+  "gcode_safety": {"status": "passed", "files": 203, "active_lines": 2555004, "violations": 0, "xy_out_of_workspace": 0, "unexpected_z": 0},
+  "performance": {"mode": "warm-only", "runs_ms": [66221.26, 61858.038, 61779.026], "median_ms": 61858.038, "cold_measured": false},
+  "technical_debt": {"p1": 2, "p2": 4, "p3": 2, "integration_risk": 1}
+}

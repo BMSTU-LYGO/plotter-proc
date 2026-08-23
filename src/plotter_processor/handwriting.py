@@ -58,6 +58,49 @@ class _StrokeObstacle:
     bounds: tuple[float, float, float, float]
 
 
+@dataclass(slots=True)
+class _StrokeObstacleIndex:
+    obstacles: list[_StrokeObstacle]
+    cell_size_mm: float
+    cells: dict[tuple[int, int], tuple[int, ...]]
+
+    @classmethod
+    def build(
+        cls, obstacles: list[_StrokeObstacle], *, cell_size_mm: float = 4.0
+    ) -> _StrokeObstacleIndex:
+        cells: dict[tuple[int, int], list[int]] = {}
+        for index, obstacle in enumerate(obstacles):
+            min_x, min_y, max_x, max_y = obstacle.bounds
+            for cell_x in range(math.floor(min_x / cell_size_mm), math.floor(max_x / cell_size_mm) + 1):
+                for cell_y in range(math.floor(min_y / cell_size_mm), math.floor(max_y / cell_size_mm) + 1):
+                    cells.setdefault((cell_x, cell_y), []).append(index)
+        return cls(
+            obstacles,
+            cell_size_mm,
+            {cell: tuple(indices) for cell, indices in cells.items()},
+        )
+
+    def query(
+        self, bounds: tuple[float, float, float, float]
+    ) -> list[_StrokeObstacle]:
+        min_x, min_y, max_x, max_y = bounds
+        matches: set[int] = set()
+        for cell_x in range(
+            math.floor(min_x / self.cell_size_mm),
+            math.floor(max_x / self.cell_size_mm) + 1,
+        ):
+            for cell_y in range(
+                math.floor(min_y / self.cell_size_mm),
+                math.floor(max_y / self.cell_size_mm) + 1,
+            ):
+                matches.update(self.cells.get((cell_x, cell_y), ()))
+        return [
+            self.obstacles[index]
+            for index in sorted(matches)
+            if _bounds_overlap(bounds, self.obstacles[index].bounds)
+        ]
+
+
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
     values = _mapping(_mapping(root, "handwriting"), "variation")
     seed = values.get("seed")
@@ -230,9 +273,9 @@ def route_words(
         if stroke.glyph_index is not None:
             by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
     words = _words(glyphs)
-    obstacle_index = [
+    obstacle_index = _StrokeObstacleIndex.build([
         _StrokeObstacle(stroke, _stroke_bounds(stroke)) for stroke in document.strokes
-    ]
+    ])
     output: list[PlotterStroke] = []
     candidates = created = rejected = snapped = 0
     connector_length = 0.0
@@ -406,7 +449,7 @@ def _connection_candidate(
     left: _GlyphRoute,
     right: _GlyphRoute,
     config: JoiningConfig,
-    obstacles: list[_StrokeObstacle],
+    obstacles: _StrokeObstacleIndex,
 ) -> tuple[GlyphConnectionCandidate, list[Point], list[Point], Point | None]:
     assert left.main is not None and right.main is not None
     assert left.exit is not None and right.entry is not None
@@ -571,21 +614,12 @@ def _collision_points(
         max(point.x for point in curve) + clearance,
         max(point.y for point in curve) + clearance,
     )
+    nearby_obstacles = obstacles.query(curve_bounds)
     for point in curve[1:-1]:
         collided = False
-        for obstacle in obstacles:
-            if not _bounds_overlap(curve_bounds, obstacle.bounds):
-                continue
+        for obstacle in nearby_obstacles:
             stroke = obstacle.stroke
             for first, second in pairwise(stroke.points):
-                if stroke.id == left.id and min(
-                    _distance(first, start), _distance(second, start)
-                ) <= boundary_ignore:
-                    continue
-                if stroke.id == right.id and min(
-                    _distance(first, end), _distance(second, end)
-                ) <= boundary_ignore:
-                    continue
                 if not (
                     min(first.x, second.x) - clearance
                     <= point.x
@@ -594,6 +628,14 @@ def _collision_points(
                     <= point.y
                     <= max(first.y, second.y) + clearance
                 ):
+                    continue
+                if stroke.id == left.id and min(
+                    _distance(first, start), _distance(second, start)
+                ) <= boundary_ignore:
+                    continue
+                if stroke.id == right.id and min(
+                    _distance(first, end), _distance(second, end)
+                ) <= boundary_ignore:
                     continue
                 if _point_segment_distance(point, first, second) <= clearance:
                     collisions.append(point)
