@@ -10,6 +10,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from plotter_processor.centerline_font.cache import (
+    centerline_config_fingerprint,
+    font_sha256,
+)
 from plotter_processor.centerline_font.compiler import compile_centerline_font
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.preview import export_centerline_font_preview
@@ -61,6 +65,7 @@ from plotter_processor.path_simplifier import (
     simplify_path_document,
 )
 from plotter_processor.performance import PagePerformance, StageTimings
+from plotter_processor.preview_cache import materialize_cached_preview
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.semantic_metrics import semantic_report
 from plotter_processor.structured_document_reader import read_structured_document
@@ -109,6 +114,8 @@ class PipelineOptions:
     math_debug: bool = False
     stage_progress: Callable[[str, str, float | None], None] | None = None
     workers: str | int = "auto"
+    centerline_workers: str | int = "auto"
+    artifact_level: str = "normal"
 
 
 @dataclass(slots=True)
@@ -375,6 +382,17 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown LaTeX stroke mode: {options.latex_stroke_mode}")
         if options.pdf_math not in {"auto", "visual", "off"}:
             raise ValueError(f"Unknown PDF math mode: {options.pdf_math}")
+        if options.artifact_level not in {"normal", "debug", "audit"}:
+            raise ValueError(f"Unknown artifact level: {options.artifact_level}")
+        debug_artifacts = options.artifact_level in {"debug", "audit"}
+        audit_artifacts = options.artifact_level == "audit"
+        connection_debug_enabled = options.connection_debug or debug_artifacts
+        image_debug_enabled = options.image_debug or debug_artifacts
+        layout_debug_enabled = options.layout_debug or debug_artifacts
+        semantic_debug_enabled = options.semantic_debug or debug_artifacts
+        latex_debug_enabled = options.latex_debug or debug_artifacts
+        math_debug_enabled = options.math_debug or debug_artifacts
+        font_previews_enabled = debug_artifacts
         document_layout_options = _mapping(layout_config, "document_layout")
         configured_layout = str(document_layout_options.get("mode", "auto"))
         if configured_layout not in {"auto", "reflow", "hybrid", "preserve"}:
@@ -415,7 +433,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 assets_dir=output_dir / "extracted-assets",
                 pdf_math_mode=options.pdf_math,
                 pdf_math_options=dict(initial_pdf_math_options),
-                math_debug_dir=output_dir / "latex-debug" if options.math_debug else None,
+                math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
             )
         text = "\n".join(
             paragraph
@@ -476,12 +494,12 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     pagination_options, enabled=pagination_enabled,
                     image_mode=options.images,
                     image_debug_dir=(
-                        output_dir / "image-debug" if options.image_debug else None
+                        output_dir / "image-debug" if image_debug_enabled else None
                     ),
                     latex_mode=latex_mode, latex_options=latex_options,
                     latex_debug_dir=(
                         output_dir / "latex-debug"
-                        if options.latex_debug or options.math_debug
+                        if latex_debug_enabled or math_debug_enabled
                         else None
                     ),
                     latex_stroke_mode=options.latex_stroke_mode,
@@ -491,7 +509,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     paragraph_options=paragraph_options,
                     table_options=table_options,
                     layout_debug_dir=(
-                        output_dir / "layout-debug" if options.layout_debug else None
+                        output_dir / "layout-debug" if layout_debug_enabled else None
                     ),
                     preserve_source_page_breaks=bool(
                         pagination_options.get("preserve_source_page_breaks", True)
@@ -549,30 +567,78 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             options.strict_centerline_quality
                             if options.font_mode == "centerline" else False
                         ),
+                        workers=options.centerline_workers,
+                        debug_dir=(
+                            output_dir / "centerline-debug" if audit_artifacts else None
+                        ),
                     )
                 if options.font_mode == "centerline":
                     centerline_info = _centerline_report(
                         compiled, cache_path, [*body_glyphs, *number_glyphs]
                     )
 
-            unique_preview_glyphs = list({
-                (glyph.char, glyph.glyph_name): glyph
-                for glyph in [*body_glyphs, *number_glyphs]
-            }.values())
-            with timings.measure("preview"):
-                export_font_preview(
-                    extract_exact_outlines(font, unique_preview_glyphs),
-                    page.width_mm,
-                    page.height_mm,
-                    output_dir / "font-preview.svg",
-                    show_page_border=_boolean(preview, "show_page_border"),
+            preview_cache = {"hits": 0, "misses": 0}
+            if font_previews_enabled:
+                unique_preview_glyphs = list({
+                    (glyph.char, glyph.glyph_name): glyph
+                    for glyph in [*body_glyphs, *number_glyphs]
+                }.values())
+                preview_cache_dir = centerline_config.cache_directory / "previews"
+                digest = compiled.font_sha256 if compiled is not None else font_sha256(
+                    options.font_path
                 )
-                if compiled is not None:
-                    export_centerline_font_preview(
-                        compiled,
-                        sorted(requested_centerline_chars, key=ord),
-                        output_dir / "centerline-font-preview.svg",
+                show_page_border = _boolean(preview, "show_page_border")
+                with timings.measure("preview"):
+                    outline_result = materialize_cached_preview(
+                        preview_cache_dir,
+                        "font-outline",
+                        {
+                            "font_sha256": digest,
+                            "page": [page.width_mm, page.height_mm],
+                            "show_page_border": show_page_border,
+                            "glyphs": [
+                                [
+                                    glyph.char,
+                                    glyph.glyph_name,
+                                    glyph.glyph_index,
+                                    glyph.x_mm,
+                                    glyph.baseline_y_mm,
+                                    glyph.scale_mm_per_font_unit,
+                                ]
+                                for glyph in unique_preview_glyphs
+                            ],
+                        },
+                        output_dir / "font-preview.svg",
+                        lambda target: export_font_preview(
+                            extract_exact_outlines(font, unique_preview_glyphs),
+                            page.width_mm,
+                            page.height_mm,
+                            target,
+                            show_page_border=show_page_border,
+                        ),
                     )
+                    preview_cache["hits" if outline_result.hit else "misses"] += 1
+                    if compiled is not None:
+                        centerline_result = materialize_cached_preview(
+                            preview_cache_dir,
+                            "font-centerline",
+                            {
+                                "font_sha256": digest,
+                                "config_fingerprint": centerline_config_fingerprint(
+                                    centerline_config, font_hash=digest
+                                ),
+                                "glyphs": sorted(requested_centerline_chars, key=ord),
+                            },
+                            output_dir / "centerline-font-preview.svg",
+                            lambda target: export_centerline_font_preview(
+                                compiled,
+                                sorted(requested_centerline_chars, key=ord),
+                                target,
+                            ),
+                        )
+                        preview_cache[
+                            "hits" if centerline_result.hit else "misses"
+                        ] += 1
 
             raw_pages: list[tuple[object, PathDocument, Path, list[object]]] = []
             page_performance: dict[int, PagePerformance] = {}
@@ -705,7 +771,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     simplification_config,
                     variation_config,
                     joining_config,
-                    options.connection_debug,
+                    connection_debug_enabled,
                     simplification_template_cache,
                 )
             )
@@ -784,7 +850,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         handwriting = (
             handwriting_reports[0] if page_count == 1 else _aggregate_handwriting(handwriting_reports)
         )
-        if options.semantic_debug:
+        if semantic_debug_enabled:
             export_semantic_debug(
                 output_dir / "semantic-debug",
                 page,
@@ -800,6 +866,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "input": str(options.input_path), "font": str(options.font_path),
             "page": options.page, "size": options.size, "shaping": engine,
             "workers": {"requested": options.workers, "resolved": worker_count},
+            "artifact_level": options.artifact_level,
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
             "document_import": {
@@ -881,6 +948,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     "hits": paginated.latex_statistics.get("cache_hits", 0),
                     "misses": paginated.latex_statistics.get("cache_misses", 0),
                 },
+                "previews": preview_cache,
             },
             "outputs": {
                 "extracted": str(extracted_path),
@@ -888,20 +956,30 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "gcode": str(gcode_path),
                 "job": str(output_dir / "job.json"),
                 "document_structure": str(output_dir / "document-structure.json"),
-                "font_preview": str(output_dir / "font-preview.svg"),
             },
         }
-        if compiled is not None:
+        if font_previews_enabled:
+            report["outputs"]["font_preview"] = str(output_dir / "font-preview.svg")
+        if font_previews_enabled and compiled is not None:
             report["outputs"]["centerline_font_preview"] = str(
                 output_dir / "centerline-font-preview.svg"
             )
-        if options.latex_debug and paginated.latex_statistics.get("expressions_found", 0):
+        if latex_debug_enabled and paginated.latex_statistics.get("expressions_found", 0):
             report["outputs"]["latex_debug"] = str(output_dir / "latex-debug")
+        for output_name, directory_name in (
+            ("layout_debug", "layout-debug"),
+            ("semantic_debug", "semantic-debug"),
+            ("image_debug", "image-debug"),
+            ("centerline_debug", "centerline-debug"),
+        ):
+            debug_path = output_dir / directory_name
+            if debug_path.exists():
+                report["outputs"][output_name] = str(debug_path)
         if page_count == 1:
             report["outputs"].update({
                 "paths": str(output_dir / "paths.json"),
             })
-            if joining_config.enabled and options.connection_debug:
+            if joining_config.enabled and connection_debug_enabled:
                 report["outputs"]["connection_debug"] = str(
                     output_dir / "connection-debug.svg"
                 )

@@ -65,6 +65,8 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         page_pause_seconds=args.page_pause_seconds,
         park_corner=args.park_corner,
         workers=args.workers,
+        centerline_workers=args.centerline_workers,
+        artifact_level=args.artifacts,
     )
 
 
@@ -206,6 +208,7 @@ def _compile_centerline(args: argparse.Namespace) -> int:
             force=args.force,
             strict_quality=args.strict_quality,
             debug_dir=args.debug_dir,
+            workers=args.centerline_workers,
         )
         preview = args.preview or output.with_suffix(".svg")
         export_centerline_font_preview(compiled, sorted(chars, key=ord), preview)
@@ -318,6 +321,19 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="auto|N",
         help="Page worker processes (default: auto, capped at 4).",
     )
+    parser.add_argument(
+        "--centerline-workers",
+        default="auto",
+        type=_workers_value,
+        metavar="auto|N",
+        help="Cold centerline glyph worker processes (default: auto, capped at 4).",
+    )
+    parser.add_argument(
+        "--artifacts",
+        choices=("normal", "debug", "audit"),
+        default="normal",
+        help="Artifact level (default: normal).",
+    )
     parser.set_defaults(paginate=None, page_numbers=None)
 
 
@@ -371,6 +387,12 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--cache-directory", type=Path)
     compile_parser.add_argument("--force", action="store_true")
     compile_parser.add_argument("--strict-quality", action="store_true")
+    compile_parser.add_argument(
+        "--centerline-workers",
+        default="auto",
+        type=_workers_value,
+        metavar="auto|N",
+    )
     compile_parser.set_defaults(handler=_compile_centerline)
 
     cache_info_parser = commands.add_parser(

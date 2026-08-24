@@ -1013,7 +1013,7 @@ Nx2 numpy array
 
 ---
 
-## 5.1. Выделить pure-ish `process_page()`
+## 5.1. Выделить pure-ish `process_page()`д
 
 Из pipeline вынести функцию уровня:
 

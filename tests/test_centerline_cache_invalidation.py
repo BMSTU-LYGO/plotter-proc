@@ -13,9 +13,14 @@ from plotter_processor.centerline_font.cache import (
     cache_status,
     default_cache_path,
     font_sha256,
+    glyph_shard_path,
     metadata_path,
+    shard_manifest_path,
 )
-from plotter_processor.centerline_font.compiler import compile_centerline_font
+from plotter_processor.centerline_font.compiler import (
+    compile_centerline_font,
+    resolve_centerline_worker_count,
+)
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.models import CenterlineGlyph, CenterlineStroke
 from plotter_processor.centerline_font.serializer import write_centerline_font_atomic
@@ -34,7 +39,7 @@ def _config(tmp_path: Path):
     )
 
 
-def _fake_glyph(_source, char, _font, _config, _debug, _digest):
+def _fake_glyph(_source, char, _font, _config, _debug, _digest, _fingerprint=None):
     return CenterlineGlyph(
         char,
         ord(char),
@@ -64,6 +69,65 @@ def test_partial_cache_compiles_only_misses_and_force_rebuilds_requested(
     assert (second.cache_hits, second.cache_misses) == (2, 1)
     assert (forced.cache_hits, forced.cache_misses) == (0, 1)
     assert set(forced.glyphs) == {"A", "B", "C"}
+
+
+def test_per_glyph_shard_survives_without_canonical_cache(
+    tmp_path: Path, test_font: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    monkeypatch.setattr(compiler, "_compile_glyph", _fake_glyph)
+    first, target = compile_centerline_font(test_font, {"A"}, config)
+    target.unlink()
+
+    def unexpected_compile(*_args):
+        raise AssertionError("valid shard must be loaded instead of recompiled")
+
+    monkeypatch.setattr(compiler, "_compile_glyph", unexpected_compile)
+    second, _ = compile_centerline_font(test_font, {"A"}, config)
+
+    assert first.glyphs["A"] == second.glyphs["A"]
+    assert (second.cache_hits, second.cache_misses) == (1, 0)
+    assert glyph_shard_path(target, "A").is_file()
+    assert shard_manifest_path(target).is_file()
+
+
+def test_centerline_worker_policy_is_ram_capped_and_bounded() -> None:
+    assert resolve_centerline_worker_count("auto", 20) <= 4
+    assert resolve_centerline_worker_count(8, 3) == 3
+    assert resolve_centerline_worker_count(8, 0) == 1
+    with pytest.raises(ValueError, match="positive integer"):
+        resolve_centerline_worker_count(0, 3)
+
+
+def test_parallel_glyph_merge_matches_sequential_geometry(
+    tmp_path: Path, test_font: Path
+) -> None:
+    config = replace(
+        _config(tmp_path),
+        em_resolution_px=128,
+        padding_px=8,
+        candidate_methods=("skeletonize",),
+    )
+    sequential, _ = compile_centerline_font(
+        test_font,
+        {"A", "B", "C"},
+        config,
+        cache_path=tmp_path / "sequential" / "centerlines.json",
+        force=True,
+        workers=1,
+    )
+    parallel, _ = compile_centerline_font(
+        test_font,
+        {"A", "B", "C"},
+        config,
+        cache_path=tmp_path / "parallel" / "centerlines.json",
+        force=True,
+        workers=2,
+    )
+
+    assert list(parallel.glyphs) == ["A", "B", "C"]
+    assert parallel.glyphs == sequential.glyphs
+    assert parallel.warnings == sequential.warnings
 
 
 def test_rebuild_one_font_does_not_remove_another(

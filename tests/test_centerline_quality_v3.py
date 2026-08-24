@@ -8,7 +8,10 @@ from plotter_processor.centerline_font.compiler import _config_for_glyph
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.models import CenterlineStroke, RasterGlyph
 from plotter_processor.centerline_font.quality import score_quality
-from plotter_processor.centerline_font.skeleton_selector import select_best_skeleton
+from plotter_processor.centerline_font.skeleton_selector import (
+    _confidence_checks,
+    select_best_skeleton,
+)
 from plotter_processor.config import load_yaml
 from plotter_processor.models import Point
 
@@ -24,12 +27,36 @@ def test_candidate_selection_reports_geometry_and_topology_metrics() -> None:
     mask[12:19, 5:26] = True
     selected = select_best_skeleton(mask, _config())
     assert selected.method in {"skeletonize", "medial_axis"}
+    assert selected.fast_first is False
     assert set(selected.candidate_metrics) == {"skeletonize", "medial_axis"}
     for metrics in selected.candidate_metrics.values():
         assert 0 <= metrics["mask_coverage"] <= 1
         assert metrics["endpoint_count"] >= 0
         assert metrics["junction_count"] >= 0
         assert metrics["component_count"] == 1
+
+
+def test_fast_first_confidence_requires_audited_glyph_and_all_quality_gates() -> None:
+    metrics = {
+        "mask_coverage": 0.90,
+        "reconstruction_extra": 0.03,
+        "component_count": 1,
+        "micro_loop_count": 0,
+        "estimated_retrace_ratio": 0.10,
+        "junction_count": 2,
+        "short_edge_count": 1,
+        "counter_count": 1,
+        "counter_preservation_ratio": 1.0,
+    }
+    accepted = _confidence_checks("C", frozenset({"C"}), metrics, max_retrace_ratio=0.45)
+    unknown = _confidence_checks("C", frozenset(), metrics, max_retrace_ratio=0.45)
+    low_coverage = _confidence_checks(
+        "C", frozenset({"C"}), {**metrics, "mask_coverage": 0.69}, max_retrace_ratio=0.45
+    )
+
+    assert all(accepted.values())
+    assert unknown["audited_winner"] is False
+    assert low_coverage["coverage"] is False
 
 
 def test_glyph_override_is_local_and_validated() -> None:

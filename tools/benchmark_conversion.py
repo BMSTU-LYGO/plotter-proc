@@ -57,6 +57,9 @@ def main() -> int:
     )
     parser.add_argument("--workers", default="auto")
     parser.add_argument(
+        "--artifacts", choices=("normal", "debug", "audit"), default="normal"
+    )
+    parser.add_argument(
         "--document-layout", choices=("reflow", "hybrid", "preserve"), default="hybrid"
     )
     profile_modes = parser.add_mutually_exclusive_group()
@@ -127,6 +130,7 @@ def main() -> int:
                 page_numbers=True,
                 stage_progress=progress,
                 workers=benchmark_workers,
+                artifact_level=args.artifacts,
             )
             print(f"[benchmark] {label}: conversion started", flush=True)
             started = time.perf_counter()
@@ -175,6 +179,7 @@ def main() -> int:
         "font_mode": args.font_mode,
         "connections": args.connections,
         "workers": benchmark_workers,
+        "artifacts": args.artifacts,
         "document_layout": args.document_layout,
         "mode": (
             "cold-only"

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from plotter_processor.centerline_font.config import CenterlineConfig
 
+SHARD_CACHE_VERSION = 8
+
 
 def font_sha256(path: str | Path) -> str:
     digest = hashlib.sha256()
@@ -66,6 +68,76 @@ def metadata_path(cache_path: Path) -> Path:
     )
 
 
+def shard_manifest_path(cache_path: Path) -> Path:
+    return cache_path.parent / "manifest.json"
+
+
+def glyph_shard_path(cache_path: Path, char: str) -> Path:
+    return cache_path.parent / "glyphs" / f"U+{ord(char):06X}.json"
+
+
+def shard_identity(
+    font_hash: str, config: CenterlineConfig
+) -> dict[str, object]:
+    return {
+        "format": "plotter-centerline-font-shards",
+        "version": SHARD_CACHE_VERSION,
+        "font_sha256": font_hash,
+        "algorithm_version": config.algorithm_version,
+        "config_fingerprint": centerline_config_fingerprint(
+            config, font_hash=font_hash
+        ),
+    }
+
+
+def load_shard_manifest(
+    cache_path: Path, *, identity: dict[str, object]
+) -> dict[str, object] | None:
+    target = shard_manifest_path(cache_path)
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or any(
+        payload.get(key) != value for key, value in identity.items()
+    ):
+        return None
+    glyphs = payload.get("glyphs")
+    if not isinstance(glyphs, list) or any(not isinstance(item, str) for item in glyphs):
+        return None
+    return payload
+
+
+def write_shard_manifest_atomic(
+    cache_path: Path,
+    *,
+    identity: dict[str, object],
+    glyphs: set[str] | list[str],
+) -> Path:
+    target = shard_manifest_path(cache_path)
+    payload = {
+        **identity,
+        "glyphs": sorted(set(glyphs), key=ord),
+    }
+    _write_json_atomic(target, payload)
+    return target
+
+
+def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    except Exception:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
 def write_cache_metadata_atomic(
     cache_path: Path,
     *,
@@ -84,17 +156,7 @@ def write_cache_metadata_atomic(
         "created_at": datetime.now(UTC).isoformat(),
         "glyph_count": glyph_count,
     }
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, ensure_ascii=False, indent=2)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, target)
-    except Exception:
-        Path(temporary).unlink(missing_ok=True)
-        raise
+    _write_json_atomic(target, payload)
     return target
 
 
@@ -104,7 +166,11 @@ def cache_status(font_path: str | Path, config: CenterlineConfig) -> dict[str, o
     target = default_cache_path(digest, config)
     glyph_count = 0
     valid = False
-    if target.is_file():
+    manifest = load_shard_manifest(target, identity=shard_identity(digest, config))
+    if manifest is not None:
+        glyph_count = len(manifest["glyphs"])
+        valid = True
+    elif target.is_file():
         try:
             from plotter_processor.centerline_font.serializer import load_centerline_font
 
@@ -128,6 +194,6 @@ def cache_status(font_path: str | Path, config: CenterlineConfig) -> dict[str, o
         "config_fingerprint": centerline_config_fingerprint(config, font_hash=digest),
         "cached_glyph_count": glyph_count,
         "cache_size_bytes": size_bytes,
-        "exists": target.is_file(),
+        "exists": target.is_file() or manifest is not None,
         "valid": valid,
     }
