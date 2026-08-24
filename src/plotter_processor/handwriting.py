@@ -61,9 +61,33 @@ class GlyphVariation:
 
 
 @dataclass(frozen=True, slots=True)
+class WordVariation:
+    scale_x_delta: float
+    scale_y_delta: float
+    rotation_deg: float
+    baseline_offset_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class LineVariation:
+    rotation_deg: float
+    baseline_offset_mm: float
+    baseline_drift_mm: float
+    min_x_mm: float
+    max_x_mm: float
+
+    def baseline_at(self, x_mm: float) -> float:
+        width = self.max_x_mm - self.min_x_mm
+        progress = 0.0 if width <= 1e-9 else (x_mm - self.min_x_mm) / width - 0.5
+        return self.baseline_offset_mm + progress * self.baseline_drift_mm
+
+
+@dataclass(frozen=True, slots=True)
 class HandwritingVariationContext:
     seed: int
     glyphs: dict[int, GlyphVariation]
+    words: dict[tuple[int, int], WordVariation]
+    lines: dict[int, LineVariation]
 
     def for_glyph(self, glyph_index: int) -> GlyphVariation:
         return self.glyphs[glyph_index]
@@ -235,27 +259,78 @@ def build_variation_context(
 ) -> HandwritingVariationContext:
     occurrences: dict[str, int] = {}
     variations: dict[int, GlyphVariation] = {}
+    words: dict[tuple[int, int], WordVariation] = {}
+    line_bounds: dict[int, tuple[float, float]] = {}
+    line_baseline_limits: dict[int, float] = {}
+    for glyph in glyphs:
+        left, right = line_bounds.get(glyph.line_index, (glyph.x_mm, glyph.x_mm))
+        line_bounds[glyph.line_index] = min(left, glyph.x_mm), max(
+            right, glyph.x_mm + glyph.advance_mm
+        )
+        glyph_baseline_limit = min(
+            config.baseline_jitter_mm,
+            _MAX_BASELINE_OFFSET_MM,
+            max(0.05, glyph.advance_mm * 0.06),
+        )
+        line_baseline_limits[glyph.line_index] = min(
+            line_baseline_limits.get(glyph.line_index, glyph_baseline_limit),
+            glyph_baseline_limit,
+        )
+    rotation_limit = min(config.rotation_deg, _MAX_GLYPH_ROTATION_DEG)
+    lines = {
+        line_index: _line_variation(
+            config.seed,
+            line_index,
+            bounds,
+            rotation_limit,
+            line_baseline_limits[line_index],
+        )
+        for line_index, bounds in line_bounds.items()
+    }
     for glyph in glyphs:
         occurrence = occurrences.get(glyph.char, 0)
         occurrences[glyph.char] = occurrence + 1
         rng = random.Random(_variation_seed(config.seed, glyph))
-        rotation_limit = min(config.rotation_deg, _MAX_GLYPH_ROTATION_DEG)
         scale_limit = min(config.scale_percent, _MAX_GLYPH_SCALE_PERCENT) / 100
         baseline_limit = min(
             config.baseline_jitter_mm,
             _MAX_BASELINE_OFFSET_MM,
             max(0.05, glyph.advance_mm * 0.06),
         )
-        angle = rng.uniform(-rotation_limit, rotation_limit)
+        line = lines[glyph.line_index]
+        word_key = _word_key(glyph)
+        word = words.get(word_key)
+        if word is None:
+            word_rng = random.Random(
+                _variation_seed(config.seed, f"word:{word_key[0]}:{word_key[1]}")
+            )
+            word = WordVariation(
+                scale_x_delta=word_rng.uniform(-scale_limit, scale_limit) * 0.4,
+                scale_y_delta=word_rng.uniform(-scale_limit, scale_limit) * 0.4,
+                rotation_deg=word_rng.uniform(-rotation_limit, rotation_limit)
+                * 0.35,
+                baseline_offset_mm=word_rng.uniform(-baseline_limit, baseline_limit)
+                * 0.35,
+            )
+            words[word_key] = word
+        angle = (
+            line.rotation_deg
+            + word.rotation_deg
+            + rng.uniform(-rotation_limit, rotation_limit) * 0.45
+        )
         variant = (_variation_seed(config.seed, glyph.char) + occurrence) % 3
         variations[glyph.glyph_index] = GlyphVariation(
             glyph_variant=variant,
-            scale_x=1 + rng.uniform(-scale_limit, scale_limit),
-            scale_y=1 + rng.uniform(-scale_limit, scale_limit),
+            scale_x=1
+            + word.scale_x_delta
+            + rng.uniform(-scale_limit, scale_limit) * 0.6,
+            scale_y=1
+            + word.scale_y_delta
+            + rng.uniform(-scale_limit, scale_limit) * 0.6,
             rotation_deg=angle,
-            baseline_offset_mm=rng.uniform(
-                -baseline_limit, baseline_limit
-            ),
+            baseline_offset_mm=line.baseline_at(glyph.x_mm)
+            + word.baseline_offset_mm
+            + rng.uniform(-baseline_limit, baseline_limit) * 0.45,
             spacing_adjustment_mm=rng.uniform(
                 -config.spacing_jitter_mm, config.spacing_jitter_mm
             ),
@@ -263,7 +338,29 @@ def build_variation_context(
             cosine=math.cos(math.radians(angle)),
             sine=math.sin(math.radians(angle)),
         )
-    return HandwritingVariationContext(config.seed, variations)
+    return HandwritingVariationContext(config.seed, variations, words, lines)
+
+
+def _line_variation(
+    seed: int,
+    line_index: int,
+    bounds: tuple[float, float],
+    rotation_limit: float,
+    baseline_limit: float,
+) -> LineVariation:
+    rng = random.Random(_variation_seed(seed, f"line:{line_index}"))
+    return LineVariation(
+        rotation_deg=rng.uniform(-rotation_limit, rotation_limit) * 0.2,
+        baseline_offset_mm=rng.uniform(-baseline_limit, baseline_limit) * 0.15,
+        baseline_drift_mm=rng.uniform(-baseline_limit, baseline_limit) * 0.2,
+        min_x_mm=bounds[0],
+        max_x_mm=bounds[1],
+    )
+
+
+def _word_key(glyph: PositionedGlyph) -> tuple[int, int]:
+    word_index = glyph.word_index if glyph.word_index >= 0 else -(glyph.glyph_index + 1)
+    return glyph.line_index, word_index
 
 
 def _variation_seed(seed: int, glyph: PositionedGlyph | str) -> int:

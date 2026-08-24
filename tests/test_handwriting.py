@@ -197,6 +197,87 @@ def test_rotation_and_baseline_variation_stay_inside_safe_limits() -> None:
     assert max(first_line) < min(second_line)
 
 
+def test_word_variation_is_shared_and_glyph_variation_is_weaker() -> None:
+    glyphs = [
+        replace(_glyph(char, index, float(index * 2)), word_index=word)
+        for index, (char, word) in enumerate(
+            [("м", 0), ("а", 0), ("м", 0), ("а", 1), ("м", 1), ("а", 1)]
+        )
+    ]
+    config = VariationConfig(True, 31, 0.15, 1.0, 2.0, 0.1)
+
+    context = build_variation_context(glyphs, config)
+
+    assert set(context.words) == {(0, 0), (0, 1)}
+    first_word = context.words[(0, 0)]
+    second_word = context.words[(0, 1)]
+    assert first_word != second_word
+    assert abs(first_word.rotation_deg) <= 0.4
+    assert abs(first_word.scale_x_delta) <= 0.008
+    assert abs(first_word.baseline_offset_mm) <= 0.06
+
+
+def test_line_variation_is_correlated_bounded_and_does_not_reflow() -> None:
+    glyphs = [
+        replace(
+            _glyph(char, index, float(column * 2), line=line),
+            baseline_y_mm=8.0 + line * 4.0,
+            word_index=0,
+        )
+        for line in range(3)
+        for column, (index, char) in enumerate(
+            ((line * 3, "м"), (line * 3 + 1, "а"), (line * 3 + 2, "м"))
+        )
+    ]
+    config = VariationConfig(True, 41, 0.15, 1.0, 2.0, 0)
+    context = build_variation_context(glyphs, config)
+
+    assert set(context.lines) == {0, 1, 2}
+    assert len(set(context.lines.values())) == 3
+    assert all(abs(line.rotation_deg) <= 0.2 for line in context.lines.values())
+    assert all(
+        abs(line.baseline_offset_mm) <= 0.018
+        for line in context.lines.values()
+    )
+    assert all(
+        abs(line.baseline_drift_mm) <= 0.024 for line in context.lines.values()
+    )
+
+    original_layout = [
+        (glyph.x_mm, glyph.baseline_y_mm, glyph.line_index) for glyph in glyphs
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [
+                    Point(glyph.x_mm, glyph.baseline_y_mm - 1),
+                    Point(glyph.x_mm + 1, glyph.baseline_y_mm + 1),
+                ],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    result = apply_variation(document, glyphs, config)
+
+    assert [
+        (glyph.x_mm, glyph.baseline_y_mm, glyph.line_index) for glyph in glyphs
+    ] == original_layout
+    line_ranges = [
+        [point.y for stroke in result.strokes[start : start + 3] for point in stroke.points]
+        for start in (0, 3, 6)
+    ]
+    assert max(line_ranges[0]) < min(line_ranges[1])
+    assert max(line_ranges[1]) < min(line_ranges[2])
+
+
 def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:
     document = PathDocument(
         10,
