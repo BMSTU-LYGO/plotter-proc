@@ -4,8 +4,7 @@ from pathlib import Path
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
-    _StrokeObstacle,
-    _StrokeObstacleIndex,
+    _SegmentObstacleIndex,
     apply_variation,
     export_handwriting_debug,
     route_words,
@@ -84,20 +83,48 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
     assert 'id="travel"' in svg
 
 
-def test_obstacle_index_returns_overlapping_strokes_in_source_order() -> None:
+def test_segment_index_returns_overlapping_segments_in_source_order() -> None:
     strokes = [
         PlotterStroke(0, [Point(0, 0), Point(1, 1)], False),
         PlotterStroke(1, [Point(50, 50), Point(51, 51)], False),
         PlotterStroke(2, [Point(2, 0), Point(3, 1)], False),
     ]
-    obstacles = [
-        _StrokeObstacle(stroke, (stroke.points[0].x, stroke.points[0].y, stroke.points[-1].x, stroke.points[-1].y))
-        for stroke in strokes
-    ]
-    index = _StrokeObstacleIndex.build(obstacles, cell_size_mm=4)
+    index = _SegmentObstacleIndex.build(strokes, cell_size_mm=4)
 
     assert [item.stroke.id for item in index.query((-1, -1, 4, 2))] == [0, 2]
     assert index.query((10, 10, 11, 11)) == []
+
+
+def test_distance_rejections_skip_bezier_and_collision_work() -> None:
+    glyphs = [
+        replace(_glyph("а", index, index * 10.0), word_index=0)
+        for index in range(1001)
+    ]
+    document = PathDocument(
+        10020,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [Point(index * 10.0, 10), Point(index * 10.0 + 1, 10)],
+                False,
+                index,
+                "а",
+                0,
+            )
+            for index in range(1001)
+        ],
+        [],
+    )
+
+    result, metrics = route_words(document, glyphs, _config())
+
+    assert len(result.strokes) == 1001
+    assert metrics["cheap_rejected_pairs"] == 1000
+    assert metrics["beziers_built"] == 0
+    assert metrics["collision_queries"] == 0
+    assert metrics["segments_tested"] == 0
+    assert "connection_debug" not in result.metadata
 
 
 def test_aggressive_accepts_bounded_gap_that_safe_rejects() -> None:

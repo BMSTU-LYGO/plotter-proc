@@ -184,11 +184,36 @@ def test_connection_result_and_debug_are_deterministic() -> None:
     document, glyphs = _pair(
         [Point(0, 10), Point(2, 10)], [Point(2.5, 10), Point(4, 10)]
     )
-    first, first_metrics = route_words(document, glyphs, _config())
-    second, second_metrics = route_words(document, glyphs, _config())
+    first, first_metrics = route_words(document, glyphs, _config(), collect_debug=True)
+    second, second_metrics = route_words(document, glyphs, _config(), collect_debug=True)
     assert first.strokes == second.strokes
     assert first.metadata["connection_debug"] == second.metadata["connection_debug"]
     assert first_metrics == second_metrics
+
+
+def test_debug_mode_keeps_full_geometry_without_changing_connection_result() -> None:
+    document, glyphs = _pair(
+        [Point(0, 10), Point(2, 10)], [Point(5, 10), Point(7, 10)]
+    )
+
+    fast, fast_metrics = route_words(document, glyphs, _config())
+    debug, debug_metrics = route_words(document, glyphs, _config(), collect_debug=True)
+
+    assert fast.strokes == debug.strokes
+    assert "connection_debug" not in fast.metadata
+    [candidate] = debug.metadata["connection_debug"]
+    assert candidate["reason"] == "distance"
+    assert candidate["curve"]
+    for key in (
+        "pairs_total",
+        "accepted",
+        "rejected",
+        "rejections_by_reason",
+        "connector_length_mm",
+    ):
+        assert fast_metrics[key] == debug_metrics[key]
+    assert fast_metrics["collision_queries"] == 0
+    assert debug_metrics["collision_queries"] == 1
 
 
 def test_problem_word_corpus_has_required_coverage() -> None:

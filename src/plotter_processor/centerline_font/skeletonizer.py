@@ -7,6 +7,8 @@ import numpy as np
 from scipy import ndimage
 from skimage.morphology import medial_axis, skeletonize
 
+from plotter_processor.performance import GLYPH_TIMING_STAGES, measure_glyph_stage
+
 
 @dataclass(frozen=True, slots=True)
 class SkeletonResult:
@@ -15,21 +17,52 @@ class SkeletonResult:
     component_labels: np.ndarray
 
 
-def build_skeleton(mask: np.ndarray, *, method: str = "medial_axis") -> SkeletonResult:
+@dataclass(frozen=True, slots=True)
+class SkeletonInput:
+    source: np.ndarray
+    component_labels: np.ndarray
+    component_count: int
+    distance: np.ndarray
+
+
+def preprocess_skeleton(mask: np.ndarray) -> SkeletonInput:
+    """Compute candidate-independent raster data exactly once per glyph."""
     source = np.asarray(mask, dtype=bool)
-    labels, count = ndimage.label(source, structure=np.ones((3, 3), dtype=np.uint8))
+    with measure_glyph_stage("label_components"):
+        labels, count = ndimage.label(
+            source, structure=np.ones((3, 3), dtype=np.uint8)
+        )
+    with measure_glyph_stage("distance_transform"):
+        distance = ndimage.distance_transform_edt(source)
+    return SkeletonInput(source, labels, int(count), distance)
+
+
+def build_skeleton(
+    mask: np.ndarray,
+    *,
+    method: str = "medial_axis",
+    candidate_index: int = 1,
+    prepared: SkeletonInput | None = None,
+) -> SkeletonResult:
+    prepared = prepared or preprocess_skeleton(mask)
+    source = prepared.source
+    labels = prepared.component_labels
+    count = prepared.component_count
     result = np.zeros_like(source)
-    distance = ndimage.distance_transform_edt(source)
-    for label in range(1, count + 1):
-        component = labels == label
-        if method == "medial_axis":
-            part = medial_axis(component, rng=0)
-        elif method == "skeletonize":
-            part = skeletonize(component)
-        else:
-            raise ValueError(f"Unknown skeleton method: {method}")
-        result |= part
-    return SkeletonResult(result, distance, labels)
+    candidate_stage = f"candidate_{candidate_index}"
+    if candidate_stage not in GLYPH_TIMING_STAGES:
+        candidate_stage = "candidate_2"
+    with measure_glyph_stage(candidate_stage):
+        for label in range(1, count + 1):
+            component = labels == label
+            if method == "medial_axis":
+                part = medial_axis(component, rng=0)
+            elif method == "skeletonize":
+                part = skeletonize(component)
+            else:
+                raise ValueError(f"Unknown skeleton method: {method}")
+            result |= part
+    return SkeletonResult(result, prepared.distance, labels)
 
 
 def prune_short_spurs(
@@ -44,6 +77,7 @@ def prune_short_spurs(
     result = np.asarray(skeleton, dtype=bool).copy()
     if min_branch_width_factor <= 0:
         return result
+    reconstructed: np.ndarray | None = None
     for _ in range(32):
         degrees = _degrees(result)
         endpoints = list(zip(*np.nonzero(result & (degrees == 1)), strict=True))
@@ -74,8 +108,20 @@ def prune_short_spurs(
                         candidate = result.copy()
                         for pixel in branch[:-1]:
                             candidate[pixel] = False
-                        if _coverage_loss(result, candidate, distance, ink_mask) <= max_coverage_loss:
+                        if ink_mask is not None and reconstructed is None:
+                            reconstructed = (
+                                reconstruct_with_local_radius(result, distance) & ink_mask
+                            )
+                        candidate_reconstructed = (
+                            reconstruct_with_local_radius(candidate, distance) & ink_mask
+                            if ink_mask is not None
+                            else None
+                        )
+                        if _coverage_loss_from_reconstruction(
+                            reconstructed, candidate_reconstructed, ink_mask
+                        ) <= max_coverage_loss:
                             result = candidate
+                            reconstructed = candidate_reconstructed
                             removed = True
                     break
         if not removed:
@@ -100,6 +146,16 @@ def _coverage_loss(
         return 0.0
     old = reconstruct_with_local_radius(before, distance) & ink_mask
     new = reconstruct_with_local_radius(after, distance) & ink_mask
+    return _coverage_loss_from_reconstruction(old, new, ink_mask)
+
+
+def _coverage_loss_from_reconstruction(
+    old: np.ndarray | None,
+    new: np.ndarray | None,
+    ink_mask: np.ndarray | None,
+) -> float:
+    if ink_mask is None or old is None or new is None:
+        return 0.0
     return max(0.0, float(old.sum() - new.sum()) / max(1, int(ink_mask.sum())))
 
 

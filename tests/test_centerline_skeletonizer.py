@@ -1,7 +1,14 @@
 import numpy as np
 from scipy import ndimage
 
-from plotter_processor.centerline_font.skeletonizer import build_skeleton, prune_short_spurs
+from plotter_processor.centerline_font.skeletonizer import (
+    _coverage_loss,
+    _coverage_loss_from_reconstruction,
+    build_skeleton,
+    preprocess_skeleton,
+    prune_short_spurs,
+    reconstruct_with_local_radius,
+)
 
 
 def test_ring_produces_deterministic_centerline_loop() -> None:
@@ -13,6 +20,23 @@ def test_ring_produces_deterministic_centerline_loop() -> None:
     assert np.array_equal(first, second)
     assert first.any()
     assert not first[20, 20]
+
+
+def test_shared_preprocessing_preserves_each_candidate_byte_for_byte() -> None:
+    y, x = np.ogrid[:51, :47]
+    mask = ((x - 18) ** 2 + (y - 25) ** 2 <= 13**2) | (
+        (x >= 18) & (x <= 39) & (y >= 22) & (y <= 28)
+    )
+    prepared = preprocess_skeleton(mask)
+
+    for index, method in enumerate(("skeletonize", "medial_axis"), start=1):
+        reference = build_skeleton(mask, method=method, candidate_index=index)
+        shared = build_skeleton(
+            mask, method=method, candidate_index=index, prepared=prepared
+        )
+        assert np.array_equal(shared.mask, reference.mask)
+        assert np.array_equal(shared.distance, reference.distance)
+        assert np.array_equal(shared.component_labels, reference.component_labels)
 
 
 def test_width_aware_pruning_keeps_long_thin_tail() -> None:
@@ -40,3 +64,19 @@ def test_pruning_is_cancelled_when_coverage_loss_is_too_large() -> None:
         preserve_connector_terminals=False,
     )
     assert result[7, 12]
+
+
+def test_cached_coverage_loss_is_exactly_the_full_reconstruction_formula() -> None:
+    rng = np.random.default_rng(1206)
+    for _ in range(20):
+        before = rng.random((32, 29)) > 0.91
+        after = before.copy()
+        after[rng.random(before.shape) > 0.97] = False
+        ink = ndimage.binary_dilation(before, iterations=2)
+        distance = ndimage.distance_transform_edt(ink)
+        old = reconstruct_with_local_radius(before, distance) & ink
+        new = reconstruct_with_local_radius(after, distance) & ink
+
+        assert _coverage_loss_from_reconstruction(old, new, ink) == _coverage_loss(
+            before, after, distance, ink
+        )

@@ -3,7 +3,15 @@ import numpy as np
 from plotter_processor.image_preprocessor import PreprocessedImage
 from plotter_processor.image_vectorizer import vectorize_image
 from plotter_processor.latex_renderer import MathTextRenderer
-from plotter_processor.performance import StageTimings
+from plotter_processor.performance import (
+    GLYPH_TIMING_STAGES,
+    FunctionProfiler,
+    PagePerformance,
+    StageTimings,
+    collect_glyph_performance,
+    glyph_performance,
+    measure_glyph_stage,
+)
 
 
 def test_stage_timings_reports_calls_total_and_max() -> None:
@@ -30,6 +38,67 @@ def test_stage_timings_emits_optional_progress_events() -> None:
     assert events[0] == ("handwriting", "started", None)
     assert events[1][0:2] == ("handwriting", "completed")
     assert events[1][2] is not None and events[1][2] >= 0
+
+
+def test_stage_timings_merges_worker_measurements() -> None:
+    timings = StageTimings()
+
+    timings.record("handwriting", 12.5)
+    timings.record("handwriting", 7.5)
+
+    report = timings.report()
+    assert report["handwriting_ms"] == 20.0
+    assert report["stages"]["handwriting"]["calls"] == 2
+    assert report["stages"]["handwriting"]["max_ms"] == 12.5
+
+
+def test_function_profiler_reports_top_functions_for_selected_stage() -> None:
+    profiler = FunctionProfiler("handwriting")
+    profiler.progress("handwriting", "started", None)
+    sum(range(100))
+    profiler.progress("handwriting", "completed", 0.1)
+
+    rows = profiler.top_functions(20)
+    assert rows
+    assert all(
+        {
+            "function",
+            "calls",
+            "self_seconds",
+            "cumulative_seconds",
+            "seconds_per_call",
+        }
+        <= row.keys()
+        for row in rows
+    )
+
+
+def test_page_performance_reports_required_fields() -> None:
+    performance = PagePerformance(page=2, glyph_count=17)
+    performance.values["stroke_count_before"] = 4
+    performance.values["point_count_before"] = 23
+    with performance.measure("word_routing_ms"):
+        sum(range(10))
+
+    report = performance.report()
+    assert report["page"] == 2
+    assert report["glyph_count"] == 17
+    assert report["stroke_count_before"] == 4
+    assert report["point_count_before"] == 23
+    assert set(PagePerformance.TIMINGS) <= report.keys()
+
+
+def test_glyph_performance_reports_every_compiler_stage() -> None:
+    with collect_glyph_performance() as performance, glyph_performance("A"):
+        for stage in GLYPH_TIMING_STAGES:
+            with measure_glyph_stage(stage):
+                sum(range(5))
+
+    [report] = performance.report()
+    assert report["glyph"] == "A"
+    assert report["codepoint"] == "U+0041"
+    assert report["total_ms"] >= 0
+    assert all(f"{stage}_ms" in report for stage in GLYPH_TIMING_STAGES)
 
 
 def test_latex_renderer_reuses_identical_local_geometry() -> None:

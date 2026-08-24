@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
 import yaml
 
 from plotter_processor import pipeline
-from plotter_processor.pipeline import PipelineOptions, run_pipeline
+from plotter_processor.pipeline import PipelineOptions, resolve_worker_count, run_pipeline
 
 
 def _options(
@@ -68,3 +69,35 @@ def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) ->
 
     assert result.status == "ok"
     assert (tmp_path / "compatible" / "output.gcode").exists()
+    assert (tmp_path / "compatible" / "plotter-preview.svg").exists()
+    assert (tmp_path / "compatible" / "paths.json").exists()
+    assert (tmp_path / "compatible" / "job.json").exists()
+    assert not (tmp_path / "compatible" / "font-preview.svg").exists()
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert report["artifact_level"] == "normal"
+    assert "font_preview" not in report["outputs"]
+
+
+def test_debug_artifact_level_adds_font_and_subsystem_debug(
+    tmp_path: Path, test_font: Path
+) -> None:
+    machine = _machine_config(tmp_path, max_y=320.0)
+    options = _options(tmp_path, test_font, machine, output_name="debug")
+    options.artifact_level = "debug"
+
+    result = run_pipeline(options)
+
+    assert result.status == "ok"
+    assert (tmp_path / "debug" / "font-preview.svg").exists()
+    assert (tmp_path / "debug" / "layout-debug").is_dir()
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert report["artifact_level"] == "debug"
+    assert sum(report["cache"]["previews"].values()) == 1
+
+
+def test_worker_count_is_bounded_by_memory_policy_and_page_count(monkeypatch) -> None:
+    monkeypatch.setattr(pipeline.os, "cpu_count", lambda: 12)
+
+    assert resolve_worker_count("auto", 20) == 4
+    assert resolve_worker_count(8, 3) == 3
+    assert resolve_worker_count(1, 20) == 1

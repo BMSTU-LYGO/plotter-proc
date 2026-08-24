@@ -53,36 +53,60 @@ class _GlyphRoute:
 
 
 @dataclass(frozen=True, slots=True)
-class _StrokeObstacle:
+class _SegmentObstacle:
     stroke: PlotterStroke
+    segment_index: int
+    first: Point
+    second: Point
     bounds: tuple[float, float, float, float]
 
 
 @dataclass(slots=True)
-class _StrokeObstacleIndex:
-    obstacles: list[_StrokeObstacle]
+class _StrokeSegmentIndex:
+    segments: tuple[_SegmentObstacle, ...]
     cell_size_mm: float
     cells: dict[tuple[int, int], tuple[int, ...]]
 
     @classmethod
     def build(
-        cls, obstacles: list[_StrokeObstacle], *, cell_size_mm: float = 4.0
-    ) -> _StrokeObstacleIndex:
+        cls, stroke: PlotterStroke, *, cell_size_mm: float
+    ) -> _StrokeSegmentIndex:
+        segments = tuple(
+            _SegmentObstacle(
+                stroke,
+                segment_index,
+                first,
+                second,
+                (
+                    min(first.x, second.x),
+                    min(first.y, second.y),
+                    max(first.x, second.x),
+                    max(first.y, second.y),
+                ),
+            )
+            for segment_index, (first, second) in enumerate(pairwise(stroke.points))
+        )
         cells: dict[tuple[int, int], list[int]] = {}
-        for index, obstacle in enumerate(obstacles):
-            min_x, min_y, max_x, max_y = obstacle.bounds
-            for cell_x in range(math.floor(min_x / cell_size_mm), math.floor(max_x / cell_size_mm) + 1):
-                for cell_y in range(math.floor(min_y / cell_size_mm), math.floor(max_y / cell_size_mm) + 1):
-                    cells.setdefault((cell_x, cell_y), []).append(index)
+        for segment_index, segment in enumerate(segments):
+            min_x, min_y, max_x, max_y = segment.bounds
+            for cell_x in range(
+                math.floor(min_x / cell_size_mm),
+                math.floor(max_x / cell_size_mm) + 1,
+            ):
+                for cell_y in range(
+                    math.floor(min_y / cell_size_mm),
+                    math.floor(max_y / cell_size_mm) + 1,
+                ):
+                    cells.setdefault((cell_x, cell_y), []).append(segment_index)
         return cls(
-            obstacles,
+            segments,
             cell_size_mm,
             {cell: tuple(indices) for cell, indices in cells.items()},
         )
 
     def query(
         self, bounds: tuple[float, float, float, float]
-    ) -> list[_StrokeObstacle]:
+    ) -> list[_SegmentObstacle]:
         min_x, min_y, max_x, max_y = bounds
         matches: set[int] = set()
         for cell_x in range(
@@ -95,10 +119,73 @@ class _StrokeObstacleIndex:
             ):
                 matches.update(self.cells.get((cell_x, cell_y), ()))
         return [
-            self.obstacles[index]
+            self.segments[index]
             for index in sorted(matches)
-            if _bounds_overlap(bounds, self.obstacles[index].bounds)
+            if _bounds_overlap(bounds, self.segments[index].bounds)
         ]
+
+
+@dataclass(slots=True)
+class _SegmentObstacleIndex:
+    strokes: list[PlotterStroke]
+    stroke_bounds: list[tuple[float, float, float, float]]
+    cell_size_mm: float
+    cells: dict[tuple[int, int], tuple[int, ...]]
+    segment_cache: dict[int, _StrokeSegmentIndex]
+
+    @classmethod
+    def build(
+        cls, strokes: list[PlotterStroke], *, cell_size_mm: float = 4.0
+    ) -> _SegmentObstacleIndex:
+        stroke_bounds = [_stroke_bounds(stroke) for stroke in strokes]
+        cells: dict[tuple[int, int], list[int]] = {}
+        for index, bounds in enumerate(stroke_bounds):
+            min_x, min_y, max_x, max_y = bounds
+            for cell_x in range(math.floor(min_x / cell_size_mm), math.floor(max_x / cell_size_mm) + 1):
+                for cell_y in range(math.floor(min_y / cell_size_mm), math.floor(max_y / cell_size_mm) + 1):
+                    cells.setdefault((cell_x, cell_y), []).append(index)
+        return cls(
+            strokes,
+            stroke_bounds,
+            cell_size_mm,
+            {cell: tuple(indices) for cell, indices in cells.items()},
+            {},
+        )
+
+    def query(
+        self, bounds: tuple[float, float, float, float]
+    ) -> list[_SegmentObstacle]:
+        min_x, min_y, max_x, max_y = bounds
+        matches: set[int] = set()
+        for cell_x in range(
+            math.floor(min_x / self.cell_size_mm),
+            math.floor(max_x / self.cell_size_mm) + 1,
+        ):
+            for cell_y in range(
+                math.floor(min_y / self.cell_size_mm),
+                math.floor(max_y / self.cell_size_mm) + 1,
+            ):
+                matches.update(self.cells.get((cell_x, cell_y), ()))
+        segments: list[_SegmentObstacle] = []
+        for stroke_index in sorted(matches):
+            if not _bounds_overlap(bounds, self.stroke_bounds[stroke_index]):
+                continue
+            cached = self.segment_cache.get(stroke_index)
+            if cached is None:
+                cached = _StrokeSegmentIndex.build(
+                    self.strokes[stroke_index], cell_size_mm=self.cell_size_mm
+                )
+                self.segment_cache[stroke_index] = cached
+            segments.extend(cached.query(bounds))
+        return segments
+
+
+@dataclass(slots=True)
+class _ConnectionCounters:
+    cheap_rejected_pairs: int = 0
+    beziers_built: int = 0
+    collision_queries: int = 0
+    segments_tested: int = 0
 
 
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
@@ -252,6 +339,8 @@ def route_words(
     document: PathDocument,
     glyphs: list[PositionedGlyph],
     config: JoiningConfig,
+    *,
+    collect_debug: bool = False,
 ) -> tuple[PathDocument, dict[str, object]]:
     before = len(document.strokes)
     if not config.enabled:
@@ -267,15 +356,22 @@ def route_words(
             }
         )
         metrics.update(_required_metrics(pairs, 0, pairs, 0, 0.0, {"mode_off": pairs}))
+        metrics.update(
+            {
+                "cheap_rejected_pairs": pairs,
+                "beziers_built": 0,
+                "collision_queries": 0,
+                "segments_tested": 0,
+            }
+        )
         return document, metrics
     by_glyph: dict[int, list[PlotterStroke]] = {}
     for stroke in document.strokes:
         if stroke.glyph_index is not None:
             by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
     words = _words(glyphs)
-    obstacle_index = _StrokeObstacleIndex.build([
-        _StrokeObstacle(stroke, _stroke_bounds(stroke)) for stroke in document.strokes
-    ])
+    obstacle_index = _SegmentObstacleIndex.build(document.strokes)
+    counters = _ConnectionCounters()
     output: list[PlotterStroke] = []
     candidates = created = rejected = snapped = 0
     connector_length = 0.0
@@ -294,8 +390,7 @@ def route_words(
             classified = classify_strokes(strokes, glyph.baseline_y_mm)
             main = classified.main if classified.confidence >= 0.35 else None
             if main is not None:
-                routed = _orient_for_anchors(main, glyph)
-                anchors = entry_exit_anchors(routed, glyph.baseline_y_mm)
+                routed, anchors = _orient_for_anchors(main, glyph)
                 routes.append(
                     _GlyphRoute(
                         glyph,
@@ -324,6 +419,7 @@ def route_words(
                     or right_route.entry is None
                 ):
                     reason = "missing_main_stroke"
+                    counters.cheap_rejected_pairs += 1
                     if combined is not None:
                         output.append(combined)
                     combined = replace(right, points=list(right.points)) if right else None
@@ -336,13 +432,21 @@ def route_words(
                     right_route,
                     config,
                     obstacle_index,
+                    counters,
+                    collect_debug=collect_debug,
                 )
                 reason = candidate.rejection_reason
-                debug_candidates.append(
-                    _debug_candidate(
-                        left_route, right_route, candidate, connector, collision_points, snap_point
+                if collect_debug:
+                    debug_candidates.append(
+                        _debug_candidate(
+                            left_route,
+                            right_route,
+                            candidate,
+                            connector,
+                            collision_points,
+                            snap_point,
+                        )
                     )
-                )
                 if not candidate.accepted:
                     output.append(combined)
                     combined = replace(right, points=list(right.points))
@@ -395,7 +499,10 @@ def route_words(
         stroke.id = index
     result = replace(document, strokes=output, metadata=dict(document.metadata))
     result.metadata["word_joining"] = True
-    result.metadata["connection_debug"] = debug_candidates
+    if collect_debug:
+        result.metadata["connection_debug"] = debug_candidates
+    else:
+        result.metadata.pop("connection_debug", None)
     metrics = _metrics(
         len(words), candidates, created, before, len(output), connector_length, gaps, rejected,
         rejection_reasons,
@@ -406,6 +513,14 @@ def route_words(
         _required_metrics(
             candidates, created, rejected, snapped, connector_length, rejection_reasons
         )
+    )
+    metrics.update(
+        {
+            "cheap_rejected_pairs": counters.cheap_rejected_pairs,
+            "beziers_built": counters.beziers_built,
+            "collision_queries": counters.collision_queries,
+            "segments_tested": counters.segments_tested,
+        }
     )
     return result, metrics
 
@@ -437,19 +552,25 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     return words
 
 
-def _orient_for_anchors(stroke: PlotterStroke, glyph: PositionedGlyph) -> PlotterStroke:
+def _orient_for_anchors(
+    stroke: PlotterStroke, glyph: PositionedGlyph
+) -> tuple[PlotterStroke, tuple[StrokeAnchor, StrokeAnchor] | None]:
     routed = replace(stroke, points=list(stroke.points))
     anchors = entry_exit_anchors(routed, glyph.baseline_y_mm)
     if anchors is not None and anchors[0].point == routed.points[-1]:
         routed.points.reverse()
-    return routed
+        anchors = entry_exit_anchors(routed, glyph.baseline_y_mm)
+    return routed, anchors
 
 
 def _connection_candidate(
     left: _GlyphRoute,
     right: _GlyphRoute,
     config: JoiningConfig,
-    obstacles: _StrokeObstacleIndex,
+    obstacles: _SegmentObstacleIndex,
+    counters: _ConnectionCounters,
+    *,
+    collect_debug: bool,
 ) -> tuple[GlyphConnectionCandidate, list[Point], list[Point], Point | None]:
     assert left.main is not None and right.main is not None
     assert left.exit is not None and right.entry is not None
@@ -466,41 +587,6 @@ def _connection_candidate(
         _distance(start, left.main.points[-1]) <= 1e-6
         and _distance(end, right.main.points[0]) <= 1e-6
     )
-    contact = _contact_point(left.main, right.main, config.contact_epsilon_mm)
-    if contact is not None:
-        candidate = GlyphConnectionCandidate(
-            left.glyph.glyph_index,
-            right.glyph.glyph_index,
-            left.exit,
-            right.entry,
-            gap,
-            tangent_mismatch,
-            vertical,
-            1.0,
-            0,
-            0.0,
-            True,
-            None,
-        )
-        return candidate, [start, contact, end], [], contact
-    handle = gap / 3
-    c1 = Point(start.x + math.cos(left_angle) * handle, start.y + math.sin(left_angle) * handle)
-    c2 = Point(end.x - math.cos(right_angle) * handle, end.y - math.sin(right_angle) * handle)
-    count = max(2, math.ceil(gap / config.connector_step_mm))
-    curve = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
-    backtracking = any(b.x < a.x - 0.15 for a, b in pairwise(curve))
-    corridor_ratio = _corridor_inside_ratio(
-        curve, start, end, config.outside_ink_margin_mm
-    )
-    collision_points = _collision_points(
-        curve,
-        obstacles,
-        left.main,
-        right.main,
-        start,
-        end,
-        config.collision_clearance_mm,
-    )
     reason: str | None = None
     if left.glyph.line_index != right.glyph.line_index:
         reason = "different_line"
@@ -516,16 +602,131 @@ def _connection_candidate(
         reason = "distance"
     elif vertical > config.max_vertical_offset_mm:
         reason = "vertical_offset"
-    elif end.x + 1e-9 < start.x or backtracking:
+    elif end.x + 1e-9 < start.x:
         reason = "backward_motion"
-    elif tangent_mismatch > config.max_join_angle_deg:
+
+    handle = gap / 3
+    c1 = Point(start.x + math.cos(left_angle) * handle, start.y + math.sin(left_angle) * handle)
+    c2 = Point(end.x - math.cos(right_angle) * handle, end.y - math.sin(right_angle) * handle)
+    controls_are_forward = start.x <= c1.x <= c2.x <= end.x
+    if (
+        reason is None
+        and tangent_mismatch > config.max_join_angle_deg
+        and controls_are_forward
+    ):
         reason = "tangent_mismatch"
-    elif collision_points:
+
+    # Existing contact is already valid geometry and must retain the historical snap
+    # semantics even when a synthetic connector would fail direction/tangent checks.
+    contact = _contact_point(left.main, right.main, config.contact_epsilon_mm)
+    if contact is not None:
+        candidate = _make_candidate(
+            left,
+            right,
+            gap,
+            tangent_mismatch,
+            vertical,
+            1.0,
+            [],
+            False,
+            None,
+            score_override=0.0,
+        )
+        return candidate, [start, contact, end], [], contact
+
+    if reason is not None:
+        counters.cheap_rejected_pairs += 1
+        if not collect_debug:
+            return (
+                _make_candidate(
+                    left,
+                    right,
+                    gap,
+                    tangent_mismatch,
+                    vertical,
+                    1.0,
+                    [],
+                    False,
+                    reason,
+                ),
+                [],
+                [],
+                None,
+            )
+
+    count = max(2, math.ceil(gap / config.connector_step_mm))
+    curve = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
+    counters.beziers_built += 1
+    backtracking = any(b.x < a.x - 0.15 for a, b in pairwise(curve))
+    if reason is None and backtracking:
+        reason = "backward_motion"
+    elif reason is None and tangent_mismatch > config.max_join_angle_deg:
+        reason = "tangent_mismatch"
+    if reason is not None and not collect_debug:
+        return (
+            _make_candidate(
+                left,
+                right,
+                gap,
+                tangent_mismatch,
+                vertical,
+                1.0,
+                [],
+                backtracking,
+                reason,
+            ),
+            [],
+            [],
+            None,
+        )
+
+    corridor_ratio = _corridor_inside_ratio(
+        curve, start, end, config.outside_ink_margin_mm
+    )
+    collision_points = _collision_points(
+        curve,
+        obstacles,
+        left.main,
+        right.main,
+        start,
+        end,
+        config.collision_clearance_mm,
+        counters,
+    )
+    if reason is None and collision_points:
         reason = "collision"
-    elif corridor_ratio < (
+    elif reason is None and corridor_ratio < (
         config.min_corridor_inside_ratio if config.allow_connector_outside_ink else 1.0
     ):
         reason = "corridor"
+    candidate = _make_candidate(
+        left,
+        right,
+        gap,
+        tangent_mismatch,
+        vertical,
+        corridor_ratio,
+        collision_points,
+        backtracking,
+        reason,
+    )
+    return candidate, curve, collision_points, None
+
+
+def _make_candidate(
+    left: _GlyphRoute,
+    right: _GlyphRoute,
+    gap: float,
+    tangent_mismatch: float,
+    vertical: float,
+    corridor_ratio: float,
+    collision_points: list[Point],
+    backtracking: bool,
+    reason: str | None,
+    *,
+    score_override: float | None = None,
+) -> GlyphConnectionCandidate:
+    assert left.exit is not None and right.entry is not None
     score = (
         gap
         + vertical * 0.75
@@ -534,7 +735,9 @@ def _connection_candidate(
         + len(collision_points) * 100.0
         + (100.0 if backtracking else 0.0)
     )
-    candidate = GlyphConnectionCandidate(
+    if score_override is not None:
+        score = score_override
+    return GlyphConnectionCandidate(
         left.glyph.glyph_index,
         right.glyph.glyph_index,
         left.exit,
@@ -548,7 +751,6 @@ def _connection_candidate(
         reason is None,
         reason,
     )
-    return candidate, curve, collision_points, None
 
 
 def _contact_point(
@@ -599,13 +801,15 @@ def _corridor_inside_ratio(
 
 def _collision_points(
     curve: list[Point],
-    obstacles: list[_StrokeObstacle],
+    obstacles: _SegmentObstacleIndex,
     left: PlotterStroke,
     right: PlotterStroke,
     start: Point,
     end: Point,
     clearance: float,
+    counters: _ConnectionCounters,
 ) -> list[Point]:
+    counters.collision_queries += 1
     collisions: list[Point] = []
     boundary_ignore = max(clearance * 4, 0.35)
     curve_bounds = (
@@ -614,34 +818,30 @@ def _collision_points(
         max(point.x for point in curve) + clearance,
         max(point.y for point in curve) + clearance,
     )
-    nearby_obstacles = obstacles.query(curve_bounds)
+    nearby_segments = obstacles.query(curve_bounds)
     for point in curve[1:-1]:
-        collided = False
-        for obstacle in nearby_obstacles:
-            stroke = obstacle.stroke
-            for first, second in pairwise(stroke.points):
-                if not (
-                    min(first.x, second.x) - clearance
-                    <= point.x
-                    <= max(first.x, second.x) + clearance
-                    and min(first.y, second.y) - clearance
-                    <= point.y
-                    <= max(first.y, second.y) + clearance
-                ):
-                    continue
-                if stroke.id == left.id and min(
-                    _distance(first, start), _distance(second, start)
-                ) <= boundary_ignore:
-                    continue
-                if stroke.id == right.id and min(
-                    _distance(first, end), _distance(second, end)
-                ) <= boundary_ignore:
-                    continue
-                if _point_segment_distance(point, first, second) <= clearance:
-                    collisions.append(point)
-                    collided = True
-                    break
-            if collided:
+        for segment in nearby_segments:
+            counters.segments_tested += 1
+            stroke, first, second = segment.stroke, segment.first, segment.second
+            if not (
+                segment.bounds[0] - clearance
+                <= point.x
+                <= segment.bounds[2] + clearance
+                and segment.bounds[1] - clearance
+                <= point.y
+                <= segment.bounds[3] + clearance
+            ):
+                continue
+            if stroke.id == left.id and min(
+                _distance(first, start), _distance(second, start)
+            ) <= boundary_ignore:
+                continue
+            if stroke.id == right.id and min(
+                _distance(first, end), _distance(second, end)
+            ) <= boundary_ignore:
+                continue
+            if _point_segment_distance(point, first, second) <= clearance:
+                collisions.append(point)
                 break
     return _dedupe_points(collisions, clearance)
 
