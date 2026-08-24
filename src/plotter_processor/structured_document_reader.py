@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from plotter_processor.document_models import (
-    SourceDocument,
+    DocumentMetadata,
+    DocumentModel,
     SourcePage,
     SourceParagraph,
     SourceTextElement,
@@ -20,7 +21,7 @@ def read_structured_document(
     pdf_math_mode: str = "off",
     pdf_math_options: dict[str, object] | None = None,
     math_debug_dir: str | Path | None = None,
-) -> SourceDocument:
+) -> DocumentModel:
     path = Path(source_path)
     extension = path.suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
@@ -46,7 +47,7 @@ def read_structured_document(
     return _read_txt(path)
 
 
-def _read_txt(path: Path) -> SourceDocument:
+def _read_txt(path: Path) -> DocumentModel:
     try:
         text = path.read_text(encoding="utf-8-sig")
     except UnicodeError as error:
@@ -63,4 +64,8 @@ def _read_txt(path: Path) -> SourceDocument:
     element = SourceTextElement(
         "page-001-text-001", 0, 0, paragraphs, styled_paragraphs=styled
     )
-    return SourceDocument(path, (SourcePage(0, None, None, (element,)),))
+    return DocumentModel(
+        path,
+        (SourcePage(0, None, None, (element,)),),
+        metadata=DocumentMetadata(source_format="txt"),
+    )

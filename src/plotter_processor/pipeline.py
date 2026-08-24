@@ -39,11 +39,8 @@ from plotter_processor.glyph_outline import extract_exact_outlines
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
-    apply_variation,
-    export_handwriting_debug,
     load_joining_config,
     load_variation_config,
-    route_words,
 )
 from plotter_processor.job_exporter import save_job_manifest
 from plotter_processor.job_models import PageJob, PlotterJob
@@ -56,6 +53,7 @@ from plotter_processor.motion_config import (
 )
 from plotter_processor.motion_statistics import calculate_motion_statistics
 from plotter_processor.multipage_gcode_exporter import generate_job_gcode
+from plotter_processor.page_geometry import PageGeometryRequest, process_page_geometry
 from plotter_processor.path_builder import (
     OutlinePathTemplateCache,
     build_paths,
@@ -65,9 +63,7 @@ from plotter_processor.path_builder import (
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import (
     SimplificationTemplateCache,
-    path_complexity,
     prime_simplification_template_cache,
-    simplify_path_document,
 )
 from plotter_processor.performance import PagePerformance, StageTimings
 from plotter_processor.pipeline_stages import (
@@ -217,74 +213,32 @@ def process_page(
 ) -> PageProcessResult:
     """Process one page without mutating pipeline-wide structures."""
     page_layout = request.page_layout
-    paths = request.paths
     page_metrics = request.page_metrics
-    page_metrics.values["stroke_count_before"] = len(paths.strokes)
-    page_metrics.values["point_count_before"] = sum(
-        len(stroke.points) for stroke in paths.strokes
+    geometry = process_page_geometry(
+        PageGeometryRequest(
+            request.paths,
+            request.body_glyphs,
+            request.page_dir,
+            page_metrics,
+            request.optimize_travel,
+            request.font_mode,
+            request.vector,
+            request.simplification_config,
+            request.variation_config,
+            request.joining_config,
+            request.connection_debug,
+            request.simplification_template_cache,
+        ),
+        stage_progress,
     )
-    if request.optimize_travel and _boolean(request.vector, "optimize_travel"):
-        paths = optimize_paths(paths)
-
-    stage_ms = {"handwriting": 0.0, "simplification": 0.0, "preview": 0.0, "gcode": 0.0}
-    handwriting: dict[str, object] = {"enabled": False}
-    complexity_before_route = path_complexity(paths)
-    if request.font_mode == "centerline" and request.body_glyphs:
-        with _measure_page_stage("handwriting", stage_ms, stage_progress):
-            with page_metrics.measure("variation_ms"):
-                paths = apply_variation(
-                    paths,
-                    request.body_glyphs,
-                    request.variation_config,
-                    hotspots=page_metrics.hotspots,
-                )
-            complexity_before_route = path_complexity(paths)
-            with page_metrics.measure("word_routing_ms"):
-                paths, handwriting = route_words(
-                    paths,
-                    request.body_glyphs,
-                    request.joining_config,
-                    collect_debug=request.connection_debug,
-                    hotspots=page_metrics.hotspots,
-                )
-        if request.joining_config.enabled and request.connection_debug:
-            export_handwriting_debug(paths, request.page_dir / "connection-debug.svg")
-        paths.metadata.pop("connection_debug", None)
-
-    page_metrics.values["candidate_pairs"] = int(handwriting.get("pairs_total", 0))
-    page_metrics.values["accepted_connections"] = int(handwriting.get("accepted", 0))
-    simplification: dict[str, object] = {"enabled": False}
-    if request.simplification_config.get("enabled", False):
-        with (
-            _measure_page_stage("simplification", stage_ms, stage_progress),
-            page_metrics.measure("simplification_ms"),
-        ):
-            deviations = _mapping(request.simplification_config, "max_deviation_mm")
-            paths, simplification = simplify_path_document(
-                paths,
-                duplicate_epsilon_mm=_non_negative(
-                    request.simplification_config, "duplicate_epsilon_mm"
-                ),
-                min_segment_length_mm=_non_negative(
-                    request.simplification_config, "min_segment_length_mm"
-                ),
-                max_deviation_mm=_non_negative(deviations, request.font_mode),
-                template_cache=request.simplification_template_cache,
-                template_identities=(
-                    {
-                        glyph.glyph_index: (
-                            glyph.font_sha256 or paths.metadata.get("font_sha256"),
-                            glyph.char,
-                            glyph.scale_mm_per_font_unit,
-                        )
-                        for glyph in request.body_glyphs
-                    }
-                    if not request.variation_config.enabled
-                    else {}
-                ),
-                complexity_before_route=complexity_before_route,
-                hotspots=page_metrics.hotspots,
-            )
+    paths = geometry.paths
+    handwriting = geometry.handwriting
+    simplification = geometry.simplification
+    stage_ms = {
+        **geometry.stage_ms,
+        "preview": 0.0,
+        "gcode": 0.0,
+    }
 
     paths.warnings = list(dict.fromkeys(request.page_warnings))
     validate_path_document(
