@@ -317,6 +317,7 @@ def _compile_glyph(
             min_coverage=config.min_mask_coverage,
             max_extra=config.max_reconstruction_extra,
             max_endpoint_factor=config.max_endpoint_factor,
+            distance_map=selected.distance,
         )
         quality.update(routing_metrics(edges, routes))
     selected_metrics = selected.candidate_metrics[selected.method]
@@ -328,6 +329,8 @@ def _compile_glyph(
             "candidate_score_components": selected.candidate_score_components,
             "candidate_fast_first": selected.fast_first,
             "candidate_confidence_checks": selected.confidence_checks,
+            "candidate_methods_evaluated": selected.methods_evaluated,
+            "candidate_methods_skipped": selected.methods_skipped,
             "graph_nodes": len(nodes),
             "junctions": sum(node.kind == "junction" for node in nodes),
             "short_edges": int(selected_metrics["short_edge_count"]),

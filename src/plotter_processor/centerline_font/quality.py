@@ -19,9 +19,14 @@ def score_quality(
     min_coverage: float,
     max_extra: float,
     max_endpoint_factor: float,
+    distance_map: np.ndarray | None = None,
 ) -> tuple[dict[str, object], list[str]]:
     del raster
-    distance = ndimage.distance_transform_edt(mask)
+    distance = (
+        distance_map
+        if distance_map is not None
+        else ndimage.distance_transform_edt(mask)
+    )
     reconstructed = reconstruct_with_local_radius(skeleton, distance)
     counters = analyze_counters(mask, reconstructed)
     overlap = int((reconstructed & mask).sum())
@@ -42,7 +47,7 @@ def score_quality(
         warnings.append("Centerline has an anomalous endpoint count")
     if counters.preservation_ratio < 1.0:
         warnings.append("Significant glyph counter is not represented by centerline geometry")
-    radii = ndimage.distance_transform_edt(mask)[skeleton]
+    radii = distance[skeleton]
     mean_radius = float(np.mean(radii)) if radii.size else 0.0
     balance = float(np.std(radii) / mean_radius) if mean_radius else 0.0
     inside_ratio = float((skeleton & mask).sum()) / max(1, int(skeleton.sum()))

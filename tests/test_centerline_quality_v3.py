@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from plotter_processor.centerline_font import quality as quality_module
 from plotter_processor.centerline_font.compiler import _config_for_glyph
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.models import CenterlineStroke, RasterGlyph
@@ -57,6 +58,30 @@ def test_fast_first_confidence_requires_audited_glyph_and_all_quality_gates() ->
     assert all(accepted.values())
     assert unknown["audited_winner"] is False
     assert low_coverage["coverage"] is False
+
+
+def test_audited_simple_glyph_skips_second_candidate_after_quality_gate() -> None:
+    yy, xx = np.ogrid[:101, :101]
+    radius_squared = (xx - 50) ** 2 + (yy - 50) ** 2
+    mask = (radius_squared <= 35**2) & (radius_squared >= 25**2)
+    digest = "4dac9db3fa9ca072f7861fd916bf04bdceac6069d0f3a886f5e523d922e918f1"
+    fingerprint = "1c9a05ecf152b1dc4f20799fa1377fcfaa0a7149b4c9755e9c0e05f7a35ff859"
+
+    audited = select_best_skeleton(
+        mask,
+        _config(),
+        char="C",
+        font_digest=digest,
+        config_fingerprint=fingerprint,
+    )
+    unaudited = select_best_skeleton(mask, _config(), char="C")
+
+    assert audited.fast_first is True
+    assert audited.methods_evaluated == ("medial_axis",)
+    assert audited.methods_skipped == ("skeletonize",)
+    assert unaudited.fast_first is False
+    assert set(unaudited.methods_evaluated) == {"medial_axis", "skeletonize"}
+    assert unaudited.methods_skipped == ()
 
 
 def test_glyph_override_is_local_and_validated() -> None:
@@ -139,3 +164,36 @@ def test_quality_uses_local_radius_for_a_tiny_variable_width_mark() -> None:
     assert quality["reconstruction_method"] == "local_radius"
     assert quality["mask_coverage"] >= 0.90
     assert not warnings
+
+
+def test_quality_reuses_preprocessed_mask_distance(monkeypatch) -> None:
+    mask = np.zeros((21, 21), dtype=bool)
+    mask[4:17, 8:13] = True
+    skeleton = np.zeros_like(mask)
+    skeleton[5:16, 10] = True
+    distance = quality_module.ndimage.distance_transform_edt(mask)
+    raster = RasterGlyph("I", ord("I"), "I", 21, 21, 0, 0, 1, 10, mask.astype(np.uint8))
+    strokes = [CenterlineStroke(0, (Point(10, 5), Point(10, 15)), False)]
+    original = quality_module.ndimage.distance_transform_edt
+    mask_recomputations = 0
+
+    def record(value, *args, **kwargs):
+        nonlocal mask_recomputations
+        if np.array_equal(value, mask):
+            mask_recomputations += 1
+        return original(value, *args, **kwargs)
+
+    monkeypatch.setattr(quality_module.ndimage, "distance_transform_edt", record)
+
+    score_quality(
+        mask,
+        skeleton,
+        strokes,
+        raster,
+        min_coverage=0.5,
+        max_extra=0.5,
+        max_endpoint_factor=8.0,
+        distance_map=distance,
+    )
+
+    assert mask_recomputations == 0
