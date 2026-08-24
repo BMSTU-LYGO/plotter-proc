@@ -16,6 +16,7 @@ from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.performance import HotspotTimings
+from plotter_processor.routing_cost import RoutingCost, routing_cost
 
 
 @dataclass(frozen=True, slots=True)
@@ -1194,15 +1195,14 @@ def _make_candidate(
 ) -> GlyphConnectionCandidate:
     assert left.exit is not None and right.entry is not None
     curve_length, curvature, retrace = _curve_visual_metrics(curve or [])
-    score = (
-        curve_length
-        + vertical * 0.65
-        + tangent_mismatch / 60.0
-        + curvature / 120.0
-        + (1.0 - corridor_ratio) * 8.0
-        + len(collision_points) * 100.0
-        + retrace * 50.0
-        + (100.0 if backtracking else 0.0)
+    score = routing_cost(
+        RoutingCost(
+            travel_distance_mm=curve_length,
+            retrace_distance_mm=retrace,
+            direction_change_deg=tangent_mismatch + curvature,
+            connection_penalty=vertical * 0.3 + (1.0 - corridor_ratio) * 4.0,
+            collision_risk=float(len(collision_points) + backtracking),
+        )
     )
     if score_override is not None:
         score = score_override

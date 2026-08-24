@@ -16,6 +16,7 @@ class _LocalStrokeTemplate:
     id: int
     points: tuple[Point, ...]
     closed: bool
+    preserve_order: bool = False
 
 
 @dataclass(slots=True)
@@ -85,6 +86,7 @@ def build_centerline_paths(
                         source_chars=positioned.char,
                         segment_types=("glyph",),
                         word_index=positioned.word_index,
+                        preserve_order=template.preserve_order,
                     )
                 )
     if not strokes:
@@ -149,7 +151,12 @@ def _local_templates(
         if metadata is not None and metadata.recommended_direction == "reverse":
             points.reverse()
         templates.append(
-            _LocalStrokeTemplate(centerline.id, tuple(points), centerline.closed)
+            _LocalStrokeTemplate(
+                centerline.id,
+                tuple(points),
+                centerline.closed,
+                metadata is not None and metadata.recommended_order is not None,
+            )
         )
     result = tuple(templates)
     cache.entries[key] = result
