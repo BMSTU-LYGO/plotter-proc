@@ -6,6 +6,7 @@ from pathlib import Path
 from tools.benchmark_conversion import (
     _gcode_is_safe,
     _performance_summary,
+    _run_verification,
     _verification_summary,
 )
 
@@ -119,3 +120,26 @@ def test_benchmark_gcode_safety_scans_generated_commands(tmp_path: Path) -> None
 
     assert _gcode_is_safe(safe)
     assert not _gcode_is_safe(unsafe)
+
+
+def test_run_verification_requires_deterministic_safe_artifacts() -> None:
+    payload = {
+        "runs": [
+            {
+                "kind": "warm",
+                "page_count": 2,
+                "gcode_safety": "passed",
+                "artifacts_sha256": {"paths": "same", "gcode": "same"},
+            },
+            {
+                "kind": "warm",
+                "page_count": 2,
+                "gcode_safety": "passed",
+                "artifacts_sha256": {"paths": "same", "gcode": "same"},
+            },
+        ]
+    }
+
+    assert all(_run_verification(payload).values())
+    payload["runs"][1]["gcode_safety"] = "failed"
+    assert _run_verification(payload)["gcode_safety"] is False

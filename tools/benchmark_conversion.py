@@ -126,6 +126,29 @@ def _verification_summary(
     }
 
 
+def _run_verification(payload: dict[str, object]) -> dict[str, bool]:
+    runs = payload.get("runs", [])
+    if not isinstance(runs, list):
+        raise TypeError("Benchmark payload has invalid runs")
+    measured = [
+        run
+        for run in runs
+        if isinstance(run, dict) and run.get("kind") in {"cold", "warm"}
+    ]
+    artifacts = [_artifact_hashes(run) for run in measured]
+    paths = {item.get("paths") for item in artifacts}
+    gcodes = {item.get("gcode") for item in artifacts}
+    pages = {int(run.get("page_count", 1)) for run in measured}
+    return {
+        "runs_present": bool(measured),
+        "deterministic_paths": len(paths) == 1 and None not in paths,
+        "deterministic_gcode": len(gcodes) == 1 and None not in gcodes,
+        "pages_equal": len(pages) == 1,
+        "gcode_safety": bool(measured)
+        and all(run.get("gcode_safety") == "passed" for run in measured),
+    }
+
+
 def _run_timings(result: dict[str, object]) -> dict[str, float]:
     performance = result.get("performance", {})
     if not isinstance(performance, dict):
@@ -244,6 +267,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Print the complete per-run JSON payload"
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Fail unless measured artifacts are deterministic and G-code is safe",
     )
     args = parser.parse_args()
     if args.warm_runs < 1:
@@ -388,6 +416,8 @@ def main() -> int:
             raise ValueError("Baseline benchmark must contain a JSON object")
         payload["baseline"] = str(args.baseline)
         payload["verification"] = _verification_summary(baseline, payload)
+    if args.verify:
+        payload["run_verification"] = _run_verification(payload)
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -401,6 +431,13 @@ def main() -> int:
         "output": str(args.output),
     }
     print(json.dumps(console_payload, ensure_ascii=False, indent=2))
+    if args.verify and not all(payload["run_verification"].values()):
+        print(
+            "Benchmark verification failed: "
+            + json.dumps(payload["run_verification"], ensure_ascii=False),
+            flush=True,
+        )
+        return 1
     return 0
 
 
