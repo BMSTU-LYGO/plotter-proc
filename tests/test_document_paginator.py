@@ -14,6 +14,7 @@ from plotter_processor.document_models import (
 from plotter_processor.document_paginator import paginate_document
 from plotter_processor.font_loader import load_font
 from plotter_processor.models import PageSpec
+from plotter_processor.page_layout_model import LayoutModel, LayoutPage
 
 
 def _config() -> dict[str, object]:
@@ -35,7 +36,10 @@ def _paginate(text: str, test_font: Path, *, height: float = 55.0):
 
 
 def test_short_document_is_one_page_and_long_document_is_stable(test_font: Path) -> None:
-    assert len(_paginate("Short text", test_font).pages) == 1
+    short = _paginate("Short text", test_font)
+    assert isinstance(short, LayoutModel)
+    assert isinstance(short.pages[0], LayoutPage)
+    assert len(short.pages) == 1
     text = " ".join(f"word{index}" for index in range(120))
 
     first = _paginate(text, test_font)
