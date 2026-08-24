@@ -70,6 +70,11 @@ from plotter_processor.path_simplifier import (
     simplify_path_document,
 )
 from plotter_processor.performance import PagePerformance, StageTimings
+from plotter_processor.pipeline_stages import (
+    NORMALIZE_LAYOUT,
+    READ_DOCUMENT,
+    StageExecutor,
+)
 from plotter_processor.preview_cache import materialize_cached_preview
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.semantic_metrics import semantic_report
@@ -380,6 +385,7 @@ def process_page(
 
 def run_pipeline(options: PipelineOptions) -> PipelineResult:
     timings = StageTimings(options.stage_progress)
+    stages = StageExecutor(timings)
     output_dir = options.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "report.json"
@@ -442,14 +448,18 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         initial_pdf_math_options = initial_latex_options.get("pdf_math", {})
         if not isinstance(initial_pdf_math_options, dict):
             raise TypeError("latex.pdf_math must be a mapping")
-        with timings.measure("read_document"):
-            document = read_structured_document(
-                options.input_path,
+        document = stages.run(
+            READ_DOCUMENT,
+            options.input_path,
+            lambda input_path: read_structured_document(
+                input_path,
                 assets_dir=output_dir / "extracted-assets",
                 pdf_math_mode=options.pdf_math,
                 pdf_math_options=dict(initial_pdf_math_options),
                 math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
-            )
+            ),
+            metadata={"format": options.input_path.suffix.lower() or ".txt"},
+        )
         text = "\n".join(
             paragraph
             for element in document.elements
@@ -504,9 +514,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         features = tuple(layout_options.get("features", []))
 
         with load_font(options.font_path) as font:
-            with timings.measure("layout"):
-                paginated = paginate_document(
-                    document, font, page, margins, size_options, image_options,
+            paginated = stages.run(
+                NORMALIZE_LAYOUT,
+                document,
+                lambda source_document: paginate_document(
+                    source_document, font, page, margins, size_options, image_options,
                     pagination_options, enabled=pagination_enabled,
                     image_mode=options.images,
                     image_debug_dir=(
@@ -533,7 +545,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     tab_spaces=_positive_int(layout_options, "tab_spaces"), engine=engine,
                     language=language, script=script, direction=direction,
                     features=features, stage_timings=timings,
-                )
+                ),
+                metadata={"page": options.page, "mode": document_layout_mode},
+            )
             warnings.extend(paginated.warnings)
             if page_numbers_enabled:
                 number_size = str(footer_options.get("size", "small"))
@@ -924,6 +938,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "page": options.page, "size": options.size, "shaping": engine,
             "workers": {"requested": options.workers, "resolved": worker_count},
             "artifact_level": options.artifact_level,
+            "stages": stages.report(),
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
             "document_import": {
