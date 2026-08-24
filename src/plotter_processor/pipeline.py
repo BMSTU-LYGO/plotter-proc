@@ -453,8 +453,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             if isinstance(element, SourceTextElement)
             for paragraph in element.paragraphs
         )
-        extracted_path = output_dir / "extracted.txt"
-        extracted_path.write_text(text, encoding="utf-8")
+        extracted_path = output_dir / "extracted.txt" if debug_artifacts else None
+        if extracted_path is not None:
+            extracted_path.write_text(text, encoding="utf-8")
         warnings.extend(document.warnings)
 
         sizes = _mapping(layout_config, "sizes")
@@ -539,10 +540,18 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     script=script, direction=direction, features=features,
                 )
             page_count = len(paginated.pages)
-            save_document_structure(
-                document, output_dir / "document-structure.json",
-                details=paginated.element_details, layout_mode=document_layout_mode,
+            document_structure_path = (
+                output_dir / "document-structure.json"
+                if layout_debug_enabled or semantic_debug_enabled
+                else None
             )
+            if document_structure_path is not None:
+                save_document_structure(
+                    document,
+                    document_structure_path,
+                    details=paginated.element_details,
+                    layout_mode=document_layout_mode,
+                )
             number_indices = {
                 (page_layout.page_index, index)
                 for page_layout in paginated.pages
@@ -982,13 +991,17 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "previews": preview_cache,
             },
             "outputs": {
-                "extracted": str(extracted_path),
                 "plotter_preview": str(output_dir / "plotter-preview.svg"),
                 "gcode": str(gcode_path),
                 "job": str(output_dir / "job.json"),
-                "document_structure": str(output_dir / "document-structure.json"),
             },
         }
+        if extracted_path is not None:
+            report["outputs"]["extracted"] = str(extracted_path)
+        if document_structure_path is not None:
+            report["outputs"]["document_structure"] = str(
+                document_structure_path
+            )
         if font_previews_enabled:
             report["outputs"]["font_preview"] = str(output_dir / "font-preview.svg")
         if font_previews_enabled and compiled is not None:

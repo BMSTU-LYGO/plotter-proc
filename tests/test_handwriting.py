@@ -1,6 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 
+from plotter_processor import handwriting
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
@@ -81,6 +82,38 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
     assert 'id="strokes"' in svg
     assert 'id="entry-exit"' in svg
     assert 'id="travel"' in svg
+
+
+def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:
+    document = PathDocument(
+        10,
+        10,
+        [
+            PlotterStroke(0, [Point(1, 5), Point(2, 5)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(1, 4), Point(2, 4)], False, 0, "а", 1),
+        ],
+        [],
+    )
+    config = VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    calls = {"cos": 0, "sin": 0}
+    original_cos = handwriting.math.cos
+    original_sin = handwriting.math.sin
+
+    def counted_cos(value: float) -> float:
+        calls["cos"] += 1
+        return original_cos(value)
+
+    def counted_sin(value: float) -> float:
+        calls["sin"] += 1
+        return original_sin(value)
+
+    monkeypatch.setattr(handwriting.math, "cos", counted_cos)
+    monkeypatch.setattr(handwriting.math, "sin", counted_sin)
+
+    result = apply_variation(document, [_glyph("а", 0, 1)], config)
+
+    assert len(result.strokes) == 2
+    assert calls == {"cos": 1, "sin": 1}
 
 
 def test_segment_index_returns_overlapping_segments_in_source_order() -> None:

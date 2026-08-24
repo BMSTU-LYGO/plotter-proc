@@ -47,6 +47,15 @@ class VariationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class _VariationTransform:
+    baseline_delta: float
+    cosine: float
+    sine: float
+    scale: float
+    spacing_delta: float
+
+
+@dataclass(frozen=True, slots=True)
 class _GlyphRoute:
     glyph: PositionedGlyph
     main: PlotterStroke | None
@@ -217,30 +226,41 @@ def apply_variation(
     started = time.perf_counter() if hotspots and hotspots.enabled else None
     positions = {glyph.glyph_index: glyph for glyph in glyphs}
     varied: list[PlotterStroke] = []
-    parameters: dict[int, tuple[float, float, float, float]] = {}
+    transforms: dict[int, _VariationTransform] = {}
     for stroke in document.strokes:
         index = stroke.glyph_index
         glyph = positions.get(index) if index is not None else None
         if glyph is None:
             varied.append(stroke)
             continue
-        if index not in parameters:
+        transform = transforms.get(index)
+        if transform is None:
             rng = random.Random(config.seed * 1_000_003 + index)
-            parameters[index] = (
-                rng.uniform(-config.baseline_jitter_mm, config.baseline_jitter_mm),
-                math.radians(rng.uniform(-config.rotation_deg, config.rotation_deg)),
+            baseline_delta = rng.uniform(
+                -config.baseline_jitter_mm, config.baseline_jitter_mm
+            )
+            angle = math.radians(
+                rng.uniform(-config.rotation_deg, config.rotation_deg)
+            )
+            transform = _VariationTransform(
+                baseline_delta,
+                math.cos(angle),
+                math.sin(angle),
                 1 + rng.uniform(-config.scale_percent, config.scale_percent) / 100,
                 rng.uniform(-config.spacing_jitter_mm, config.spacing_jitter_mm),
             )
-        dy, angle, scale, dx = parameters[index]
-        cosine, sine = math.cos(angle), math.sin(angle)
+            transforms[index] = transform
         points = []
         for point in stroke.points:
             x, y = point.x - glyph.x_mm, point.y - glyph.baseline_y_mm
             points.append(
                 Point(
-                    glyph.x_mm + dx + scale * (x * cosine - y * sine),
-                    glyph.baseline_y_mm + dy + scale * (x * sine + y * cosine),
+                    glyph.x_mm
+                    + transform.spacing_delta
+                    + transform.scale * (x * transform.cosine - y * transform.sine),
+                    glyph.baseline_y_mm
+                    + transform.baseline_delta
+                    + transform.scale * (x * transform.sine + y * transform.cosine),
                 )
             )
         varied.append(replace(stroke, points=points))

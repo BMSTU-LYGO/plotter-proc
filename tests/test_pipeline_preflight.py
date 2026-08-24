@@ -73,9 +73,13 @@ def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) ->
     assert (tmp_path / "compatible" / "paths.json").exists()
     assert (tmp_path / "compatible" / "job.json").exists()
     assert not (tmp_path / "compatible" / "font-preview.svg").exists()
+    assert not (tmp_path / "compatible" / "extracted.txt").exists()
+    assert not (tmp_path / "compatible" / "document-structure.json").exists()
     report = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert report["artifact_level"] == "normal"
     assert "font_preview" not in report["outputs"]
+    assert "extracted" not in report["outputs"]
+    assert "document_structure" not in report["outputs"]
 
 
 def test_debug_artifact_level_adds_font_and_subsystem_debug(
@@ -90,9 +94,13 @@ def test_debug_artifact_level_adds_font_and_subsystem_debug(
     assert result.status == "ok"
     assert (tmp_path / "debug" / "font-preview.svg").exists()
     assert (tmp_path / "debug" / "layout-debug").is_dir()
+    assert (tmp_path / "debug" / "extracted.txt").exists()
+    assert (tmp_path / "debug" / "document-structure.json").exists()
     report = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert report["artifact_level"] == "debug"
     assert sum(report["cache"]["previews"].values()) == 1
+    assert "extracted" in report["outputs"]
+    assert "document_structure" in report["outputs"]
 
 
 def test_worker_count_is_bounded_by_memory_policy_and_page_count(monkeypatch) -> None:
