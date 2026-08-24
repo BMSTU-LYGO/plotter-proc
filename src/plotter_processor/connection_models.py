@@ -33,3 +33,6 @@ class GlyphConnectionCandidate:
     score: float
     accepted: bool
     rejection_reason: str | None = None
+    curve_length_mm: float = 0.0
+    curvature_deg: float = 0.0
+    retrace_mm: float = 0.0

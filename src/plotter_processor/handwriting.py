@@ -259,6 +259,7 @@ class _ConnectionCounters:
     collision_queries: int = 0
     segments_tested: int = 0
     pair_rules_applied: int = 0
+    candidate_variants_evaluated: int = 0
 
 
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
@@ -600,6 +601,9 @@ def route_words(
                 "collision_queries": 0,
                 "segments_tested": 0,
                 "pair_rules_applied": 0,
+                "kerning_pair_rules_applied": 0,
+                "connector_pair_rules_applied": 0,
+                "candidate_variants_evaluated": 0,
             }
         )
         return document, metrics
@@ -799,7 +803,10 @@ def route_words(
             "beziers_built": counters.beziers_built,
             "collision_queries": counters.collision_queries,
             "segments_tested": counters.segments_tested,
-            "pair_rules_applied": counters.pair_rules_applied,
+            "pair_rules_applied": int(kerning["kerning_pair_rules_applied"])
+            + counters.pair_rules_applied,
+            "connector_pair_rules_applied": counters.pair_rules_applied,
+            "candidate_variants_evaluated": counters.candidate_variants_evaluated,
         }
     )
     return result, metrics
@@ -843,6 +850,7 @@ def apply_handwriting_kerning(
             by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
     offsets: dict[int, float] = {}
     adjusted_pairs = 0
+    pair_rules_applied = 0
     for word in _words(glyphs):
         for left, right in pairwise(word):
             left_strokes = by_glyph.get(left.glyph_index, [])
@@ -868,6 +876,8 @@ def apply_handwriting_kerning(
             elif ink_gap < -0.02:
                 automatic = min(0.08, abs(ink_gap) * 0.25)
             pair_rule = connection_pair_rule(left.char, right.char, config)
+            if pair_rule is not None:
+                pair_rules_applied += 1
             requested = automatic + (
                 pair_rule.spacing_adjustment_mm if pair_rule else 0.0
             )
@@ -882,6 +892,7 @@ def apply_handwriting_kerning(
             "kerning_pairs_adjusted": 0,
             "kerning_total_mm": 0.0,
             "kerning_max_offset_mm": 0.0,
+            "kerning_pair_rules_applied": pair_rules_applied,
         }
     strokes = [
         replace(
@@ -907,6 +918,7 @@ def apply_handwriting_kerning(
         "kerning_pairs_adjusted": adjusted_pairs,
         "kerning_total_mm": round(sum(abs(value) for value in offsets.values()), 6),
         "kerning_max_offset_mm": round(max(abs(value) for value in offsets.values()), 6),
+        "kerning_pair_rules_applied": pair_rules_applied,
     }
 
 
@@ -1024,60 +1036,70 @@ def _connection_candidate(
             )
 
     count = max(2, math.ceil(gap / config.connector_step_mm))
-    curve = [_bezier(start, c1, c2, end, index / count) for index in range(count + 1)]
-    counters.beziers_built += 1
-    backtracking = any(b.x < a.x - 0.15 for a, b in pairwise(curve))
-    if reason is None and backtracking:
-        reason = "backward_motion"
-    elif reason is None and tangent_mismatch > config.max_join_angle_deg:
-        reason = "tangent_mismatch"
-    if reason is not None and not collect_debug:
-        return (
-            _make_candidate(
-                left,
-                right,
-                gap,
-                tangent_mismatch,
-                vertical,
-                1.0,
-                [],
-                backtracking,
-                reason,
-            ),
-            [],
-            [],
-            None,
+    base_handle_scale = pair_rule.handle_scale if pair_rule else 1.0
+    vertical_bias = pair_rule.vertical_bias_mm if pair_rule else 0.0
+    handle_variants = (1.0,) if reason is not None else (0.85, 1.0, 1.15)
+    evaluated: list[
+        tuple[GlyphConnectionCandidate, list[Point], list[Point], int]
+    ] = []
+    for variant_index, handle_variant in enumerate(handle_variants):
+        option_c1, option_c2 = _connector_controls(
+            start,
+            end,
+            left.exit.tangent,
+            right.entry.tangent,
+            handle_scale=base_handle_scale * handle_variant,
+            vertical_bias_mm=vertical_bias,
         )
-
-    corridor_ratio = _corridor_inside_ratio(
-        curve, start, end, config.outside_ink_margin_mm
-    )
-    collision_points = _collision_points(
-        curve,
-        obstacles,
-        left.main,
-        right.main,
-        start,
-        end,
-        config.collision_clearance_mm,
-        counters,
-    )
-    if reason is None and collision_points:
-        reason = "collision"
-    elif reason is None and corridor_ratio < (
-        config.min_corridor_inside_ratio if config.allow_connector_outside_ink else 1.0
-    ):
-        reason = "corridor"
-    candidate = _make_candidate(
-        left,
-        right,
-        gap,
-        tangent_mismatch,
-        vertical,
-        corridor_ratio,
-        collision_points,
-        backtracking,
-        reason,
+        curve = [
+            _bezier(start, option_c1, option_c2, end, index / count)
+            for index in range(count + 1)
+        ]
+        counters.beziers_built += 1
+        counters.candidate_variants_evaluated += 1
+        backtracking = any(b.x < a.x - 0.15 for a, b in pairwise(curve))
+        option_reason = reason
+        if option_reason is None and backtracking:
+            option_reason = "backward_motion"
+        elif option_reason is None and tangent_mismatch > config.max_join_angle_deg:
+            option_reason = "tangent_mismatch"
+        corridor_ratio = _corridor_inside_ratio(
+            curve, start, end, config.outside_ink_margin_mm
+        )
+        collision_points = _collision_points(
+            curve,
+            obstacles,
+            left.main,
+            right.main,
+            start,
+            end,
+            config.collision_clearance_mm,
+            counters,
+        )
+        if option_reason is None and collision_points:
+            option_reason = "collision"
+        elif option_reason is None and corridor_ratio < (
+            config.min_corridor_inside_ratio
+            if config.allow_connector_outside_ink
+            else 1.0
+        ):
+            option_reason = "corridor"
+        candidate = _make_candidate(
+            left,
+            right,
+            gap,
+            tangent_mismatch,
+            vertical,
+            corridor_ratio,
+            collision_points,
+            backtracking,
+            option_reason,
+            curve=curve,
+        )
+        evaluated.append((candidate, curve, collision_points, variant_index))
+    candidate, curve, collision_points, _ = min(
+        evaluated,
+        key=lambda item: (not item[0].accepted, item[0].score, item[3]),
     )
     return candidate, curve, collision_points, None
 
@@ -1168,14 +1190,18 @@ def _make_candidate(
     reason: str | None,
     *,
     score_override: float | None = None,
+    curve: list[Point] | None = None,
 ) -> GlyphConnectionCandidate:
     assert left.exit is not None and right.entry is not None
+    curve_length, curvature, retrace = _curve_visual_metrics(curve or [])
     score = (
-        gap
-        + vertical * 0.75
-        + tangent_mismatch / 45.0
-        + (1.0 - corridor_ratio) * 10.0
+        curve_length
+        + vertical * 0.65
+        + tangent_mismatch / 60.0
+        + curvature / 120.0
+        + (1.0 - corridor_ratio) * 8.0
         + len(collision_points) * 100.0
+        + retrace * 50.0
         + (100.0 if backtracking else 0.0)
     )
     if score_override is not None:
@@ -1193,7 +1219,26 @@ def _make_candidate(
         score,
         reason is None,
         reason,
+        curve_length,
+        curvature,
+        retrace,
     )
+
+
+def _curve_visual_metrics(curve: list[Point]) -> tuple[float, float, float]:
+    if len(curve) < 2:
+        return 0.0, 0.0, 0.0
+    segments = [
+        (second.x - first.x, second.y - first.y)
+        for first, second in pairwise(curve)
+    ]
+    length = sum(math.hypot(dx, dy) for dx, dy in segments)
+    angles = [math.atan2(dy, dx) for dx, dy in segments]
+    curvature = math.degrees(
+        sum(_angle_diff(first, second) for first, second in pairwise(angles))
+    )
+    retrace = sum(max(0.0, -dx) for dx, _ in segments)
+    return length, curvature, retrace
 
 
 def _contact_point(
@@ -1480,6 +1525,9 @@ def _debug_candidate(
         "corridor_inside_ratio": round(candidate.corridor_inside_ratio, 6),
         "collision_count": candidate.collision_count,
         "score": round(candidate.score, 6),
+        "curve_length_mm": round(candidate.curve_length_mm, 6),
+        "curvature_deg": round(candidate.curvature_deg, 6),
+        "retrace_mm": round(candidate.retrace_mm, 6),
         "snapped_existing_contact": snap_point is not None,
         "left_exit": [candidate.left_exit.point.x, candidate.left_exit.point.y],
         "right_entry": [candidate.right_entry.point.x, candidate.right_entry.point.y],

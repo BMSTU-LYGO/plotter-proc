@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from plotter_processor.handwriting import JoiningConfig, load_joining_config, route_words
+from plotter_processor.handwriting import (
+    JoiningConfig,
+    _curve_visual_metrics,
+    load_joining_config,
+    route_words,
+)
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
 
 
@@ -118,6 +123,7 @@ def test_connector_starts_and_ends_along_glyph_tangents() -> None:
     )
 
     assert metrics["accepted"] == 1
+    assert metrics["candidate_variants_evaluated"] == 3
     [candidate] = result.metadata["connection_debug"]
     curve = [Point(*point) for point in candidate["curve"]]
     left_tangent = Point(0.5, 0.4)
@@ -125,6 +131,22 @@ def test_connector_starts_and_ends_along_glyph_tangents() -> None:
 
     assert _direction_cosine(curve[0], curve[1], left_tangent) > 0.85
     assert _direction_cosine(curve[-2], curve[-1], right_tangent) > 0.85
+    assert candidate["curve_length_mm"] > 0
+    assert candidate["curvature_deg"] > 0
+    assert candidate["retrace_mm"] == 0
+
+
+def test_visual_cost_metrics_prefer_short_smooth_forward_curve() -> None:
+    smooth = [Point(0, 0), Point(1, 0.1), Point(2, 0)]
+    bent = [Point(0, 0), Point(1, 1), Point(0.8, -1), Point(2, 0)]
+
+    smooth_length, smooth_curvature, smooth_retrace = _curve_visual_metrics(smooth)
+    bent_length, bent_curvature, bent_retrace = _curve_visual_metrics(bent)
+
+    assert smooth_length < bent_length
+    assert smooth_curvature < bent_curvature
+    assert smooth_retrace == 0
+    assert bent_retrace > 0
 
 
 def test_russian_pair_rule_reaches_kerning_and_connector_solver() -> None:
@@ -140,7 +162,8 @@ def test_russian_pair_rule_reaches_kerning_and_connector_solver() -> None:
     )
 
     assert metrics["kerning_pairs_adjusted"] == 1
-    assert metrics["pair_rules_applied"] == 1
+    assert metrics["pair_rules_applied"] >= 1
+    assert metrics["connector_pair_rules_applied"] == 1
     assert result.metadata["handwriting_kerning_offsets"]["1"] < 0
 
 
