@@ -127,6 +127,23 @@ def test_connector_starts_and_ends_along_glyph_tangents() -> None:
     assert _direction_cosine(curve[-2], curve[-1], right_tangent) > 0.85
 
 
+def test_russian_pair_rule_reaches_kerning_and_connector_solver() -> None:
+    document, glyphs = _pair(
+        [Point(0, 10), Point(2, 10)],
+        [Point(2.7, 10), Point(4, 10)],
+        left_char="с",
+        right_char="т",
+    )
+
+    result, metrics = route_words(
+        document, glyphs, _config(), collect_debug=True
+    )
+
+    assert metrics["kerning_pairs_adjusted"] == 1
+    assert metrics["pair_rules_applied"] == 1
+    assert result.metadata["handwriting_kerning_offsets"]["1"] < 0
+
+
 def _direction_cosine(first: Point, second: Point, expected: Point) -> float:
     actual_x, actual_y = second.x - first.x, second.y - first.y
     actual_length = math.hypot(actual_x, actual_y)
@@ -271,12 +288,20 @@ def test_canonical_connection_config_loads_corridor_and_collision_values() -> No
                 "min_corridor_inside_ratio": 0.8,
                 "outside_ink_margin_mm": 0.25,
                 "collision_clearance_mm": 0.12,
+                "pair_rules": {
+                    "ст": {
+                        "spacing_adjustment_mm": -0.09,
+                        "handle_scale": 1.1,
+                    }
+                },
             }
         }
     )
     assert config.min_corridor_inside_ratio == 0.8
     assert config.outside_ink_margin_mm == 0.25
     assert config.collision_clearance_mm == 0.12
+    assert config.pair_rules[0].pair == "ст"
+    assert config.pair_rules[0].spacing_adjustment_mm == -0.09
 
 
 def test_legacy_joining_config_is_only_a_warned_compatibility_alias() -> None:

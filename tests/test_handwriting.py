@@ -4,12 +4,15 @@ from pathlib import Path
 from plotter_processor import handwriting
 from plotter_processor.handwriting import (
     JoiningConfig,
+    PairConnectionRule,
     VariationConfig,
     _collision_points,
     _ConnectionCounters,
     _SegmentObstacleIndex,
+    apply_handwriting_kerning,
     apply_variation,
     build_variation_context,
+    connection_pair_rule,
     export_handwriting_debug,
     route_words,
 )
@@ -382,6 +385,65 @@ def test_distance_rejections_skip_bezier_and_collision_work() -> None:
     assert metrics["collision_queries"] == 0
     assert metrics["segments_tested"] == 0
     assert "connection_debug" not in result.metadata
+
+
+def test_pair_rule_can_adjust_spacing_and_connector_shape() -> None:
+    config = replace(
+        _config(),
+        pair_rules=(PairConnectionRule("ст", -0.1, 1.15, 0.03),),
+    )
+
+    rule = connection_pair_rule("С", "т", config)
+
+    assert rule == PairConnectionRule("ст", -0.1, 1.15, 0.03)
+    assert connection_pair_rule("а", "б", config) is None
+
+
+def test_handwriting_kerning_uses_ink_gap_and_stays_bounded() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 2.8), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(2.8, 10), Point(4, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+
+    adjusted, positioned, metrics = apply_handwriting_kerning(
+        document, glyphs, _config()
+    )
+
+    assert adjusted.page_width_mm == document.page_width_mm
+    assert adjusted.strokes[1].points[0].x < document.strokes[1].points[0].x
+    assert positioned[1].x_mm < glyphs[1].x_mm
+    assert metrics["kerning_pairs_adjusted"] == 1
+    assert 0 < metrics["kerning_max_offset_mm"] <= 0.15
+
+
+def test_handwriting_kerning_separates_overlapping_ink() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 1.8), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(1.8, 10), Point(4, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+
+    adjusted, _, metrics = apply_handwriting_kerning(document, glyphs, _config())
+
+    assert adjusted.strokes[1].points[0].x > document.strokes[1].points[0].x
+    assert metrics["kerning_pairs_adjusted"] == 1
 
 
 def test_aggressive_accepts_bounded_gap_that_safe_rejects() -> None:

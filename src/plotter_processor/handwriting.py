@@ -19,6 +19,26 @@ from plotter_processor.performance import HotspotTimings
 
 
 @dataclass(frozen=True, slots=True)
+class PairConnectionRule:
+    pair: str
+    spacing_adjustment_mm: float = 0.0
+    handle_scale: float = 1.0
+    vertical_bias_mm: float = 0.0
+
+
+_DEFAULT_PAIR_RULES = (
+    PairConnectionRule("ст", -0.08, 1.05),
+    PairConnectionRule("ов", -0.06, 1.05),
+    PairConnectionRule("пр", -0.08, 1.08),
+    PairConnectionRule("ть", 0.04, 0.95),
+    PairConnectionRule("ло", -0.06, 1.05),
+    PairConnectionRule("ро", -0.06, 1.05),
+    PairConnectionRule("на", -0.05, 1.03),
+    PairConnectionRule("по", -0.06, 1.05),
+)
+
+
+@dataclass(frozen=True, slots=True)
 class JoiningConfig:
     enabled: bool
     max_join_gap_mm: float
@@ -35,6 +55,7 @@ class JoiningConfig:
     outside_ink_margin_mm: float = 0.35
     contact_epsilon_mm: float = 0.08
     collision_clearance_mm: float = 0.10
+    pair_rules: tuple[PairConnectionRule, ...] = _DEFAULT_PAIR_RULES
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +258,7 @@ class _ConnectionCounters:
     beziers_built: int = 0
     collision_queries: int = 0
     segments_tested: int = 0
+    pair_rules_applied: int = 0
 
 
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
@@ -514,7 +536,38 @@ def load_joining_config(
         _nonnegative_default(values, "outside_ink_margin_mm", 0.35),
         _positive_default(values, "contact_epsilon_mm", 0.08),
         _positive_default(values, "collision_clearance_mm", 0.10),
+        _load_pair_rules(values),
     )
+
+
+def _load_pair_rules(values: Mapping[str, object]) -> tuple[PairConnectionRule, ...]:
+    configured = values.get("pair_rules")
+    if configured is None:
+        return _DEFAULT_PAIR_RULES
+    if not isinstance(configured, Mapping):
+        raise TypeError("connections.pair_rules must be a mapping")
+    rules: list[PairConnectionRule] = []
+    for pair, raw_rule in configured.items():
+        if not isinstance(pair, str) or len(pair) != 2:
+            raise ValueError("connection pair rule keys must contain two characters")
+        if not isinstance(raw_rule, Mapping):
+            raise TypeError(f"connections.pair_rules.{pair} must be a mapping")
+        rules.append(
+            PairConnectionRule(
+                pair,
+                float(raw_rule.get("spacing_adjustment_mm", 0.0)),
+                float(raw_rule.get("handle_scale", 1.0)),
+                float(raw_rule.get("vertical_bias_mm", 0.0)),
+            )
+        )
+    return tuple(rules)
+
+
+def connection_pair_rule(
+    left_char: str, right_char: str, config: JoiningConfig
+) -> PairConnectionRule | None:
+    pair = f"{left_char.lower()}{right_char.lower()}"
+    return next((rule for rule in config.pair_rules if rule.pair == pair), None)
 
 
 def route_words(
@@ -546,9 +599,11 @@ def route_words(
                 "beziers_built": 0,
                 "collision_queries": 0,
                 "segments_tested": 0,
+                "pair_rules_applied": 0,
             }
         )
         return document, metrics
+    document, glyphs, kerning = apply_handwriting_kerning(document, glyphs, config)
     by_glyph: dict[int, list[PlotterStroke]] = {}
     for stroke in document.strokes:
         if stroke.glyph_index is not None:
@@ -731,6 +786,7 @@ def route_words(
         per_word,
     )
     metrics["mode"] = config.mode
+    metrics.update(kerning)
     metrics.update(
         _required_metrics(
             candidates, created, rejected, snapped, connector_length, rejection_reasons
@@ -743,6 +799,7 @@ def route_words(
             "beziers_built": counters.beziers_built,
             "collision_queries": counters.collision_queries,
             "segments_tested": counters.segments_tested,
+            "pair_rules_applied": counters.pair_rules_applied,
         }
     )
     return result, metrics
@@ -775,6 +832,84 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     return words
 
 
+def apply_handwriting_kerning(
+    document: PathDocument,
+    glyphs: list[PositionedGlyph],
+    config: JoiningConfig,
+) -> tuple[PathDocument, list[PositionedGlyph], dict[str, float | int]]:
+    by_glyph: dict[int, list[PlotterStroke]] = {}
+    for stroke in document.strokes:
+        if stroke.glyph_index is not None:
+            by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
+    offsets: dict[int, float] = {}
+    adjusted_pairs = 0
+    for word in _words(glyphs):
+        for left, right in pairwise(word):
+            left_strokes = by_glyph.get(left.glyph_index, [])
+            right_strokes = by_glyph.get(right.glyph_index, [])
+            if not left_strokes or not right_strokes:
+                continue
+            left_offset = offsets.get(left.glyph_index, 0.0)
+            right_offset = offsets.get(right.glyph_index, 0.0)
+            left_edge = max(
+                point.x + left_offset
+                for stroke in left_strokes
+                for point in stroke.points
+            )
+            right_edge = min(
+                point.x + right_offset
+                for stroke in right_strokes
+                for point in stroke.points
+            )
+            ink_gap = right_edge - left_edge
+            automatic = 0.0
+            if 0.2 < ink_gap <= config.max_join_gap_mm:
+                automatic = -min(0.08, (ink_gap - 0.2) * 0.25)
+            elif ink_gap < -0.02:
+                automatic = min(0.08, abs(ink_gap) * 0.25)
+            pair_rule = connection_pair_rule(left.char, right.char, config)
+            requested = automatic + (
+                pair_rule.spacing_adjustment_mm if pair_rule else 0.0
+            )
+            if abs(requested) <= 1e-9:
+                continue
+            offsets[right.glyph_index] = max(
+                -0.15, min(0.15, right_offset + requested)
+            )
+            adjusted_pairs += 1
+    if not offsets:
+        return document, glyphs, {
+            "kerning_pairs_adjusted": 0,
+            "kerning_total_mm": 0.0,
+            "kerning_max_offset_mm": 0.0,
+        }
+    strokes = [
+        replace(
+            stroke,
+            points=[
+                Point(point.x + offsets.get(stroke.glyph_index, 0.0), point.y)
+                for point in stroke.points
+            ],
+        )
+        if stroke.glyph_index is not None and stroke.glyph_index in offsets
+        else stroke
+        for stroke in document.strokes
+    ]
+    positioned = [
+        replace(glyph, x_mm=glyph.x_mm + offsets.get(glyph.glyph_index, 0.0))
+        for glyph in glyphs
+    ]
+    result = replace(document, strokes=strokes, metadata=dict(document.metadata))
+    result.metadata["handwriting_kerning_offsets"] = {
+        str(index): round(offset, 6) for index, offset in sorted(offsets.items())
+    }
+    return result, positioned, {
+        "kerning_pairs_adjusted": adjusted_pairs,
+        "kerning_total_mm": round(sum(abs(value) for value in offsets.values()), 6),
+        "kerning_max_offset_mm": round(max(abs(value) for value in offsets.values()), 6),
+    }
+
+
 def _orient_for_anchors(
     stroke: PlotterStroke, glyph: PositionedGlyph
 ) -> tuple[PlotterStroke, tuple[StrokeAnchor, StrokeAnchor] | None]:
@@ -799,6 +934,9 @@ def _connection_candidate(
     assert left.main is not None and right.main is not None
     assert left.exit is not None and right.entry is not None
     start, end = left.exit.point, right.entry.point
+    pair_rule = connection_pair_rule(left.glyph.char, right.glyph.char, config)
+    if pair_rule is not None:
+        counters.pair_rules_applied += 1
     gap = _distance(start, end)
     vertical = abs(end.y - start.y)
     left_angle = math.atan2(left.exit.tangent.y, left.exit.tangent.x)
@@ -832,7 +970,12 @@ def _connection_candidate(
         reason = "backward_motion"
 
     c1, c2 = _connector_controls(
-        start, end, left.exit.tangent, right.entry.tangent
+        start,
+        end,
+        left.exit.tangent,
+        right.entry.tangent,
+        handle_scale=pair_rule.handle_scale if pair_rule else 1.0,
+        vertical_bias_mm=pair_rule.vertical_bias_mm if pair_rule else 0.0,
     )
     controls_are_forward = start.x <= c1.x <= c2.x <= end.x
     if (
@@ -1225,18 +1368,24 @@ def _dedupe_boundary(boundary: Point, points: list[Point]) -> list[Point]:
 
 
 def _connector_controls(
-    start: Point, end: Point, exit_tangent: Point, entry_tangent: Point
+    start: Point,
+    end: Point,
+    exit_tangent: Point,
+    entry_tangent: Point,
+    *,
+    handle_scale: float = 1.0,
+    vertical_bias_mm: float = 0.0,
 ) -> tuple[Point, Point]:
     gap = _distance(start, end)
     horizontal = max(0.0, end.x - start.x)
-    handle = min(gap * 0.42, horizontal * 0.45)
+    handle = min(gap * 0.42, horizontal * 0.45) * min(1.25, max(0.75, handle_scale))
     first = Point(
         min(end.x, max(start.x, start.x + exit_tangent.x * handle)),
-        start.y + exit_tangent.y * handle,
+        start.y + exit_tangent.y * handle + vertical_bias_mm,
     )
     second = Point(
         min(end.x, max(start.x, end.x - entry_tangent.x * handle)),
-        end.y - entry_tangent.y * handle,
+        end.y - entry_tangent.y * handle + vertical_bias_mm,
     )
     if first.x > second.x:
         middle = (first.x + second.x) / 2

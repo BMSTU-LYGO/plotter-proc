@@ -273,6 +273,15 @@ connections:
   outside_ink_margin_mm: 0.35
   contact_epsilon_mm: 0.08
   collision_clearance_mm: 0.10
+  pair_rules:
+    ст: {spacing_adjustment_mm: -0.08, handle_scale: 1.05}
+    ов: {spacing_adjustment_mm: -0.06, handle_scale: 1.05}
+    пр: {spacing_adjustment_mm: -0.08, handle_scale: 1.08}
+    ть: {spacing_adjustment_mm: 0.04, handle_scale: 0.95}
+    ло: {spacing_adjustment_mm: -0.06, handle_scale: 1.05}
+    ро: {spacing_adjustment_mm: -0.06, handle_scale: 1.05}
+    на: {spacing_adjustment_mm: -0.05, handle_scale: 1.03}
+    по: {spacing_adjustment_mm: -0.06, handle_scale: 1.05}
   connect_letters_only: true
   connect_across_punctuation: false
   do_not_join_before: [".", ",", "!", "?", ":", ";", ")"]
