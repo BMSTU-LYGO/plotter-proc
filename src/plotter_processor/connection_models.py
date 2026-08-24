@@ -15,6 +15,8 @@ class StrokeAnchor:
     stroke_id: int
     point_index: int
     baseline_offset: float
+    kind: str = "terminal"
+    connectable: bool = True
 
 
 @dataclass(frozen=True, slots=True)

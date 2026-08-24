@@ -1,3 +1,4 @@
+import math
 from dataclasses import replace
 from pathlib import Path
 
@@ -98,6 +99,41 @@ def test_tangent_mismatch_keeps_pen_lift() -> None:
     )
     assert metrics["accepted"] == 0
     assert metrics["rejected_tangent"] == 1
+
+
+def test_connector_starts_and_ends_along_glyph_tangents() -> None:
+    document, glyphs = _pair(
+        [Point(0, 10), Point(1.5, 10.4), Point(2, 10.8)],
+        [Point(2.8, 10.2), Point(3.5, 10), Point(4, 10)],
+    )
+    result, metrics = route_words(
+        document,
+        glyphs,
+        _config(
+            max_join_angle_deg=180,
+            min_corridor_inside_ratio=0,
+            collision_clearance_mm=0.001,
+        ),
+        collect_debug=True,
+    )
+
+    assert metrics["accepted"] == 1
+    [candidate] = result.metadata["connection_debug"]
+    curve = [Point(*point) for point in candidate["curve"]]
+    left_tangent = Point(0.5, 0.4)
+    right_tangent = Point(0.7, -0.2)
+
+    assert _direction_cosine(curve[0], curve[1], left_tangent) > 0.85
+    assert _direction_cosine(curve[-2], curve[-1], right_tangent) > 0.85
+
+
+def _direction_cosine(first: Point, second: Point, expected: Point) -> float:
+    actual_x, actual_y = second.x - first.x, second.y - first.y
+    actual_length = math.hypot(actual_x, actual_y)
+    expected_length = math.hypot(expected.x, expected.y)
+    return (actual_x * expected.x + actual_y * expected.y) / (
+        actual_length * expected_length
+    )
 
 
 def test_collision_with_secondary_stroke_keeps_pen_lift() -> None:

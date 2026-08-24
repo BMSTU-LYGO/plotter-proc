@@ -808,7 +808,9 @@ def _connection_candidate(
         max(_angle_diff(left_angle, target), _angle_diff(target, right_angle))
     )
     routeable_anchors = (
-        _distance(start, left.main.points[-1]) <= 1e-6
+        left.exit.connectable
+        and right.entry.connectable
+        and _distance(start, left.main.points[-1]) <= 1e-6
         and _distance(end, right.main.points[0]) <= 1e-6
     )
     reason: str | None = None
@@ -829,9 +831,9 @@ def _connection_candidate(
     elif end.x + 1e-9 < start.x:
         reason = "backward_motion"
 
-    handle = gap / 3
-    c1 = Point(start.x + math.cos(left_angle) * handle, start.y + math.sin(left_angle) * handle)
-    c2 = Point(end.x - math.cos(right_angle) * handle, end.y - math.sin(right_angle) * handle)
+    c1, c2 = _connector_controls(
+        start, end, left.exit.tangent, right.entry.tangent
+    )
     controls_are_forward = start.x <= c1.x <= c2.x <= end.x
     if (
         reason is None
@@ -959,7 +961,9 @@ def _cheap_connection_rejection(
     ):
         reason = "not_letters"
     elif (
-        _distance(start, left.main.points[-1]) > 1e-6
+        not left.exit.connectable
+        or not right.entry.connectable
+        or _distance(start, left.main.points[-1]) > 1e-6
         or _distance(end, right.main.points[0]) > 1e-6
     ):
         reason = "anchor_not_routeable"
@@ -1218,6 +1222,27 @@ def _dedupe_boundary(boundary: Point, points: list[Point]) -> list[Point]:
     while index < len(points) and _distance(boundary, points[index]) <= 1e-9:
         index += 1
     return points[index:]
+
+
+def _connector_controls(
+    start: Point, end: Point, exit_tangent: Point, entry_tangent: Point
+) -> tuple[Point, Point]:
+    gap = _distance(start, end)
+    horizontal = max(0.0, end.x - start.x)
+    handle = min(gap * 0.42, horizontal * 0.45)
+    first = Point(
+        min(end.x, max(start.x, start.x + exit_tangent.x * handle)),
+        start.y + exit_tangent.y * handle,
+    )
+    second = Point(
+        min(end.x, max(start.x, end.x - entry_tangent.x * handle)),
+        end.y - entry_tangent.y * handle,
+    )
+    if first.x > second.x:
+        middle = (first.x + second.x) / 2
+        first = Point(middle, first.y)
+        second = Point(middle, second.y)
+    return first, second
 
 
 def _bezier(a: Point, b: Point, c: Point, d: Point, t: float) -> Point:
