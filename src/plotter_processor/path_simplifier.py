@@ -34,17 +34,22 @@ def prime_simplification_template_cache(
     """Populate translation-invariant entries in stable page/stroke order."""
     for document, identities in zip(documents, template_identities, strict=True):
         for stroke in document.strokes:
-            points = _dedupe(
+            cache_key = _template_key(
+                stroke, stroke.points, max_deviation_mm, identities
+            )
+            if cache_key is None or cache_key in template_cache.entries:
+                continue
+            points, source_indices = _dedupe_with_indices(
                 stroke.points,
                 min(duplicate_epsilon_mm, min_segment_length_mm),
             )
-            cache_key = _template_key(stroke, points, max_deviation_mm, identities)
-            if cache_key is None or cache_key in template_cache.entries:
-                continue
             _, observed, keep_indices = _simplify_stroke_points(
                 points, stroke.closed, max_deviation_mm
             )
-            template_cache.entries[cache_key] = (keep_indices, observed)
+            template_cache.entries[cache_key] = (
+                tuple(source_indices[index] for index in keep_indices),
+                observed,
+            )
 
 
 def simplify_path_document(
@@ -66,24 +71,29 @@ def simplify_path_document(
     max_seen = 0.0
     simplified_strokes = []
     unique_templates = reused_templates = post_join_strokes = 0
+    dedupe_occurrences_skipped = 0
     profile_hotspots = hotspots is not None and hotspots.enabled
     dedupe_ms = rdp_ms = 0.0
     for stroke in document.strokes:
         # RDP owns the geometric error budget. Removing longer micro-segments first can
         # exceed it, so only exact/near-exact duplicates are discarded independently.
-        started = time.perf_counter() if profile_hotspots else 0.0
-        points = _dedupe(stroke.points, min(duplicate_epsilon_mm, min_segment_length_mm))
-        if profile_hotspots:
-            dedupe_ms += (time.perf_counter() - started) * 1000.0
         cache_key = _template_key(
-            stroke, points, max_deviation_mm, template_identities or {}
+            stroke, stroke.points, max_deviation_mm, template_identities or {}
         )
         cached = template_cache.entries.get(cache_key) if template_cache and cache_key else None
         if cached is not None:
             keep_indices, observed = cached
-            points = [points[index] for index in keep_indices]
+            points = [stroke.points[index] for index in keep_indices]
             reused_templates += 1
+            dedupe_occurrences_skipped += 1
         else:
+            started = time.perf_counter() if profile_hotspots else 0.0
+            points, source_indices = _dedupe_with_indices(
+                stroke.points,
+                min(duplicate_epsilon_mm, min_segment_length_mm),
+            )
+            if profile_hotspots:
+                dedupe_ms += (time.perf_counter() - started) * 1000.0
             started = time.perf_counter() if profile_hotspots else 0.0
             points, observed, keep_indices = _simplify_stroke_points(
                 points, stroke.closed, max_deviation_mm
@@ -91,7 +101,10 @@ def simplify_path_document(
             if profile_hotspots:
                 rdp_ms += (time.perf_counter() - started) * 1000.0
             if template_cache is not None and cache_key is not None:
-                template_cache.entries[cache_key] = (keep_indices, observed)
+                template_cache.entries[cache_key] = (
+                    tuple(source_indices[index] for index in keep_indices),
+                    observed,
+                )
                 unique_templates += 1
             else:
                 post_join_strokes += 1
@@ -119,6 +132,7 @@ def simplify_path_document(
         "complexity_after_simplification": path_complexity(result),
         "unique_templates_simplified": unique_templates,
         "glyph_occurrences_reused": reused_templates,
+        "dedupe_occurrences_skipped": dedupe_occurrences_skipped,
         "post_join_strokes_processed": post_join_strokes,
     }
     return result, stats
@@ -195,16 +209,25 @@ def _simplify_stroke_points(
 
 
 def _dedupe(points: list[Point], epsilon: float) -> list[Point]:
+    return _dedupe_with_indices(points, epsilon)[0]
+
+
+def _dedupe_with_indices(
+    points: list[Point], epsilon: float
+) -> tuple[list[Point], tuple[int, ...]]:
     result = [points[0]]
+    indices = [0]
     epsilon_squared = epsilon * epsilon
-    for point in points[1:]:
+    for index, point in enumerate(points[1:], 1):
         dx = point.x - result[-1].x
         dy = point.y - result[-1].y
         if dx * dx + dy * dy >= epsilon_squared:
             result.append(point)
+            indices.append(index)
     if len(result) == 1 and len(points) > 1:
         result.append(points[-1])
-    return result
+        indices.append(len(points) - 1)
+    return result, tuple(indices)
 
 
 def _rdp(points: list[Point], epsilon: float) -> list[Point]:

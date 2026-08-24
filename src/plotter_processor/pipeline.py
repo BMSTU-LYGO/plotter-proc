@@ -56,7 +56,12 @@ from plotter_processor.motion_config import (
 )
 from plotter_processor.motion_statistics import calculate_motion_statistics
 from plotter_processor.multipage_gcode_exporter import generate_job_gcode
-from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
+from plotter_processor.path_builder import (
+    OutlinePathTemplateCache,
+    build_paths,
+    path_statistics,
+    save_path_document,
+)
 from plotter_processor.path_optimizer import optimize_paths
 from plotter_processor.path_simplifier import (
     SimplificationTemplateCache,
@@ -650,6 +655,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raw_pages: list[tuple[object, PathDocument, Path, list[object]]] = []
             page_performance: dict[int, PagePerformance] = {}
             path_template_cache = CenterlinePathTemplateCache()
+            outline_template_cache = OutlinePathTemplateCache()
             for page_layout in paginated.pages:
                 page_metrics = PagePerformance(
                     page_layout.page_index + 1,
@@ -667,7 +673,12 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 page_number_set = set(page_layout.metadata.get("page_number_glyph_indices", []))
                 body = [g for g in page_layout.layout.glyphs if g.glyph_index not in page_number_set]
                 numbers = [g for g in page_layout.layout.glyphs if g.glyph_index in page_number_set]
-                build_cache_before = path_template_cache.snapshot()
+                build_cache = (
+                    outline_template_cache
+                    if options.font_mode == "outline"
+                    else path_template_cache
+                )
+                build_cache_before = build_cache.snapshot()
                 with (
                     timings.measure("build_paths"),
                     page_metrics.measure("build_paths_ms"),
@@ -678,6 +689,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             body,
                             page,
                             vector,
+                            template_cache=outline_template_cache,
                             hotspots=page_metrics.hotspots,
                         )
                         warnings.append(
@@ -712,7 +724,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         stroke.font_role = "page-number"
                         stroke.glyph_index = None
                         paths.strokes.append(stroke)
-                build_cache_after = path_template_cache.snapshot()
+                build_cache_after = build_cache.snapshot()
                 page_metrics.values.update(
                     {
                         key: build_cache_after[key] - build_cache_before[key]

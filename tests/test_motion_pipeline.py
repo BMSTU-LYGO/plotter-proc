@@ -165,7 +165,10 @@ def test_template_cache_reuses_translated_glyph_and_reports_complexity() -> None
 
     assert stats["unique_templates_simplified"] == 1
     assert stats["glyph_occurrences_reused"] == 1
+    assert stats["dedupe_occurrences_skipped"] == 1
     assert len(result.strokes[0].points) == len(result.strokes[1].points)
+    cached_indices = cache.entries[next(iter(cache.entries))][0]
+    assert result.strokes[1].points == [translated[index] for index in cached_indices]
     assert stats["complexity_after_route"] == path_complexity(source)
     assert stats["complexity_after_simplification"] == path_complexity(result)
 

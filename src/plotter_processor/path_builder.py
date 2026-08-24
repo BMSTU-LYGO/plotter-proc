@@ -4,6 +4,7 @@ import json
 import math
 from collections.abc import Mapping
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from itertools import pairwise
 from pathlib import Path
 
@@ -15,51 +16,83 @@ from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Poin
 from plotter_processor.performance import HotspotTimings
 
 
+@dataclass(frozen=True, slots=True)
+class _OutlineContourTemplate:
+    contour_index: int
+    points: tuple[Point, ...]
+    closed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _OutlineGlyphTemplate:
+    contours: tuple[_OutlineContourTemplate, ...]
+    warnings: tuple[str, ...]
+    skipped_contours: tuple[int, ...]
+
+
+@dataclass(slots=True)
+class OutlinePathTemplateCache:
+    """Per-run cache of flattened, scaled outline geometry before translation."""
+
+    entries: dict[tuple[object, ...], _OutlineGlyphTemplate] = field(
+        default_factory=dict
+    )
+    template_cache_hits: int = 0
+    template_cache_misses: int = 0
+    local_points_built: int = 0
+    output_points_allocated: int = 0
+
+    def snapshot(self) -> dict[str, int]:
+        return {
+            "build_template_cache_hits": self.template_cache_hits,
+            "build_template_cache_misses": self.template_cache_misses,
+            "build_local_points_built": self.local_points_built,
+            "build_output_points_allocated": self.output_points_allocated,
+            "build_positioned_template_hits": 0,
+            "build_positioned_template_misses": 0,
+        }
+
+
 def build_paths(
     font: LoadedFont,
     glyphs: list[PositionedGlyph],
     page: PageSpec,
     vector_options: Mapping[str, object],
     *,
+    template_cache: OutlinePathTemplateCache | None = None,
     hotspots: HotspotTimings | None = None,
 ) -> PathDocument:
+    cache = template_cache or OutlinePathTemplateCache()
     strokes: list[PlotterStroke] = []
     warnings: list[str] = []
     for positioned in glyphs:
-        with hotspots.measure("build_paths.glyph_draw") if hotspots else nullcontext():
-            pen = CurveFlatteningPen(
-                font.glyph_set,
-                tolerance_mm=_number(vector_options, "flatten_tolerance_mm"),
-                min_segment_length_mm=_number(vector_options, "min_segment_length_mm"),
-                max_points_per_contour=_integer(vector_options, "max_points_per_contour"),
-                max_recursion_depth=_integer(vector_options, "max_recursion_depth"),
+        with hotspots.measure("build_paths.template_lookup") if hotspots else nullcontext():
+            template = _outline_template(
+                font, positioned, vector_options, cache, hotspots=hotspots
             )
-            transform = (
-                positioned.scale_mm_per_font_unit,
-                0,
-                0,
-                -positioned.scale_mm_per_font_unit,
-                positioned.x_mm,
-                positioned.baseline_y_mm,
-            )
-            font.glyph_set[positioned.glyph_name].draw(TransformPen(pen, transform))
-        warnings.extend(pen.warnings)
+        warnings.extend(template.warnings)
+        warnings.extend(
+            f"Skipped empty contour {index} for glyph {positioned.glyph_index}"
+            for index in template.skipped_contours
+        )
         with hotspots.measure("build_paths.stroke_materialization") if hotspots else nullcontext():
-            for contour_index, contour in enumerate(pen.contours):
-                unique = {(point.x, point.y) for point in contour.points}
-                if len(unique) < 2 or _stroke_length(contour.points, contour.closed) <= 0:
-                    warnings.append(
-                        f"Skipped empty contour {contour_index} for glyph {positioned.glyph_index}"
+            for contour in template.contours:
+                points = [
+                    Point(
+                        positioned.x_mm + point.x,
+                        positioned.baseline_y_mm + point.y,
                     )
-                    continue
+                    for point in contour.points
+                ]
+                cache.output_points_allocated += len(points)
                 strokes.append(
                     PlotterStroke(
                         id=len(strokes),
-                        points=contour.points,
+                        points=points,
                         closed=contour.closed,
                         glyph_index=positioned.glyph_index,
                         char=positioned.char,
-                        contour_index=contour_index,
+                        contour_index=contour.contour_index,
                     )
                 )
     return PathDocument(
@@ -69,6 +102,65 @@ def build_paths(
         warnings=list(dict.fromkeys(warnings)),
         metadata={"coordinate_system": "page-mm-top-left", "pipeline": "ttf-vector"},
     )
+
+
+def _outline_template(
+    font: LoadedFont,
+    positioned: PositionedGlyph,
+    vector_options: Mapping[str, object],
+    cache: OutlinePathTemplateCache,
+    *,
+    hotspots: HotspotTimings | None,
+) -> _OutlineGlyphTemplate:
+    key = (
+        str(font.path.resolve()),
+        positioned.glyph_name,
+        positioned.scale_mm_per_font_unit,
+        _number(vector_options, "flatten_tolerance_mm"),
+        _number(vector_options, "min_segment_length_mm"),
+        _integer(vector_options, "max_points_per_contour"),
+        _integer(vector_options, "max_recursion_depth"),
+    )
+    cached = cache.entries.get(key)
+    if cached is not None:
+        cache.template_cache_hits += 1
+        return cached
+    cache.template_cache_misses += 1
+    with hotspots.measure("build_paths.glyph_draw") if hotspots else nullcontext():
+        pen = CurveFlatteningPen(
+            font.glyph_set,
+            tolerance_mm=key[3],
+            min_segment_length_mm=key[4],
+            max_points_per_contour=key[5],
+            max_recursion_depth=key[6],
+        )
+        transform = (
+            positioned.scale_mm_per_font_unit,
+            0,
+            0,
+            -positioned.scale_mm_per_font_unit,
+            0,
+            0,
+        )
+        font.glyph_set[positioned.glyph_name].draw(TransformPen(pen, transform))
+    contours: list[_OutlineContourTemplate] = []
+    skipped: list[int] = []
+    for contour_index, contour in enumerate(pen.contours):
+        unique = {(point.x, point.y) for point in contour.points}
+        if len(unique) < 2 or _stroke_length(contour.points, contour.closed) <= 0:
+            skipped.append(contour_index)
+            continue
+        cache.local_points_built += len(contour.points)
+        contours.append(
+            _OutlineContourTemplate(
+                contour_index, tuple(contour.points), contour.closed
+            )
+        )
+    result = _OutlineGlyphTemplate(
+        tuple(contours), tuple(pen.warnings), tuple(skipped)
+    )
+    cache.entries[key] = result
+    return result
 
 
 def save_path_document(document: PathDocument, output_path: str | Path) -> None:
