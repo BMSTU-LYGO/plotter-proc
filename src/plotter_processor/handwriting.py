@@ -69,6 +69,11 @@ class HandwritingVariationContext:
         return self.glyphs[glyph_index]
 
 
+_MAX_GLYPH_SCALE_PERCENT = 3.0
+_MAX_GLYPH_ROTATION_DEG = 2.0
+_MAX_BASELINE_OFFSET_MM = 0.25
+
+
 @dataclass(frozen=True, slots=True)
 class _GlyphRoute:
     glyph: PositionedGlyph
@@ -234,16 +239,22 @@ def build_variation_context(
         occurrence = occurrences.get(glyph.char, 0)
         occurrences[glyph.char] = occurrence + 1
         rng = random.Random(_variation_seed(config.seed, glyph))
-        angle = rng.uniform(-config.rotation_deg, config.rotation_deg)
-        scale = 1 + rng.uniform(-config.scale_percent, config.scale_percent) / 100
+        rotation_limit = min(config.rotation_deg, _MAX_GLYPH_ROTATION_DEG)
+        scale_limit = min(config.scale_percent, _MAX_GLYPH_SCALE_PERCENT) / 100
+        baseline_limit = min(
+            config.baseline_jitter_mm,
+            _MAX_BASELINE_OFFSET_MM,
+            max(0.05, glyph.advance_mm * 0.06),
+        )
+        angle = rng.uniform(-rotation_limit, rotation_limit)
         variant = (_variation_seed(config.seed, glyph.char) + occurrence) % 3
         variations[glyph.glyph_index] = GlyphVariation(
             glyph_variant=variant,
-            scale_x=scale,
-            scale_y=scale,
+            scale_x=1 + rng.uniform(-scale_limit, scale_limit),
+            scale_y=1 + rng.uniform(-scale_limit, scale_limit),
             rotation_deg=angle,
             baseline_offset_mm=rng.uniform(
-                -config.baseline_jitter_mm, config.baseline_jitter_mm
+                -baseline_limit, baseline_limit
             ),
             spacing_adjustment_mm=rng.uniform(
                 -config.spacing_jitter_mm, config.spacing_jitter_mm

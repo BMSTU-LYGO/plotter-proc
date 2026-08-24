@@ -138,6 +138,65 @@ def test_repeated_glyphs_receive_readable_local_variants() -> None:
     assert variants["0"] == variants["3"]
 
 
+def test_glyph_scale_variation_is_independent_small_and_post_layout() -> None:
+    glyphs = [_glyph("а", index, float(index * 3)) for index in range(8)]
+    original_positions = [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs]
+
+    context = build_variation_context(
+        glyphs, VariationConfig(True, 11, 0, 0, 20, 0)
+    )
+
+    scales = [context.for_glyph(index) for index in range(len(glyphs))]
+    assert all(0.97 <= item.scale_x <= 1.03 for item in scales)
+    assert all(0.97 <= item.scale_y <= 1.03 for item in scales)
+    assert any(item.scale_x != item.scale_y for item in scales)
+    assert [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs] == original_positions
+
+
+def test_rotation_and_baseline_variation_stay_inside_safe_limits() -> None:
+    glyphs = [
+        _glyph("а", index, float(index * 2), line=index // 4) for index in range(8)
+    ]
+    glyphs = [
+        replace(glyph, baseline_y_mm=10.0 + glyph.line_index * 4.0)
+        for glyph in glyphs
+    ]
+    context = build_variation_context(
+        glyphs, VariationConfig(True, 21, 5.0, 10.0, 0, 0)
+    )
+
+    variations = context.glyphs.values()
+    assert all(abs(item.rotation_deg) <= 2.0 for item in variations)
+    assert all(abs(item.baseline_offset_mm) <= 0.12 for item in variations)
+
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [
+                    Point(glyph.x_mm, glyph.baseline_y_mm - 1),
+                    Point(glyph.x_mm + 1, glyph.baseline_y_mm + 1),
+                ],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    result = apply_variation(
+        document, glyphs, VariationConfig(True, 21, 5.0, 10.0, 0, 0)
+    )
+    first_line = [point.y for stroke in result.strokes[:4] for point in stroke.points]
+    second_line = [point.y for stroke in result.strokes[4:] for point in stroke.points]
+
+    assert max(first_line) < min(second_line)
+
+
 def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:
     document = PathDocument(
         10,
