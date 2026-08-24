@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
 from plotter_processor.performance import StageTimings
+from plotter_processor.stage_cache import StageCacheManager
 
 InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")
@@ -75,6 +76,29 @@ class StageExecutor:
         execution.calls += 1
         if metadata:
             execution.metadata.append(dict(metadata))
+        return result
+
+    def run_cached(
+        self,
+        stage: StageDefinition[InputT, OutputT],
+        value: InputT,
+        operation: Callable[[InputT], OutputT],
+        *,
+        cache: StageCacheManager,
+        fingerprint: str,
+        metadata: dict[str, object] | None = None,
+    ) -> OutputT:
+        lookup = cache.load(stage.name, fingerprint)
+        cache_metadata = {**(metadata or {}), "cache": "hit" if lookup.hit else "miss"}
+        if lookup.hit:
+            return self.run(
+                stage,
+                value,
+                lambda _: lookup.value,  # type: ignore[return-value]
+                metadata=cache_metadata,
+            )
+        result = self.run(stage, value, operation, metadata=cache_metadata)
+        cache.store(stage.name, fingerprint, result)
         return result
 
     def report(self) -> dict[str, dict[str, object]]:
