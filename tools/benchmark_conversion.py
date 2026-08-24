@@ -15,6 +15,54 @@ from plotter_processor.performance import FunctionProfiler
 from plotter_processor.pipeline import PipelineOptions, run_pipeline
 
 
+def _run_timings(result: dict[str, object]) -> dict[str, float]:
+    performance = result.get("performance", {})
+    if not isinstance(performance, dict):
+        return {}
+    timings = {
+        f"stage.{key}": float(value)
+        for key, value in performance.items()
+        if (key == "total_ms" or key.endswith("_ms"))
+        and isinstance(value, (int, float))
+    }
+    pages = performance.get("pages", [])
+    if isinstance(pages, list):
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            hotspots = page.get("hotspots", {})
+            if not isinstance(hotspots, dict):
+                continue
+            for name, metric in hotspots.items():
+                if isinstance(metric, dict) and isinstance(
+                    metric.get("total_ms"), (int, float)
+                ):
+                    key = f"hotspot.{name}"
+                    timings[key] = timings.get(key, 0.0) + float(metric["total_ms"])
+    return timings
+
+
+def _performance_summary(results: list[dict[str, object]]) -> dict[str, object]:
+    cold = [_run_timings(result) for result in results if result.get("kind") == "cold"]
+    warm = [_run_timings(result) for result in results if result.get("kind") == "warm"]
+    keys = sorted({key for timings in [*cold, *warm] for key in timings})
+    return {
+        "cold_ms": {
+            key: round(cold[0][key], 3) for key in keys if cold and key in cold[0]
+        },
+        "warm_median_ms": {
+            key: round(
+                statistics.median(
+                    timings[key] for timings in warm if key in timings
+                ),
+                3,
+            )
+            for key in keys
+            if any(key in timings for timings in warm)
+        },
+    }
+
+
 def _progress_reporter(label: str) -> Callable[[str, str, float | None], None]:
     def report(stage: str, state: str, elapsed_ms: float | None) -> None:
         suffix = "" if elapsed_ms is None else f" ({elapsed_ms:.1f} ms)"
@@ -73,6 +121,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--profile-top", type=int, default=20, help="Number of functions in the profile list"
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print the complete per-run JSON payload"
     )
     args = parser.parse_args()
     if args.warm_runs < 1:
@@ -191,12 +242,20 @@ def main() -> int:
         "cold_ms": cold_values[0] if cold_values else None,
         "warm_median_ms": round(statistics.median(warm_values), 3) if warm_values else None,
         "warm_runs": len(warm_values),
+        "performance_summary": _performance_summary(results),
         "runs": results,
     }
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    console_payload = payload if args.verbose else {
+        "cold_ms": payload["cold_ms"],
+        "warm_median_ms": payload["warm_median_ms"],
+        "warm_runs": payload["warm_runs"],
+        "performance_summary": payload["performance_summary"],
+        "output": str(args.output),
+    }
+    print(json.dumps(console_payload, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 
 from plotter_processor.centerline_font.models import (
@@ -7,6 +8,7 @@ from plotter_processor.centerline_font.models import (
     CompiledCenterlineFont,
 )
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.performance import HotspotTimings
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,7 @@ def build_centerline_paths(
     page: PageSpec,
     *,
     template_cache: CenterlinePathTemplateCache | None = None,
+    hotspots: HotspotTimings | None = None,
 ) -> PathDocument:
     cache = template_cache or CenterlinePathTemplateCache()
     strokes: list[PlotterStroke] = []
@@ -61,26 +64,29 @@ def build_centerline_paths(
                 f'Centerline cache is missing glyph "{positioned.char}" '
                 f"(U+{positioned.codepoint:04X})"
             ) from error
-        templates = _local_templates(compiled_font, glyph, positioned, cache)
-        positioned_points = _positioned_points(
-            compiled_font, positioned, templates, cache
-        )
-        for template, cached_points in zip(templates, positioned_points, strict=True):
-            points = list(cached_points)
-            strokes.append(
-                PlotterStroke(
-                    id=len(strokes),
-                    points=points,
-                    closed=template.closed,
-                    glyph_index=positioned.glyph_index,
-                    char=positioned.char,
-                    contour_index=template.id,
-                    source_glyph_indices=(positioned.glyph_index,),
-                    source_chars=positioned.char,
-                    segment_types=("glyph",),
-                    word_index=positioned.word_index,
-                )
+        with hotspots.measure("build_paths.template_lookup") if hotspots else nullcontext():
+            templates = _local_templates(compiled_font, glyph, positioned, cache)
+        with hotspots.measure("build_paths.transform") if hotspots else nullcontext():
+            positioned_points = _positioned_points(
+                compiled_font, positioned, templates, cache
             )
+        with hotspots.measure("build_paths.stroke_materialization") if hotspots else nullcontext():
+            for template, cached_points in zip(templates, positioned_points, strict=True):
+                points = list(cached_points)
+                strokes.append(
+                    PlotterStroke(
+                        id=len(strokes),
+                        points=points,
+                        closed=template.closed,
+                        glyph_index=positioned.glyph_index,
+                        char=positioned.char,
+                        contour_index=template.id,
+                        source_glyph_indices=(positioned.glyph_index,),
+                        source_chars=positioned.char,
+                        segment_types=("glyph",),
+                        word_index=positioned.word_index,
+                    )
+                )
     if not strokes:
         raise ValueError("Font processing produced no drawable paths")
     return PathDocument(

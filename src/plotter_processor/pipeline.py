@@ -219,7 +219,12 @@ def process_page(
     if request.font_mode == "centerline" and request.body_glyphs:
         with _measure_page_stage("handwriting", stage_ms, stage_progress):
             with page_metrics.measure("variation_ms"):
-                paths = apply_variation(paths, request.body_glyphs, request.variation_config)
+                paths = apply_variation(
+                    paths,
+                    request.body_glyphs,
+                    request.variation_config,
+                    hotspots=page_metrics.hotspots,
+                )
             complexity_before_route = path_complexity(paths)
             with page_metrics.measure("word_routing_ms"):
                 paths, handwriting = route_words(
@@ -227,6 +232,7 @@ def process_page(
                     request.body_glyphs,
                     request.joining_config,
                     collect_debug=request.connection_debug,
+                    hotspots=page_metrics.hotspots,
                 )
         if request.joining_config.enabled and request.connection_debug:
             export_handwriting_debug(paths, request.page_dir / "connection-debug.svg")
@@ -264,6 +270,7 @@ def process_page(
                     else {}
                 ),
                 complexity_before_route=complexity_before_route,
+                hotspots=page_metrics.hotspots,
             )
 
     paths.warnings = list(dict.fromkeys(request.page_warnings))
@@ -645,7 +652,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             path_template_cache = CenterlinePathTemplateCache()
             for page_layout in paginated.pages:
                 page_metrics = PagePerformance(
-                    page_layout.page_index + 1, len(page_layout.layout.glyphs)
+                    page_layout.page_index + 1,
+                    len(page_layout.layout.glyphs),
+                    collect_hotspots=(
+                        options.stage_progress is not None or debug_artifacts
+                    ),
                 )
                 page_performance[page_layout.page_index] = page_metrics
                 page_dir = (
@@ -662,7 +673,13 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     page_metrics.measure("build_paths_ms"),
                 ):
                     if options.font_mode == "outline":
-                        paths = build_paths(font, body, page, vector)
+                        paths = build_paths(
+                            font,
+                            body,
+                            page,
+                            vector,
+                            hotspots=page_metrics.hotspots,
+                        )
                         warnings.append(
                             "Outline mode follows both boundaries of filled TTF strokes"
                         )
@@ -672,6 +689,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             body,
                             page,
                             template_cache=path_template_cache,
+                            hotspots=page_metrics.hotspots,
                         )
                     else:
                         paths = PathDocument(page.width_mm, page.height_mm, [], [], {})
@@ -685,6 +703,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             numbers,
                             page,
                             template_cache=path_template_cache,
+                            hotspots=page_metrics.hotspots,
                         )
                     for stroke in number_paths.strokes:
                         stroke.id = len(paths.strokes)
@@ -994,7 +1013,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             json.dumps(report, ensure_ascii=False, separators=(",", ":"))
         performance_report = timings.report()
         performance_report["pages"] = [
-            page_performance[index].report() for index in sorted(page_performance)
+            page_report["performance"] for page_report in page_reports
         ]
         report["performance"] = performance_report
         _write_report(report_path, report)

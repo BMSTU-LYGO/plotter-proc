@@ -11,7 +11,7 @@ LAYOUT_CONFIG ?= configs/layout.yaml
 
 PROFILE ?= safe
 
-.PHONY: install test lint run demo extract calibrate benchmark smoke clean cache-clean \
+.PHONY: install test lint run demo extract calibrate benchmark benchmark-pipeline smoke clean cache-clean \
 	font-cache-rebuild cache-rebuild font-cache-status
 
 install:
@@ -48,6 +48,12 @@ benchmark:
 	$(PYTHON) -m plotter_processor run examples/benchmark_50_words.txt \
 		--font "$(FONT)" --font-mode centerline --page A5 --size normal \
 		--motion-profile "$(PROFILE)" --output-dir "$(BUILD)/benchmark-$(PROFILE)"
+
+benchmark-pipeline:
+	$(PYTHON) tools/benchmark_conversion.py examples/benchmark_50_words.txt \
+		--font assets/1.ttf --font-mode centerline --connections safe \
+		--workers 1 --warm-runs 3 \
+		--output "$(BUILD)/benchmark-pipeline.json"
 
 clean:
 	rm -rf "$(BUILD)"

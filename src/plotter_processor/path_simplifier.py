@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from plotter_processor.models import PathDocument, PlotterStroke, Point
+from plotter_processor.performance import HotspotTimings
 
 _VECTOR_INTERVAL_THRESHOLD = 64
 
@@ -54,6 +56,7 @@ def simplify_path_document(
     template_cache: SimplificationTemplateCache | None = None,
     template_identities: Mapping[int, tuple[object, ...]] | None = None,
     complexity_before_route: dict[str, int | float] | None = None,
+    hotspots: HotspotTimings | None = None,
 ) -> tuple[PathDocument, dict[str, object]]:
     for value in (duplicate_epsilon_mm, min_segment_length_mm, max_deviation_mm):
         if value < 0 or not math.isfinite(value):
@@ -63,10 +66,15 @@ def simplify_path_document(
     max_seen = 0.0
     simplified_strokes = []
     unique_templates = reused_templates = post_join_strokes = 0
+    profile_hotspots = hotspots is not None and hotspots.enabled
+    dedupe_ms = rdp_ms = 0.0
     for stroke in document.strokes:
         # RDP owns the geometric error budget. Removing longer micro-segments first can
         # exceed it, so only exact/near-exact duplicates are discarded independently.
+        started = time.perf_counter() if profile_hotspots else 0.0
         points = _dedupe(stroke.points, min(duplicate_epsilon_mm, min_segment_length_mm))
+        if profile_hotspots:
+            dedupe_ms += (time.perf_counter() - started) * 1000.0
         cache_key = _template_key(
             stroke, points, max_deviation_mm, template_identities or {}
         )
@@ -76,9 +84,12 @@ def simplify_path_document(
             points = [points[index] for index in keep_indices]
             reused_templates += 1
         else:
+            started = time.perf_counter() if profile_hotspots else 0.0
             points, observed, keep_indices = _simplify_stroke_points(
                 points, stroke.closed, max_deviation_mm
             )
+            if profile_hotspots:
+                rdp_ms += (time.perf_counter() - started) * 1000.0
             if template_cache is not None and cache_key is not None:
                 template_cache.entries[cache_key] = (keep_indices, observed)
                 unique_templates += 1
@@ -88,6 +99,9 @@ def simplify_path_document(
         simplified_strokes.append(replace(stroke, points=points, closed=stroke.closed))
     after = sum(len(stroke.points) for stroke in simplified_strokes)
     result = replace(document, strokes=simplified_strokes, metadata=dict(document.metadata))
+    if hotspots is not None and profile_hotspots:
+        hotspots.record("simplification.dedupe", dedupe_ms)
+        hotspots.record("simplification.rdp", rdp_ms)
     stats = {
         "enabled": True,
         "points_before_simplification": before,

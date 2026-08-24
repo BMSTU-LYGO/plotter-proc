@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping
+from contextlib import nullcontext
 from itertools import pairwise
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from fontTools.pens.transformPen import TransformPen
 from plotter_processor.curve_flattener import CurveFlatteningPen
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.performance import HotspotTimings
 
 
 def build_paths(
@@ -18,44 +20,48 @@ def build_paths(
     glyphs: list[PositionedGlyph],
     page: PageSpec,
     vector_options: Mapping[str, object],
+    *,
+    hotspots: HotspotTimings | None = None,
 ) -> PathDocument:
     strokes: list[PlotterStroke] = []
     warnings: list[str] = []
     for positioned in glyphs:
-        pen = CurveFlatteningPen(
-            font.glyph_set,
-            tolerance_mm=_number(vector_options, "flatten_tolerance_mm"),
-            min_segment_length_mm=_number(vector_options, "min_segment_length_mm"),
-            max_points_per_contour=_integer(vector_options, "max_points_per_contour"),
-            max_recursion_depth=_integer(vector_options, "max_recursion_depth"),
-        )
-        transform = (
-            positioned.scale_mm_per_font_unit,
-            0,
-            0,
-            -positioned.scale_mm_per_font_unit,
-            positioned.x_mm,
-            positioned.baseline_y_mm,
-        )
-        font.glyph_set[positioned.glyph_name].draw(TransformPen(pen, transform))
-        warnings.extend(pen.warnings)
-        for contour_index, contour in enumerate(pen.contours):
-            unique = {(point.x, point.y) for point in contour.points}
-            if len(unique) < 2 or _stroke_length(contour.points, contour.closed) <= 0:
-                warnings.append(
-                    f"Skipped empty contour {contour_index} for glyph {positioned.glyph_index}"
-                )
-                continue
-            strokes.append(
-                PlotterStroke(
-                    id=len(strokes),
-                    points=contour.points,
-                    closed=contour.closed,
-                    glyph_index=positioned.glyph_index,
-                    char=positioned.char,
-                    contour_index=contour_index,
-                )
+        with hotspots.measure("build_paths.glyph_draw") if hotspots else nullcontext():
+            pen = CurveFlatteningPen(
+                font.glyph_set,
+                tolerance_mm=_number(vector_options, "flatten_tolerance_mm"),
+                min_segment_length_mm=_number(vector_options, "min_segment_length_mm"),
+                max_points_per_contour=_integer(vector_options, "max_points_per_contour"),
+                max_recursion_depth=_integer(vector_options, "max_recursion_depth"),
             )
+            transform = (
+                positioned.scale_mm_per_font_unit,
+                0,
+                0,
+                -positioned.scale_mm_per_font_unit,
+                positioned.x_mm,
+                positioned.baseline_y_mm,
+            )
+            font.glyph_set[positioned.glyph_name].draw(TransformPen(pen, transform))
+        warnings.extend(pen.warnings)
+        with hotspots.measure("build_paths.stroke_materialization") if hotspots else nullcontext():
+            for contour_index, contour in enumerate(pen.contours):
+                unique = {(point.x, point.y) for point in contour.points}
+                if len(unique) < 2 or _stroke_length(contour.points, contour.closed) <= 0:
+                    warnings.append(
+                        f"Skipped empty contour {contour_index} for glyph {positioned.glyph_index}"
+                    )
+                    continue
+                strokes.append(
+                    PlotterStroke(
+                        id=len(strokes),
+                        points=contour.points,
+                        closed=contour.closed,
+                        glyph_index=positioned.glyph_index,
+                        char=positioned.char,
+                        contour_index=contour_index,
+                    )
+                )
     return PathDocument(
         page_width_mm=page.width_mm,
         page_height_mm=page.height_mm,

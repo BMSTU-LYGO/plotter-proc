@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import time
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
@@ -13,6 +14,7 @@ from plotter_processor.centerline_font.anchors import entry_exit_anchors
 from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.performance import HotspotTimings
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,10 +206,15 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
 
 
 def apply_variation(
-    document: PathDocument, glyphs: list[PositionedGlyph], config: VariationConfig
+    document: PathDocument,
+    glyphs: list[PositionedGlyph],
+    config: VariationConfig,
+    *,
+    hotspots: HotspotTimings | None = None,
 ) -> PathDocument:
     if not config.enabled:
         return document
+    started = time.perf_counter() if hotspots and hotspots.enabled else None
     positions = {glyph.glyph_index: glyph for glyph in glyphs}
     varied: list[PlotterStroke] = []
     parameters: dict[int, tuple[float, float, float, float]] = {}
@@ -239,6 +246,11 @@ def apply_variation(
         varied.append(replace(stroke, points=points))
     result = replace(document, strokes=varied, metadata=dict(document.metadata))
     result.metadata["variation_seed"] = config.seed
+    if started is not None:
+        hotspots.record(
+            "handwriting.variation_transform",
+            (time.perf_counter() - started) * 1000.0,
+        )
     return result
 
 
@@ -341,6 +353,7 @@ def route_words(
     config: JoiningConfig,
     *,
     collect_debug: bool = False,
+    hotspots: HotspotTimings | None = None,
 ) -> tuple[PathDocument, dict[str, object]]:
     before = len(document.strokes)
     if not config.enabled:
@@ -370,7 +383,11 @@ def route_words(
         if stroke.glyph_index is not None:
             by_glyph.setdefault(stroke.glyph_index, []).append(stroke)
     words = _words(glyphs)
-    obstacle_index = _SegmentObstacleIndex.build(document.strokes)
+    if hotspots is None:
+        obstacle_index = _SegmentObstacleIndex.build(document.strokes)
+    else:
+        with hotspots.measure("connections.obstacle_index"):
+            obstacle_index = _SegmentObstacleIndex.build(document.strokes)
     counters = _ConnectionCounters()
     output: list[PlotterStroke] = []
     candidates = created = rejected = snapped = 0
@@ -387,10 +404,18 @@ def route_words(
         routes: list[_GlyphRoute] = []
         for glyph in word:
             strokes = by_glyph.get(glyph.glyph_index, [])
-            classified = classify_strokes(strokes, glyph.baseline_y_mm)
+            if hotspots is None:
+                classified = classify_strokes(strokes, glyph.baseline_y_mm)
+            else:
+                with hotspots.measure("connections.stroke_classification"):
+                    classified = classify_strokes(strokes, glyph.baseline_y_mm)
             main = classified.main if classified.confidence >= 0.35 else None
             if main is not None:
-                routed, anchors = _orient_for_anchors(main, glyph)
+                if hotspots is None:
+                    routed, anchors = _orient_for_anchors(main, glyph)
+                else:
+                    with hotspots.measure("connections.anchor_routing"):
+                        routed, anchors = _orient_for_anchors(main, glyph)
                 routes.append(
                     _GlyphRoute(
                         glyph,
@@ -427,14 +452,29 @@ def route_words(
                     rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
                     word_rejected.append(reason)
                     continue
-                candidate, connector, collision_points, snap_point = _connection_candidate(
-                    left_route,
-                    right_route,
-                    config,
-                    obstacle_index,
-                    counters,
-                    collect_debug=collect_debug,
-                )
+                if hotspots is None:
+                    candidate, connector, collision_points, snap_point = (
+                        _connection_candidate(
+                            left_route,
+                            right_route,
+                            config,
+                            obstacle_index,
+                            counters,
+                            collect_debug=collect_debug,
+                        )
+                    )
+                else:
+                    with hotspots.measure("connections.candidate_solver"):
+                        candidate, connector, collision_points, snap_point = (
+                            _connection_candidate(
+                                left_route,
+                                right_route,
+                                config,
+                                obstacle_index,
+                                counters,
+                                collect_debug=collect_debug,
+                            )
+                        )
                 reason = candidate.rejection_reason
                 if collect_debug:
                     debug_candidates.append(
