@@ -49,3 +49,25 @@ def test_old_compiled_font_schema_is_rejected() -> None:
         assert "Unsupported centerline font cache" in str(error)
     else:
         raise AssertionError("old compiled font schema must be rejected")
+
+
+def test_problem_cyrillic_gets_optional_stroke_order_and_direction() -> None:
+    right = CenterlineStroke(5, (Point(20, 0), Point(10, 0)), False)
+    left = CenterlineStroke(2, (Point(0, 0), Point(5, -10)), False)
+
+    _, _, metadata = compiled_glyph_metadata((right, left), char="ы")
+
+    by_id = {item.stroke_id: item for item in metadata}
+    assert by_id[2].recommended_order == 0
+    assert by_id[5].recommended_order == 1
+    assert by_id[2].recommended_direction == "forward"
+    assert by_id[5].recommended_direction == "reverse"
+
+
+def test_glyph_without_stroke_order_uses_automatic_fallback() -> None:
+    stroke = CenterlineStroke(0, (Point(10, 0), Point(0, 0)), False)
+
+    _, _, metadata = compiled_glyph_metadata((stroke,), char="а")
+
+    assert metadata[0].recommended_order is None
+    assert metadata[0].recommended_direction == "auto"

@@ -69,6 +69,8 @@ def _glyph_to_data(char: str, glyph: CenterlineGlyph) -> dict[str, object]:
                     "component_id": metadata.component_id,
                     "closed": metadata.closed,
                     "retraced_length_font_units": metadata.retraced_length_font_units,
+                    "recommended_order": metadata.recommended_order,
+                    "recommended_direction": metadata.recommended_direction,
                 }
                 for metadata in glyph.stroke_metadata
             ],
@@ -140,6 +142,17 @@ def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterline
                     float(
                         _dict(raw, "stroke metadata").get(
                             "retraced_length_font_units", 0.0
+                        )
+                    ),
+                    (
+                        int(_dict(raw, "stroke metadata")["recommended_order"])
+                        if _dict(raw, "stroke metadata").get("recommended_order")
+                        is not None
+                        else None
+                    ),
+                    str(
+                        _dict(raw, "stroke metadata").get(
+                            "recommended_direction", "auto"
                         )
                     ),
                 )

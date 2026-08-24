@@ -98,6 +98,8 @@ class CompiledStrokeMetadata:
     component_id: int
     closed: bool
     retraced_length_font_units: float
+    recommended_order: int | None = None
+    recommended_direction: str = "auto"
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +145,8 @@ CompiledCenterlineFont = CompiledPlotterFont
 
 def compiled_glyph_metadata(
     strokes: tuple[CenterlineStroke, ...],
+    *,
+    char: str | None = None,
 ) -> tuple[
     CompiledGlyphAnchor | None,
     CompiledGlyphAnchor | None,
@@ -163,13 +167,51 @@ def compiled_glyph_metadata(
         if points
         else None
     )
+    order = _recommended_order(char, strokes)
     metadata = tuple(
         CompiledStrokeMetadata(
             stroke.id,
             stroke.component_id,
             stroke.closed,
             stroke.retraced_length_font_units,
+            order.get(stroke.id),
+            _recommended_direction(stroke) if order else "auto",
         )
         for stroke in strokes
     )
     return entry, exit_anchor, metadata
+
+
+_HANDWRITING_ORDER_GLYPHS = frozenset("ъьыжфт")
+
+
+def _recommended_order(
+    char: str | None, strokes: tuple[CenterlineStroke, ...]
+) -> dict[int, int]:
+    if char is None or char.lower() not in _HANDWRITING_ORDER_GLYPHS:
+        return {}
+    ordered = sorted(
+        strokes,
+        key=lambda stroke: (
+            min((point.x for point in stroke.points), default=0.0),
+            -_stroke_length(stroke),
+            stroke.id,
+        ),
+    )
+    return {stroke.id: index for index, stroke in enumerate(ordered)}
+
+
+def _recommended_direction(stroke: CenterlineStroke) -> str:
+    if stroke.closed or len(stroke.points) < 2:
+        return "auto"
+    first, last = stroke.points[0], stroke.points[-1]
+    if abs(last.x - first.x) >= abs(last.y - first.y):
+        return "forward" if first.x <= last.x else "reverse"
+    return "forward" if first.y >= last.y else "reverse"
+
+
+def _stroke_length(stroke: CenterlineStroke) -> float:
+    return sum(
+        ((second.x - first.x) ** 2 + (second.y - first.y) ** 2) ** 0.5
+        for first, second in zip(stroke.points, stroke.points[1:], strict=False)
+    )

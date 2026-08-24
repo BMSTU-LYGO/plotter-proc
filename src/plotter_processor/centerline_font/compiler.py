@@ -369,7 +369,7 @@ def _compile_glyph(
         )
     compiled_strokes = tuple(strokes)
     entry_anchor, exit_anchor, stroke_metadata = compiled_glyph_metadata(
-        compiled_strokes
+        compiled_strokes, char=char
     )
     return CenterlineGlyph(
         char,

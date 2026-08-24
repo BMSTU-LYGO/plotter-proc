@@ -122,7 +122,17 @@ def _local_templates(
         return cached
     cache.template_cache_misses += 1
     templates: list[_LocalStrokeTemplate] = []
-    for centerline in glyph.strokes:
+    metadata_by_stroke = {item.stroke_id: item for item in glyph.stroke_metadata}
+    ordered_strokes = sorted(
+        enumerate(glyph.strokes),
+        key=lambda item: (
+            metadata_by_stroke.get(item[1].id).recommended_order
+            if metadata_by_stroke.get(item[1].id) is not None
+            and metadata_by_stroke[item[1].id].recommended_order is not None
+            else item[0]
+        ),
+    )
+    for _, centerline in ordered_strokes:
         points = _dedupe(
             [
                 Point(
@@ -135,6 +145,9 @@ def _local_templates(
         cache.local_points_built += len(points)
         if len(points) < (3 if centerline.closed else 2):
             continue
+        metadata = metadata_by_stroke.get(centerline.id)
+        if metadata is not None and metadata.recommended_direction == "reverse":
+            points.reverse()
         templates.append(
             _LocalStrokeTemplate(centerline.id, tuple(points), centerline.closed)
         )
