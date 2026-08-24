@@ -109,3 +109,33 @@ def test_worker_count_is_bounded_by_memory_policy_and_page_count(monkeypatch) ->
     assert resolve_worker_count("auto", 20) == 4
     assert resolve_worker_count(8, 3) == 3
     assert resolve_worker_count(1, 20) == 1
+
+
+def test_page_processes_preserve_order_and_output_bytes(
+    tmp_path: Path, test_font: Path
+) -> None:
+    machine = _machine_config(tmp_path, max_y=320.0)
+    sequential = _options(tmp_path, test_font, machine, output_name="workers-1")
+    parallel = _options(tmp_path, test_font, machine, output_name="workers-2")
+    sequential.input_path.write_text("parallel page " * 1400, encoding="utf-8")
+    sequential.workers = 1
+    parallel.workers = 2
+
+    first = run_pipeline(sequential)
+    second = run_pipeline(parallel)
+
+    assert first.status == second.status == "ok"
+    first_report = json.loads(first.report_path.read_text(encoding="utf-8"))
+    second_report = json.loads(second.report_path.read_text(encoding="utf-8"))
+    assert first_report["pagination"]["page_count"] >= 2
+    assert [page["page"] for page in first_report["pages"]] == [
+        page["page"] for page in second_report["pages"]
+    ]
+    assert (sequential.output_dir / "output.gcode").read_bytes() == (
+        parallel.output_dir / "output.gcode"
+    ).read_bytes()
+    for page_number in range(1, first_report["pagination"]["page_count"] + 1):
+        relative = Path("pages") / f"page-{page_number:03d}" / "paths.json"
+        assert (sequential.output_dir / relative).read_bytes() == (
+            parallel.output_dir / relative
+        ).read_bytes()

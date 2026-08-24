@@ -119,7 +119,6 @@ class PipelineOptions:
     math_debug: bool = False
     stage_progress: Callable[[str, str, float | None], None] | None = None
     workers: str | int = "auto"
-    centerline_workers: str | int = "auto"
     artifact_level: str = "normal"
 
 
@@ -168,6 +167,10 @@ _PAGE_PROCESS_REQUESTS: dict[int, PageProcessRequest] = {}
 
 def _process_page_index(page_index: int) -> PageProcessResult:
     return process_page(_PAGE_PROCESS_REQUESTS[page_index])
+
+
+def _process_page_request(request: PageProcessRequest) -> PageProcessResult:
+    return process_page(request)
 
 
 def resolve_worker_count(requested: str | int, page_count: int) -> int:
@@ -588,7 +591,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             options.strict_centerline_quality
                             if options.font_mode == "centerline" else False
                         ),
-                        workers=options.centerline_workers,
+                        workers=options.workers,
                         debug_dir=(
                             output_dir / "centerline-debug" if audit_artifacts else None
                         ),
@@ -827,17 +830,31 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 request.page_layout.page_index: request for request in requests
             }
             try:
+                start_method = (
+                    "fork"
+                    if "fork" in multiprocessing.get_all_start_methods()
+                    else "spawn"
+                )
                 with ProcessPoolExecutor(
                     max_workers=worker_count,
-                    mp_context=multiprocessing.get_context("fork"),
+                    mp_context=multiprocessing.get_context(start_method),
                 ) as executor:
-                    page_results = list(
-                        executor.map(
-                            _process_page_index,
-                            sorted(_PAGE_PROCESS_REQUESTS),
-                            chunksize=1,
+                    if start_method == "fork":
+                        page_results = list(
+                            executor.map(
+                                _process_page_index,
+                                sorted(_PAGE_PROCESS_REQUESTS),
+                                chunksize=1,
+                            )
                         )
-                    )
+                    else:
+                        page_results = list(
+                            executor.map(
+                                _process_page_request,
+                                requests,
+                                chunksize=1,
+                            )
+                        )
             finally:
                 _PAGE_PROCESS_REQUESTS = {}
         page_results.sort(key=lambda result: result.page_index)
