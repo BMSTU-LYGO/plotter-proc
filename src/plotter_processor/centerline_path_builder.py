@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from plotter_processor.centerline_font.models import (
     CenterlineGlyph,
-    CompiledCenterlineFont,
+    CompiledPlotterFont,
 )
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.performance import HotspotTimings
@@ -47,7 +47,7 @@ class CenterlinePathTemplateCache:
 
 
 def build_centerline_paths(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     glyphs: list[PositionedGlyph],
     page: PageSpec,
     *,
@@ -98,7 +98,7 @@ def build_centerline_paths(
             "coordinate_system": "page-mm-top-left",
             "pipeline": "ttf-centerline",
             "centerline_format": "plotter-centerline-font",
-            "centerline_version": 2,
+            "centerline_version": compiled_font.schema_version,
             "routing_strategy": "one_stroke_per_component",
             "font_sha256": compiled_font.font_sha256,
         },
@@ -106,7 +106,7 @@ def build_centerline_paths(
 
 
 def _local_templates(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     glyph: CenterlineGlyph,
     positioned: PositionedGlyph,
     cache: CenterlinePathTemplateCache,
@@ -144,7 +144,7 @@ def _local_templates(
 
 
 def _positioned_points(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     positioned: PositionedGlyph,
     templates: tuple[_LocalStrokeTemplate, ...],
     cache: CenterlinePathTemplateCache,

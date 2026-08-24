@@ -23,7 +23,11 @@ from plotter_processor.centerline_font.edge_geometry import build_smoothed_edge_
 from plotter_processor.centerline_font.glyph_patch import apply_glyph_patch, load_glyph_patch
 from plotter_processor.centerline_font.glyph_renderer import render_glyph
 from plotter_processor.centerline_font.mask_processor import build_ink_mask
-from plotter_processor.centerline_font.models import CenterlineGlyph, CompiledCenterlineFont
+from plotter_processor.centerline_font.models import (
+    CenterlineGlyph,
+    CompiledCenterlineFont,
+    compiled_glyph_metadata,
+)
 from plotter_processor.centerline_font.quality import score_quality, validate_strokes
 from plotter_processor.centerline_font.route_assembler import assemble_component_route
 from plotter_processor.centerline_font.route_planner import plan_glyph_routes
@@ -363,14 +367,21 @@ def _compile_glyph(
             quality,
             candidate_skeletons=selected.candidate_skeletons,
         )
+    compiled_strokes = tuple(strokes)
+    entry_anchor, exit_anchor, stroke_metadata = compiled_glyph_metadata(
+        compiled_strokes
+    )
     return CenterlineGlyph(
         char,
         ord(char),
         raster.glyph_name,
         raster.advance_font_units,
-        tuple(strokes),
+        compiled_strokes,
         tuple(warnings + quality_warnings),
         quality,
+        entry_anchor,
+        exit_anchor,
+        stroke_metadata,
     )
 
 

@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from plotter_processor.schemas import STAGE_CACHE_SCHEMA_VERSION
+
 ValueT = TypeVar("ValueT")
-STAGE_CACHE_SCHEMA_VERSION = 1
 
 
 def file_sha256(path: Path) -> str:

@@ -84,3 +84,12 @@ def test_two_stages_share_cache_rules_and_corruption_is_local(tmp_path: Path) ->
     assert rebuilt == result
     assert calls == {"read": 1, "layout": 2}
     assert cache.stats["layout"].corrupt_entries == 1
+
+
+def test_unsupported_stage_cache_schema_is_ignored(tmp_path: Path) -> None:
+    root = tmp_path / "cache"
+    StageCacheManager(root, schema_version=1).store("layout", "fingerprint", "old")
+
+    lookup = StageCacheManager(root).load("layout", "fingerprint")
+
+    assert not lookup.hit

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from plotter_processor.models import PlotterStroke
+from plotter_processor.schemas import DOCUMENT_MODEL_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +259,7 @@ class DocumentModel:
     pages: tuple[SourcePage, ...]
     warnings: tuple[str, ...] = ()
     metadata: DocumentMetadata = DocumentMetadata()
+    schema_version: int = DOCUMENT_MODEL_SCHEMA_VERSION
 
     @property
     def elements(self) -> tuple[SourceElement, ...]:

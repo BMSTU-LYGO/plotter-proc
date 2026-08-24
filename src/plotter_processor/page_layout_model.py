@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from plotter_processor.latex_layout import FormulaInfo
 from plotter_processor.layout_models import ExclusionZone, RectMM
 from plotter_processor.models import LayoutResult, PlotterStroke, PositionedGlyph
+from plotter_processor.schemas import LAYOUT_MODEL_SCHEMA_VERSION
 
 
 @dataclass(slots=True)
@@ -29,6 +30,7 @@ class LayoutModel:
     element_details: dict[str, dict[str, object]]
     latex_statistics: dict[str, object] = field(default_factory=dict)
     layout_statistics: dict[str, object] = field(default_factory=dict)
+    schema_version: int = LAYOUT_MODEL_SCHEMA_VERSION
 
 
 @dataclass(slots=True)

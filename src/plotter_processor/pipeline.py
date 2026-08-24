@@ -77,6 +77,7 @@ from plotter_processor.pipeline_stages import (
     StageExecutor,
 )
 from plotter_processor.preview_cache import materialize_cached_preview
+from plotter_processor.schemas import SCHEMA_VERSIONS
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.semantic_metrics import semantic_report
 from plotter_processor.stage_cache import StageCacheManager
@@ -1090,6 +1091,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "page": options.page, "size": options.size, "shaping": engine,
             "workers": {"requested": options.workers, "resolved": worker_count},
             "artifact_level": options.artifact_level,
+            "schema_versions": SCHEMA_VERSIONS,
             "stages": stages.report(),
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,

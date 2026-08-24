@@ -14,6 +14,7 @@ from plotter_processor.curve_flattener import CurveFlatteningPen
 from plotter_processor.font_loader import LoadedFont
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point, PositionedGlyph
 from plotter_processor.performance import HotspotTimings
+from plotter_processor.schemas import PATHS_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ def _outline_template(
 def save_path_document(document: PathDocument, output_path: str | Path) -> None:
     payload = {
         "format": "plotter-paths",
-        "version": 2,
+        "version": PATHS_SCHEMA_VERSION,
         "page": {
             "width_mm": document.page_width_mm,
             "height_mm": document.page_height_mm,
@@ -210,7 +211,10 @@ def load_path_document(input_path: str | Path) -> PathDocument:
     path = Path(input_path)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if payload.get("format") != "plotter-paths" or payload.get("version") != 2:
+        if (
+            payload.get("format") != "plotter-paths"
+            or payload.get("version") != PATHS_SCHEMA_VERSION
+        ):
             raise ValueError("Unsupported paths JSON format or version")
         page = payload["page"]
         strokes = [

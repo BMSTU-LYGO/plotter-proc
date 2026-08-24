@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from plotter_processor.job_models import PlotterJob
+from plotter_processor.schemas import JOB_SCHEMA_VERSION
 
 
 def save_job_manifest(job: PlotterJob, output_path: str | Path) -> None:
@@ -11,7 +12,7 @@ def save_job_manifest(job: PlotterJob, output_path: str | Path) -> None:
     single_page = len(job.pages) == 1
     payload = {
         "format": "plotter-job",
-        "version": 1,
+        "version": JOB_SCHEMA_VERSION,
         "page": {
             "name": job.page_spec.name,
             "width_mm": job.page_spec.width_mm,

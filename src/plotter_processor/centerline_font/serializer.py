@@ -10,12 +10,15 @@ from plotter_processor.centerline_font.models import (
     CenterlineGlyph,
     CenterlineStroke,
     CompiledCenterlineFont,
+    CompiledGlyphAnchor,
+    CompiledStrokeMetadata,
 )
 from plotter_processor.models import Point
 from plotter_processor.performance import glyph_performance, measure_glyph_stage
+from plotter_processor.schemas import COMPILED_FONT_SCHEMA_VERSION
 
 FORMAT = "plotter-centerline-font"
-VERSION = 2
+VERSION = COMPILED_FONT_SCHEMA_VERSION
 
 
 def to_data(font: CompiledCenterlineFont, *, config: dict[str, object]) -> dict[str, object]:
@@ -23,6 +26,7 @@ def to_data(font: CompiledCenterlineFont, *, config: dict[str, object]) -> dict[
         "format": FORMAT,
         "version": VERSION,
         "font_sha256": font.font_sha256,
+        "source_fingerprint": font.source_fingerprint,
         "font_path": str(font.font_path),
         "config": config,
         "metrics": {
@@ -57,7 +61,28 @@ def _glyph_to_data(char: str, glyph: CenterlineGlyph) -> dict[str, object]:
             ],
             "warnings": list(glyph.warnings),
             "quality": glyph.quality,
+            "entry_anchor": _anchor_to_data(glyph.entry_anchor),
+            "exit_anchor": _anchor_to_data(glyph.exit_anchor),
+            "stroke_metadata": [
+                {
+                    "stroke_id": metadata.stroke_id,
+                    "component_id": metadata.component_id,
+                    "closed": metadata.closed,
+                    "retraced_length_font_units": metadata.retraced_length_font_units,
+                }
+                for metadata in glyph.stroke_metadata
+            ],
         }
+
+
+def _anchor_to_data(anchor: CompiledGlyphAnchor | None) -> dict[str, object] | None:
+    if anchor is None:
+        return None
+    return {
+        "point": [anchor.point.x, anchor.point.y],
+        "stroke_id": anchor.stroke_id,
+        "point_index": anchor.point_index,
+    }
 
 
 def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterlineFont:
@@ -94,6 +119,9 @@ def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterline
                     float(stroke.get("retraced_length_font_units", 0.0)),
                 )
             )
+        raw_metadata = item.get("stroke_metadata", [])
+        if not isinstance(raw_metadata, list):
+            raise TypeError(f"Invalid stroke metadata for {char}")
         glyphs[char] = CenterlineGlyph(
             char,
             int(item["codepoint"]),
@@ -102,6 +130,21 @@ def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterline
             tuple(strokes),
             tuple(str(w) for w in item.get("warnings", [])),
             dict(_dict(item.get("quality", {}), "quality")),
+            _anchor_from_data(item.get("entry_anchor")),
+            _anchor_from_data(item.get("exit_anchor")),
+            tuple(
+                CompiledStrokeMetadata(
+                    int(_dict(raw, "stroke metadata")["stroke_id"]),
+                    int(_dict(raw, "stroke metadata")["component_id"]),
+                    bool(_dict(raw, "stroke metadata")["closed"]),
+                    float(
+                        _dict(raw, "stroke metadata").get(
+                            "retraced_length_font_units", 0.0
+                        )
+                    ),
+                )
+                for raw in raw_metadata
+            ),
         )
     return CompiledCenterlineFont(
         Path(str(data.get("font_path", path))),
@@ -112,6 +155,20 @@ def from_data(data: object, path: str | Path = "<memory>") -> CompiledCenterline
         int(metrics["line_gap"]),
         glyphs,
         [str(w) for w in data.get("warnings", [])],
+    )
+
+
+def _anchor_from_data(value: object) -> CompiledGlyphAnchor | None:
+    if value is None:
+        return None
+    anchor = _dict(value, "glyph anchor")
+    point = anchor.get("point")
+    if not isinstance(point, list) or len(point) != 2:
+        raise TypeError("Invalid glyph anchor point")
+    return CompiledGlyphAnchor(
+        Point(float(point[0]), float(point[1])),
+        int(anchor["stroke_id"]),
+        int(anchor["point_index"]),
     )
 
 

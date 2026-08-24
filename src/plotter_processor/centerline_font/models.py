@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from plotter_processor.models import Point
+from plotter_processor.schemas import COMPILED_FONT_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +86,21 @@ class CenterlineStroke:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledGlyphAnchor:
+    point: Point
+    stroke_id: int
+    point_index: int
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledStrokeMetadata:
+    stroke_id: int
+    component_id: int
+    closed: bool
+    retraced_length_font_units: float
+
+
+@dataclass(frozen=True, slots=True)
 class CenterlineGlyph:
     char: str
     codepoint: int
@@ -93,10 +109,15 @@ class CenterlineGlyph:
     strokes: tuple[CenterlineStroke, ...]
     warnings: tuple[str, ...] = ()
     quality: dict[str, object] = field(default_factory=dict)
+    entry_anchor: CompiledGlyphAnchor | None = None
+    exit_anchor: CompiledGlyphAnchor | None = None
+    stroke_metadata: tuple[CompiledStrokeMetadata, ...] = ()
 
 
 @dataclass(slots=True)
-class CompiledCenterlineFont:
+class CompiledPlotterFont:
+    """Normalized runtime font independent from the centerline compiler."""
+
     font_path: Path
     font_sha256: str
     units_per_em: int
@@ -107,3 +128,48 @@ class CompiledCenterlineFont:
     warnings: list[str] = field(default_factory=list)
     cache_hits: int = 0
     cache_misses: int = 0
+
+    @property
+    def schema_version(self) -> int:
+        return COMPILED_FONT_SCHEMA_VERSION
+
+    @property
+    def source_fingerprint(self) -> str:
+        return self.font_sha256
+
+
+CompiledCenterlineFont = CompiledPlotterFont
+
+
+def compiled_glyph_metadata(
+    strokes: tuple[CenterlineStroke, ...],
+) -> tuple[
+    CompiledGlyphAnchor | None,
+    CompiledGlyphAnchor | None,
+    tuple[CompiledStrokeMetadata, ...],
+]:
+    points = [
+        (point, stroke.id, index)
+        for stroke in strokes
+        for index, point in enumerate(stroke.points)
+    ]
+    entry = (
+        CompiledGlyphAnchor(*min(points, key=lambda item: (item[0].x, item[0].y)))
+        if points
+        else None
+    )
+    exit_anchor = (
+        CompiledGlyphAnchor(*max(points, key=lambda item: (item[0].x, -item[0].y)))
+        if points
+        else None
+    )
+    metadata = tuple(
+        CompiledStrokeMetadata(
+            stroke.id,
+            stroke.component_id,
+            stroke.closed,
+            stroke.retraced_length_font_units,
+        )
+        for stroke in strokes
+    )
+    return entry, exit_anchor, metadata

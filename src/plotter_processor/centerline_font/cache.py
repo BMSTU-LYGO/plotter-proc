@@ -9,7 +9,7 @@ from pathlib import Path
 
 from plotter_processor.centerline_font.config import CenterlineConfig
 
-SHARD_CACHE_VERSION = 8
+SHARD_CACHE_VERSION = 9
 
 
 def font_sha256(path: str | Path) -> str:
