@@ -83,18 +83,7 @@ class _StrokeSegmentIndex:
         cls, stroke: PlotterStroke, *, cell_size_mm: float
     ) -> _StrokeSegmentIndex:
         segments = tuple(
-            _SegmentObstacle(
-                stroke,
-                segment_index,
-                first,
-                second,
-                (
-                    min(first.x, second.x),
-                    min(first.y, second.y),
-                    max(first.x, second.x),
-                    max(first.y, second.y),
-                ),
-            )
+            _segment_obstacle(stroke, segment_index, first, second)
             for segment_index, (first, second) in enumerate(pairwise(stroke.points))
         )
         cells: dict[tuple[int, int], list[int]] = {}
@@ -141,12 +130,17 @@ class _SegmentObstacleIndex:
     strokes: list[PlotterStroke]
     stroke_bounds: list[tuple[float, float, float, float]]
     cell_size_mm: float
+    segment_cell_size_mm: float
     cells: dict[tuple[int, int], tuple[int, ...]]
     segment_cache: dict[int, _StrokeSegmentIndex]
 
     @classmethod
     def build(
-        cls, strokes: list[PlotterStroke], *, cell_size_mm: float = 4.0
+        cls,
+        strokes: list[PlotterStroke],
+        *,
+        cell_size_mm: float = 4.0,
+        segment_cell_size_mm: float = 0.5,
     ) -> _SegmentObstacleIndex:
         stroke_bounds = [_stroke_bounds(stroke) for stroke in strokes]
         cells: dict[tuple[int, int], list[int]] = {}
@@ -159,6 +153,7 @@ class _SegmentObstacleIndex:
             strokes,
             stroke_bounds,
             cell_size_mm,
+            segment_cell_size_mm,
             {cell: tuple(indices) for cell, indices in cells.items()},
             {},
         )
@@ -184,7 +179,8 @@ class _SegmentObstacleIndex:
             cached = self.segment_cache.get(stroke_index)
             if cached is None:
                 cached = _StrokeSegmentIndex.build(
-                    self.strokes[stroke_index], cell_size_mm=self.cell_size_mm
+                    self.strokes[stroke_index],
+                    cell_size_mm=self.segment_cell_size_mm,
                 )
                 self.segment_cache[stroke_index] = cached
             segments.extend(cached.query(bounds))
@@ -993,20 +989,43 @@ def _collision_points(
 
 
 def _stroke_bounds(stroke: PlotterStroke) -> tuple[float, float, float, float]:
-    return (
-        min(point.x for point in stroke.points),
-        min(point.y for point in stroke.points),
-        max(point.x for point in stroke.points),
-        max(point.y for point in stroke.points),
-    )
+    first = stroke.points[0]
+    min_x = max_x = first.x
+    min_y = max_y = first.y
+    for point in stroke.points[1:]:
+        if point.x < min_x:
+            min_x = point.x
+        elif point.x > max_x:
+            max_x = point.x
+        if point.y < min_y:
+            min_y = point.y
+        elif point.y > max_y:
+            max_y = point.y
+    return min_x, min_y, max_x, max_y
 
 
 def _segment_bounds(first: Point, second: Point) -> tuple[float, float, float, float]:
-    return (
-        min(first.x, second.x),
-        min(first.y, second.y),
-        max(first.x, second.x),
-        max(first.y, second.y),
+    min_x, max_x = first.x, second.x
+    min_y, max_y = first.y, second.y
+    if min_x > max_x:
+        min_x, max_x = max_x, min_x
+    if min_y > max_y:
+        min_y, max_y = max_y, min_y
+    return min_x, min_y, max_x, max_y
+
+
+def _segment_obstacle(
+    stroke: PlotterStroke,
+    segment_index: int,
+    first: Point,
+    second: Point,
+) -> _SegmentObstacle:
+    return _SegmentObstacle(
+        stroke,
+        segment_index,
+        first,
+        second,
+        _segment_bounds(first, second),
     )
 
 
