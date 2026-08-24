@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -47,12 +48,25 @@ class VariationConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class _VariationTransform:
-    baseline_delta: float
+class GlyphVariation:
+    glyph_variant: int
+    scale_x: float
+    scale_y: float
+    rotation_deg: float
+    baseline_offset_mm: float
+    spacing_adjustment_mm: float
+    variant_slant: float
     cosine: float
     sine: float
-    scale: float
-    spacing_delta: float
+
+
+@dataclass(frozen=True, slots=True)
+class HandwritingVariationContext:
+    seed: int
+    glyphs: dict[int, GlyphVariation]
+
+    def for_glyph(self, glyph_index: int) -> GlyphVariation:
+        return self.glyphs[glyph_index]
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +225,46 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
     )
 
 
+def build_variation_context(
+    glyphs: list[PositionedGlyph], config: VariationConfig
+) -> HandwritingVariationContext:
+    occurrences: dict[str, int] = {}
+    variations: dict[int, GlyphVariation] = {}
+    for glyph in glyphs:
+        occurrence = occurrences.get(glyph.char, 0)
+        occurrences[glyph.char] = occurrence + 1
+        rng = random.Random(_variation_seed(config.seed, glyph))
+        angle = rng.uniform(-config.rotation_deg, config.rotation_deg)
+        scale = 1 + rng.uniform(-config.scale_percent, config.scale_percent) / 100
+        variant = (_variation_seed(config.seed, glyph.char) + occurrence) % 3
+        variations[glyph.glyph_index] = GlyphVariation(
+            glyph_variant=variant,
+            scale_x=scale,
+            scale_y=scale,
+            rotation_deg=angle,
+            baseline_offset_mm=rng.uniform(
+                -config.baseline_jitter_mm, config.baseline_jitter_mm
+            ),
+            spacing_adjustment_mm=rng.uniform(
+                -config.spacing_jitter_mm, config.spacing_jitter_mm
+            ),
+            variant_slant=(-0.012, 0.0, 0.012)[variant],
+            cosine=math.cos(math.radians(angle)),
+            sine=math.sin(math.radians(angle)),
+        )
+    return HandwritingVariationContext(config.seed, variations)
+
+
+def _variation_seed(seed: int, glyph: PositionedGlyph | str) -> int:
+    identity = (
+        glyph
+        if isinstance(glyph, str)
+        else f"{glyph.glyph_index}:{glyph.char}:{glyph.line_index}:{glyph.word_index}"
+    )
+    digest = hashlib.blake2b(f"{seed}:{identity}".encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big")
+
+
 def apply_variation(
     document: PathDocument,
     glyphs: list[PositionedGlyph],
@@ -222,47 +276,38 @@ def apply_variation(
         return document
     started = time.perf_counter() if hotspots and hotspots.enabled else None
     positions = {glyph.glyph_index: glyph for glyph in glyphs}
+    context = build_variation_context(glyphs, config)
     varied: list[PlotterStroke] = []
-    transforms: dict[int, _VariationTransform] = {}
     for stroke in document.strokes:
         index = stroke.glyph_index
         glyph = positions.get(index) if index is not None else None
         if glyph is None:
             varied.append(stroke)
             continue
-        transform = transforms.get(index)
-        if transform is None:
-            rng = random.Random(config.seed * 1_000_003 + index)
-            baseline_delta = rng.uniform(
-                -config.baseline_jitter_mm, config.baseline_jitter_mm
-            )
-            angle = math.radians(
-                rng.uniform(-config.rotation_deg, config.rotation_deg)
-            )
-            transform = _VariationTransform(
-                baseline_delta,
-                math.cos(angle),
-                math.sin(angle),
-                1 + rng.uniform(-config.scale_percent, config.scale_percent) / 100,
-                rng.uniform(-config.spacing_jitter_mm, config.spacing_jitter_mm),
-            )
-            transforms[index] = transform
+        transform = context.for_glyph(index)
         points = []
         for point in stroke.points:
             x, y = point.x - glyph.x_mm, point.y - glyph.baseline_y_mm
+            variant_x = x + transform.variant_slant * y
             points.append(
                 Point(
                     glyph.x_mm
-                    + transform.spacing_delta
-                    + transform.scale * (x * transform.cosine - y * transform.sine),
+                    + transform.spacing_adjustment_mm
+                    + transform.scale_x
+                    * (variant_x * transform.cosine - y * transform.sine),
                     glyph.baseline_y_mm
-                    + transform.baseline_delta
-                    + transform.scale * (x * transform.sine + y * transform.cosine),
+                    + transform.baseline_offset_mm
+                    + transform.scale_y
+                    * (variant_x * transform.sine + y * transform.cosine),
                 )
             )
         varied.append(replace(stroke, points=points))
     result = replace(document, strokes=varied, metadata=dict(document.metadata))
     result.metadata["variation_seed"] = config.seed
+    result.metadata["glyph_variants"] = {
+        str(index): variation.glyph_variant
+        for index, variation in sorted(context.glyphs.items())
+    }
     if started is not None:
         hotspots.record(
             "handwriting.variation_transform",

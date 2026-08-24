@@ -9,6 +9,7 @@ from plotter_processor.handwriting import (
     _ConnectionCounters,
     _SegmentObstacleIndex,
     apply_variation,
+    build_variation_context,
     export_handwriting_debug,
     route_words,
 )
@@ -84,6 +85,57 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
     assert 'id="strokes"' in svg
     assert 'id="entry-exit"' in svg
     assert 'id="travel"' in svg
+
+
+def test_variation_context_is_deterministic_and_seeded() -> None:
+    glyphs = [_glyph("а", index, float(index)) for index in range(4)]
+    first = build_variation_context(
+        glyphs, VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    )
+    repeated = build_variation_context(
+        glyphs, VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    )
+    changed = build_variation_context(
+        glyphs, VariationConfig(True, 8, 0.1, 1, 2, 0.1)
+    )
+
+    assert first == repeated
+    assert first != changed
+    variants = [first.for_glyph(index).glyph_variant for index in range(4)]
+    assert len(set(variants)) == 3
+    assert variants[0] == variants[3]
+
+
+def test_repeated_glyphs_receive_readable_local_variants() -> None:
+    glyphs = [_glyph("а", index, float(index * 2)) for index in range(4)]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [Point(glyph.x_mm, 9), Point(glyph.x_mm + 1, 11)],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    config = VariationConfig(True, 7, 0, 0, 0, 0)
+
+    result = apply_variation(document, glyphs, config)
+    relative_shapes = {
+        tuple((round(point.x - glyph.x_mm, 4), round(point.y - 10, 4)) for point in stroke.points)
+        for glyph, stroke in zip(glyphs, result.strokes, strict=True)
+    }
+
+    assert len(relative_shapes) == 3
+    variants = result.metadata["glyph_variants"]
+    assert len(set(variants.values())) == 3
+    assert variants["0"] == variants["3"]
 
 
 def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:
