@@ -66,6 +66,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         park_corner=args.park_corner,
         workers=args.workers,
         artifact_level=args.artifacts,
+        stage_cache_path=args.stage_cache,
     )
 
 
@@ -283,6 +284,7 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-optimize-travel", action="store_true")
     parser.add_argument("--font-mode", choices=("outline", "centerline"), default="outline")
     parser.add_argument("--centerline-cache", type=Path)
+    parser.add_argument("--stage-cache", type=Path)
     parser.add_argument("--force-centerline-rebuild", action="store_true")
     parser.add_argument("--strict-centerline-quality", action="store_true")
     parser.add_argument("--motion-profile", choices=("safe", "balanced", "fast"))

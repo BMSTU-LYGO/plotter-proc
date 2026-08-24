@@ -66,6 +66,10 @@ from plotter_processor.path_simplifier import (
     prime_simplification_template_cache,
 )
 from plotter_processor.performance import PagePerformance, StageTimings
+from plotter_processor.pipeline_fingerprints import (
+    document_stage_fingerprint,
+    layout_stage_fingerprint,
+)
 from plotter_processor.pipeline_stages import (
     NORMALIZE_LAYOUT,
     READ_DOCUMENT,
@@ -74,6 +78,7 @@ from plotter_processor.pipeline_stages import (
 from plotter_processor.preview_cache import materialize_cached_preview
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.semantic_metrics import semantic_report
+from plotter_processor.stage_cache import StageCacheManager
 from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.validator import (
@@ -121,6 +126,7 @@ class PipelineOptions:
     stage_progress: Callable[[str, str, float | None], None] | None = None
     workers: str | int = "auto"
     artifact_level: str = "normal"
+    stage_cache_path: Path | None = None
 
 
 @dataclass(slots=True)
@@ -345,6 +351,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
     report_path = output_dir / "report.json"
     gcode_path = output_dir / "output.gcode"
     warnings: list[str] = []
+    stage_cache = StageCacheManager(
+        options.stage_cache_path or output_dir.parent / ".plotter-stage-cache"
+    )
     try:
         layout_config = load_yaml(options.layout_config_path)
         if options.font_mode not in {"outline", "centerline"}:
@@ -402,18 +411,36 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         initial_pdf_math_options = initial_latex_options.get("pdf_math", {})
         if not isinstance(initial_pdf_math_options, dict):
             raise TypeError("latex.pdf_math must be a mapping")
-        document = stages.run(
-            READ_DOCUMENT,
+        document_fingerprint = document_stage_fingerprint(
             options.input_path,
-            lambda input_path: read_structured_document(
-                input_path,
-                assets_dir=output_dir / "extracted-assets",
-                pdf_math_mode=options.pdf_math,
-                pdf_math_options=dict(initial_pdf_math_options),
-                math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
-            ),
-            metadata={"format": options.input_path.suffix.lower() or ".txt"},
+            pdf_math_mode=options.pdf_math,
+            pdf_math_options=initial_pdf_math_options,
         )
+        read_operation = lambda input_path: read_structured_document(
+            input_path,
+            assets_dir=stage_cache.assets_directory(
+                READ_DOCUMENT.name, document_fingerprint
+            ),
+            pdf_math_mode=options.pdf_math,
+            pdf_math_options=dict(initial_pdf_math_options),
+            math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
+        )
+        if math_debug_enabled:
+            document = stages.run(
+                READ_DOCUMENT,
+                options.input_path,
+                read_operation,
+                metadata={"format": options.input_path.suffix.lower() or ".txt"},
+            )
+        else:
+            document = stages.run_cached(
+                READ_DOCUMENT,
+                options.input_path,
+                read_operation,
+                cache=stage_cache,
+                fingerprint=document_fingerprint,
+                metadata={"format": options.input_path.suffix.lower() or ".txt"},
+            )
         text = "\n".join(
             paragraph
             for element in document.elements
@@ -466,12 +493,41 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         script = str(layout_options.get("script", "Cyrl"))
         direction = str(layout_options.get("direction", "ltr"))
         features = tuple(layout_options.get("features", []))
+        layout_fingerprint = layout_stage_fingerprint(
+            document_fingerprint,
+            font_path=options.font_path,
+            settings={
+                "page": [page.name, page.width_mm, page.height_mm],
+                "margins": margins,
+                "size": size_options,
+                "images": image_options,
+                "pagination": pagination_options,
+                "pagination_enabled": pagination_enabled,
+                "page_numbers_enabled": page_numbers_enabled,
+                "image_mode": options.images,
+                "latex_mode": latex_mode,
+                "latex": latex_options,
+                "latex_stroke_mode": options.latex_stroke_mode,
+                "strict_latex_quality": options.strict_latex_quality,
+                "document_layout_mode": document_layout_mode,
+                "document_layout": document_layout_options,
+                "paragraphs": paragraph_options,
+                "tables": table_options,
+                "preserve_source_page_breaks": bool(
+                    pagination_options.get("preserve_source_page_breaks", True)
+                ),
+                "tab_spaces": _positive_int(layout_options, "tab_spaces"),
+                "engine": engine,
+                "language": language,
+                "script": script,
+                "direction": direction,
+                "features": features,
+            },
+        )
 
         with load_font(options.font_path) as font:
-            paginated = stages.run(
-                NORMALIZE_LAYOUT,
-                document,
-                lambda source_document: paginate_document(
+            def compute_layout(source_document: SourceDocument):
+                result = paginate_document(
                     source_document, font, page, margins, size_options, image_options,
                     pagination_options, enabled=pagination_enabled,
                     image_mode=options.images,
@@ -499,17 +555,38 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     tab_spaces=_positive_int(layout_options, "tab_spaces"), engine=engine,
                     language=language, script=script, direction=direction,
                     features=features, stage_timings=timings,
-                ),
-                metadata={"page": options.page, "mode": document_layout_mode},
-            )
-            warnings.extend(paginated.warnings)
-            if page_numbers_enabled:
-                number_size = str(footer_options.get("size", "small"))
-                add_page_numbers(
-                    paginated, font, page, margins, footer_options,
-                    _mapping(sizes, number_size), engine=engine, language=language,
-                    script=script, direction=direction, features=features,
                 )
+                if page_numbers_enabled:
+                    number_size = str(footer_options.get("size", "small"))
+                    add_page_numbers(
+                        result, font, page, margins, footer_options,
+                        _mapping(sizes, number_size), engine=engine,
+                        language=language, script=script, direction=direction,
+                        features=features,
+                    )
+                return result
+
+            layout_metadata = {"page": options.page, "mode": document_layout_mode}
+            layout_debug_requested = any(
+                (image_debug_enabled, layout_debug_enabled, latex_debug_enabled)
+            )
+            if layout_debug_requested:
+                paginated = stages.run(
+                    NORMALIZE_LAYOUT,
+                    document,
+                    compute_layout,
+                    metadata=layout_metadata,
+                )
+            else:
+                paginated = stages.run_cached(
+                    NORMALIZE_LAYOUT,
+                    document,
+                    compute_layout,
+                    cache=stage_cache,
+                    fingerprint=layout_fingerprint,
+                    metadata=layout_metadata,
+                )
+            warnings.extend(paginated.warnings)
             page_count = len(paginated.pages)
             document_structure_path = (
                 output_dir / "document-structure.json"
@@ -975,6 +1052,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     "misses": paginated.latex_statistics.get("cache_misses", 0),
                 },
                 "previews": preview_cache,
+                "stages": stage_cache.report(),
             },
             "outputs": {
                 "plotter_preview": str(output_dir / "plotter-preview.svg"),
