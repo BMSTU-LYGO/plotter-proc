@@ -103,6 +103,23 @@ def test_debug_artifact_level_adds_font_and_subsystem_debug(
     assert "document_structure" in report["outputs"]
 
 
+def test_minimal_artifact_level_omits_previews(
+    tmp_path: Path, test_font: Path
+) -> None:
+    machine = _machine_config(tmp_path, max_y=320.0)
+    options = _options(tmp_path, test_font, machine, output_name="minimal")
+    options.artifact_level = "minimal"
+
+    result = run_pipeline(options)
+
+    assert result.status == "ok"
+    assert not (options.output_dir / "plotter-preview.svg").exists()
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    job = json.loads((options.output_dir / "job.json").read_text(encoding="utf-8"))
+    assert "plotter_preview" not in report["outputs"]
+    assert job["pages"][0]["preview"] is None
+
+
 def test_worker_count_is_bounded_by_memory_policy_and_page_count(monkeypatch) -> None:
     monkeypatch.setattr(pipeline.os, "cpu_count", lambda: 12)
 

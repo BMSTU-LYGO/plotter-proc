@@ -22,6 +22,7 @@ from plotter_processor.centerline_path_builder import (
     build_centerline_paths,
 )
 from plotter_processor.config import load_yaml
+from plotter_processor.config_profiles import resolve_config_profiles
 from plotter_processor.document_image_layout import save_document_structure
 from plotter_processor.document_models import (
     SourceDocument,
@@ -129,6 +130,7 @@ class PipelineOptions:
     workers: str | int = "auto"
     artifact_level: str = "normal"
     stage_cache_path: Path | None = None
+    preset: str | None = None
 
 
 @dataclass(slots=True)
@@ -159,6 +161,7 @@ class PageProcessRequest:
     joining_config: JoiningConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
+    preview_enabled: bool = True
     geometry_ready: bool = False
     cached_handwriting: dict[str, object] | None = None
     cached_simplification: dict[str, object] | None = None
@@ -280,16 +283,17 @@ def process_page(
     )
     with page_metrics.measure("serialization_ms"):
         save_path_document(paths, request.page_dir / "paths.json")
-    with (
-        _measure_page_stage("preview", stage_ms, stage_progress),
-        page_metrics.measure("preview_ms"),
-    ):
-        export_plotter_preview(
-            paths,
-            request.page_dir / "plotter-preview.svg",
-            stroke_width_mm=_positive(request.preview, "plotter_stroke_width_mm"),
-            show_page_border=_boolean(request.preview, "show_page_border"),
-        )
+    if request.preview_enabled:
+        with (
+            _measure_page_stage("preview", stage_ms, stage_progress),
+            page_metrics.measure("preview_ms"),
+        ):
+            export_plotter_preview(
+                paths,
+                request.page_dir / "plotter-preview.svg",
+                stroke_width_mm=_positive(request.preview, "plotter_stroke_width_mm"),
+                show_page_border=_boolean(request.preview, "show_page_border"),
+            )
     statistics = path_statistics(paths)
     motion = calculate_motion_statistics(
         paths,
@@ -393,7 +397,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown LaTeX stroke mode: {options.latex_stroke_mode}")
         if options.pdf_math not in {"auto", "visual", "off"}:
             raise ValueError(f"Unknown PDF math mode: {options.pdf_math}")
-        if options.artifact_level not in {"normal", "debug", "audit"}:
+        if options.artifact_level not in {"minimal", "normal", "debug", "audit"}:
             raise ValueError(f"Unknown artifact level: {options.artifact_level}")
         debug_artifacts = options.artifact_level in {"debug", "audit"}
         audit_artifacts = options.artifact_level == "audit"
@@ -425,13 +429,15 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
         _apply_page_change_overrides(machine_config, options)
-        page_values = _mapping(_mapping(layout_config, "pages"), options.page)
+        config_profiles = resolve_config_profiles(
+            layout_config, machine_config, page=options.page, size=options.size
+        )
         page = PageSpec(
             options.page,
-            _positive(page_values, "width_mm"),
-            _positive(page_values, "height_mm"),
+            config_profiles.paper.width_mm,
+            config_profiles.paper.height_mm,
         )
-        margins = _mapping(layout_config, "margins_mm")
+        margins = config_profiles.paper.margins
         validate_page_spec(page, margins)
         validate_page_workspace(page, machine_config)
         initial_latex_options = _mapping(layout_config, "latex")
@@ -479,16 +485,16 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             extracted_path.write_text(text, encoding="utf-8")
         warnings.extend(document.warnings)
 
-        sizes = _mapping(layout_config, "sizes")
-        size_options = _mapping(sizes, options.size)
-        vector = _mapping(layout_config, "vector")
-        preview = _mapping(layout_config, "preview")
-        layout_options = _mapping(layout_config, "layout")
-        paragraph_options = _mapping(layout_config, "paragraphs")
-        table_options = _mapping(layout_config, "tables")
-        image_options = _mapping(layout_config, "images")
-        latex_options = _mapping(layout_config, "latex")
-        pagination_options = dict(_mapping(layout_config, "pagination"))
+        sizes = config_profiles.conversion.sizes
+        size_options = config_profiles.conversion.size
+        vector = config_profiles.conversion.vector
+        preview = config_profiles.conversion.preview
+        layout_options = config_profiles.conversion.layout
+        paragraph_options = config_profiles.conversion.paragraphs
+        table_options = config_profiles.conversion.tables
+        image_options = config_profiles.conversion.images
+        latex_options = config_profiles.conversion.latex
+        pagination_options = dict(config_profiles.paper.pagination)
         footer_options = dict(_mapping(pagination_options, "footer"))
         pagination_enabled = (
             bool(pagination_options.get("enabled", True))
@@ -551,10 +557,8 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "features": features,
             },
         )
-        analysis_config = _mapping(machine_config, "motion_analysis")
-        simplification_config = machine_config.get("path_simplification", {})
-        if not isinstance(simplification_config, dict):
-            raise TypeError("path_simplification must be a mapping")
+        analysis_config = config_profiles.machine.motion_analysis
+        simplification_config = config_profiles.machine.path_simplification
         variation_config = load_variation_config(layout_config)
         joining_config = load_joining_config(
             layout_config,
@@ -966,6 +970,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     joining_config,
                     connection_debug_enabled,
                     simplification_template_cache,
+                    options.artifact_level != "minimal",
                     prepared.geometry_ready,
                     prepared.handwriting,
                     prepared.simplification,
@@ -1041,7 +1046,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         pause_seconds = _non_negative(page_change, "pause_seconds")
         job = PlotterJob(
             page, page_jobs, list(dict.fromkeys(warnings)),
-            {"page_count": page_count, "pause_seconds": pause_seconds},
+            {
+                "page_count": page_count,
+                "pause_seconds": pause_seconds,
+                "artifact_level": options.artifact_level,
+            },
         )
         if page_count > 1:
             with timings.measure("gcode"):
@@ -1053,8 +1062,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     allow_home=bool(_mapping(machine_config, "gcode").get("home", False)),
                 )
                 write_gcode_atomic(job_gcode, gcode_path)
-            with timings.measure("preview"):
-                _export_job_preview(job, output_dir / "plotter-preview.svg", preview)
+            if options.artifact_level != "minimal":
+                with timings.measure("preview"):
+                    _export_job_preview(job, output_dir / "plotter-preview.svg", preview)
             save_job_manifest(job, output_dir / "job.json")
         else:
             save_job_manifest(job, output_dir / "job.json")
@@ -1091,6 +1101,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "page": options.page, "size": options.size, "shaping": engine,
             "workers": {"requested": options.workers, "resolved": worker_count},
             "artifact_level": options.artifact_level,
+            "preset": options.preset,
             "schema_versions": SCHEMA_VERSIONS,
             "stages": stages.report(),
             "statistics": statistics, "motion": motion,
@@ -1178,11 +1189,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "stages": stage_cache.report(),
             },
             "outputs": {
-                "plotter_preview": str(output_dir / "plotter-preview.svg"),
                 "gcode": str(gcode_path),
                 "job": str(output_dir / "job.json"),
             },
         }
+        if options.artifact_level != "minimal":
+            report["outputs"]["plotter_preview"] = str(
+                output_dir / "plotter-preview.svg"
+            )
         if extracted_path is not None:
             report["outputs"]["extracted"] = str(extracted_path)
         if document_structure_path is not None:

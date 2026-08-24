@@ -10,6 +10,7 @@ from plotter_processor.schemas import JOB_SCHEMA_VERSION
 def save_job_manifest(job: PlotterJob, output_path: str | Path) -> None:
     path = Path(output_path)
     single_page = len(job.pages) == 1
+    preview_enabled = job.metadata.get("artifact_level") != "minimal"
     payload = {
         "format": "plotter-job",
         "version": JOB_SCHEMA_VERSION,
@@ -32,7 +33,7 @@ def save_job_manifest(job: PlotterJob, output_path: str | Path) -> None:
                 "preview": (
                     "plotter-preview.svg" if single_page
                     else f"pages/page-{page.page_number:03d}/plotter-preview.svg"
-                ),
+                ) if preview_enabled else None,
                 "paths": (
                     "paths.json" if single_page
                     else f"pages/page-{page.page_number:03d}/paths.json"
