@@ -214,6 +214,8 @@ def test_debug_mode_keeps_full_geometry_without_changing_connection_result() -> 
         assert fast_metrics[key] == debug_metrics[key]
     assert fast_metrics["collision_queries"] == 0
     assert debug_metrics["collision_queries"] == 1
+    assert fast_metrics["solver_calls"] == 0
+    assert debug_metrics["solver_calls"] == 1
 
 
 def test_problem_word_corpus_has_required_coverage() -> None:

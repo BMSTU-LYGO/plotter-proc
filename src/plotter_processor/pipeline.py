@@ -1254,6 +1254,9 @@ def _aggregate_handwriting(reports: list[dict[str, object]]) -> dict[str, object
         "cheap_rejected_pairs": sum(
             int(report.get("cheap_rejected_pairs", 0)) for report in reports
         ),
+        "solver_calls": sum(
+            int(report.get("solver_calls", 0)) for report in reports
+        ),
         "beziers_built": sum(int(report.get("beziers_built", 0)) for report in reports),
         "collision_queries": sum(
             int(report.get("collision_queries", 0)) for report in reports

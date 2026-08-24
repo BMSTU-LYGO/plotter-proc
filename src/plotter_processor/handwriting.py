@@ -194,6 +194,7 @@ class _SegmentObstacleIndex:
 @dataclass(slots=True)
 class _ConnectionCounters:
     cheap_rejected_pairs: int = 0
+    solver_calls: int = 0
     beziers_built: int = 0
     collision_queries: int = 0
     segments_tested: int = 0
@@ -392,6 +393,7 @@ def route_words(
         metrics.update(
             {
                 "cheap_rejected_pairs": pairs,
+                "solver_calls": 0,
                 "beziers_built": 0,
                 "collision_queries": 0,
                 "segments_tested": 0,
@@ -472,7 +474,18 @@ def route_words(
                     rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
                     word_rejected.append(reason)
                     continue
-                if hotspots is None:
+                cheap_candidate = (
+                    None
+                    if collect_debug
+                    else _cheap_connection_rejection(
+                        left_route, right_route, config
+                    )
+                )
+                if cheap_candidate is not None:
+                    counters.cheap_rejected_pairs += 1
+                    candidate = cheap_candidate
+                    connector, collision_points, snap_point = [], [], None
+                elif hotspots is None:
                     candidate, connector, collision_points, snap_point = (
                         _connection_candidate(
                             left_route,
@@ -577,6 +590,7 @@ def route_words(
     metrics.update(
         {
             "cheap_rejected_pairs": counters.cheap_rejected_pairs,
+            "solver_calls": counters.solver_calls,
             "beziers_built": counters.beziers_built,
             "collision_queries": counters.collision_queries,
             "segments_tested": counters.segments_tested,
@@ -632,6 +646,7 @@ def _connection_candidate(
     *,
     collect_debug: bool,
 ) -> tuple[GlyphConnectionCandidate, list[Point], list[Point], Point | None]:
+    counters.solver_calls += 1
     assert left.main is not None and right.main is not None
     assert left.exit is not None and right.entry is not None
     start, end = left.exit.point, right.entry.point
@@ -773,6 +788,78 @@ def _connection_candidate(
     return candidate, curve, collision_points, None
 
 
+def _cheap_connection_rejection(
+    left: _GlyphRoute,
+    right: _GlyphRoute,
+    config: JoiningConfig,
+) -> GlyphConnectionCandidate | None:
+    """Reject impossible fast-path pairs while preserving contact overrides."""
+    assert left.main is not None and right.main is not None
+    assert left.exit is not None and right.entry is not None
+    start, end = left.exit.point, right.entry.point
+    reason: str | None = None
+    if left.glyph.line_index != right.glyph.line_index:
+        reason = "different_line"
+    elif (
+        left.glyph.char in config.do_not_join_after
+        or right.glyph.char in config.do_not_join_before
+    ):
+        reason = "punctuation_rule"
+    elif config.connect_letters_only and not (
+        left.glyph.char.isalpha() and right.glyph.char.isalpha()
+    ):
+        reason = "not_letters"
+    elif (
+        _distance(start, left.main.points[-1]) > 1e-6
+        or _distance(end, right.main.points[0]) > 1e-6
+    ):
+        reason = "anchor_not_routeable"
+    gap = _distance(start, end)
+    vertical = abs(end.y - start.y)
+    if reason is None and gap > config.max_join_gap_mm:
+        reason = "distance"
+    elif reason is None and vertical > config.max_vertical_offset_mm:
+        reason = "vertical_offset"
+    elif reason is None and end.x + 1e-9 < start.x:
+        reason = "backward_motion"
+    if reason is None or _terminal_contact_possible(left, right, config.contact_epsilon_mm):
+        return None
+    left_angle = math.atan2(left.exit.tangent.y, left.exit.tangent.x)
+    right_angle = math.atan2(right.entry.tangent.y, right.entry.tangent.x)
+    target = math.atan2(end.y - start.y, end.x - start.x)
+    tangent_mismatch = math.degrees(
+        max(_angle_diff(left_angle, target), _angle_diff(target, right_angle))
+    )
+    return _make_candidate(
+        left,
+        right,
+        gap,
+        tangent_mismatch,
+        vertical,
+        1.0,
+        [],
+        False,
+        reason,
+    )
+
+
+def _terminal_contact_possible(
+    left: _GlyphRoute, right: _GlyphRoute, epsilon: float
+) -> bool:
+    assert left.main is not None and right.main is not None
+    left_bounds = _segment_bounds(left.main.points[-2], left.main.points[-1])
+    right_bounds = _segment_bounds(right.main.points[0], right.main.points[1])
+    return _bounds_overlap(
+        (
+            left_bounds[0] - epsilon,
+            left_bounds[1] - epsilon,
+            left_bounds[2] + epsilon,
+            left_bounds[3] + epsilon,
+        ),
+        right_bounds,
+    )
+
+
 def _make_candidate(
     left: _GlyphRoute,
     right: _GlyphRoute,
@@ -872,15 +959,14 @@ def _collision_points(
     counters.collision_queries += 1
     collisions: list[Point] = []
     boundary_ignore = max(clearance * 4, 0.35)
-    curve_bounds = (
-        min(point.x for point in curve) - clearance,
-        min(point.y for point in curve) - clearance,
-        max(point.x for point in curve) + clearance,
-        max(point.y for point in curve) + clearance,
-    )
-    nearby_segments = obstacles.query(curve_bounds)
     for point in curve[1:-1]:
-        for segment in nearby_segments:
+        point_bounds = (
+            point.x - clearance,
+            point.y - clearance,
+            point.x + clearance,
+            point.y + clearance,
+        )
+        for segment in obstacles.query(point_bounds):
             counters.segments_tested += 1
             stroke, first, second = segment.stroke, segment.first, segment.second
             if not (
@@ -912,6 +998,15 @@ def _stroke_bounds(stroke: PlotterStroke) -> tuple[float, float, float, float]:
         min(point.y for point in stroke.points),
         max(point.x for point in stroke.points),
         max(point.y for point in stroke.points),
+    )
+
+
+def _segment_bounds(first: Point, second: Point) -> tuple[float, float, float, float]:
+    return (
+        min(first.x, second.x),
+        min(first.y, second.y),
+        max(first.x, second.x),
+        max(first.y, second.y),
     )
 
 

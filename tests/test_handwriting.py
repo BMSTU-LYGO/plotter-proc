@@ -5,6 +5,8 @@ from plotter_processor import handwriting
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
+    _collision_points,
+    _ConnectionCounters,
     _SegmentObstacleIndex,
     apply_variation,
     export_handwriting_debug,
@@ -128,6 +130,35 @@ def test_segment_index_returns_overlapping_segments_in_source_order() -> None:
     assert index.query((10, 10, 11, 11)) == []
 
 
+def test_collision_checks_query_only_segments_near_each_curve_sample() -> None:
+    left = PlotterStroke(0, [Point(-1, 0), Point(0, 0)], False)
+    right = PlotterStroke(1, [Point(10, 10), Point(11, 10)], False)
+    collision = PlotterStroke(2, [Point(4.9, 5), Point(5.1, 5)], False)
+    distant = [
+        PlotterStroke(
+            index + 3,
+            [Point(index / 10, 8), Point(index / 10 + 0.05, 8)],
+            False,
+        )
+        for index in range(100)
+    ]
+    counters = _ConnectionCounters()
+
+    collisions = _collision_points(
+        [Point(0, 0), Point(5, 5), Point(10, 10)],
+        _SegmentObstacleIndex.build([left, right, collision, *distant]),
+        left,
+        right,
+        Point(0, 0),
+        Point(10, 10),
+        0.1,
+        counters,
+    )
+
+    assert collisions == [Point(5, 5)]
+    assert counters.segments_tested == 1
+
+
 def test_distance_rejections_skip_bezier_and_collision_work() -> None:
     glyphs = [
         replace(_glyph("а", index, index * 10.0), word_index=0)
@@ -154,6 +185,7 @@ def test_distance_rejections_skip_bezier_and_collision_work() -> None:
 
     assert len(result.strokes) == 1001
     assert metrics["cheap_rejected_pairs"] == 1000
+    assert metrics["solver_calls"] == 0
     assert metrics["beziers_built"] == 0
     assert metrics["collision_queries"] == 0
     assert metrics["segments_tested"] == 0
