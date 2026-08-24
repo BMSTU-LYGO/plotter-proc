@@ -96,7 +96,8 @@ def compile_centerline_font(
         missing = requested if force else [char for char in requested if char not in compiled.glyphs]
         compiled.cache_hits = 0 if force else len(requested) - len(missing)
         compiled.cache_misses = len(missing)
-        cached_chars = set(manifest["glyphs"]) if manifest is not None else set()
+        manifest_chars = set(manifest["glyphs"]) if manifest is not None else set()
+        cached_chars = set(manifest_chars)
         cached_chars.update(compiled.glyphs)
         worker_count = resolve_centerline_worker_count(workers, len(missing))
         results: dict[str, CenterlineGlyph] = {}
@@ -147,7 +148,7 @@ def compile_centerline_font(
                     compiled.warnings.append(warning)
                 if strict_quality or config.fail_on_low_quality:
                     raise ValueError(f'Centerline quality gate failed for "{char}"')
-        if manifest is None or missing:
+        if manifest is None or missing or cached_chars != manifest_chars:
             write_shard_manifest_atomic(
                 target, identity=identity, glyphs=cached_chars
             )
@@ -161,8 +162,9 @@ def compile_centerline_font(
         for char in requested:
             if char in patches:
                 compiled.glyphs[char] = apply_glyph_patch(compiled.glyphs[char], patches[char])
-    if manifest is None or missing:
+    if manifest is None:
         write_centerline_font_atomic(compiled, target, config=serialized_config)
+    if manifest is None or missing:
         write_cache_metadata_atomic(
             target,
             font_hash=digest,

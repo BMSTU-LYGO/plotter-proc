@@ -91,6 +91,23 @@ def test_per_glyph_shard_survives_without_canonical_cache(
     assert shard_manifest_path(target).is_file()
 
 
+def test_adding_one_glyph_does_not_rewrite_existing_shards_or_snapshot(
+    tmp_path: Path, test_font: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    monkeypatch.setattr(compiler, "_compile_glyph", _fake_glyph)
+    _, target = compile_centerline_font(test_font, {"A"}, config)
+    snapshot_before = target.read_bytes()
+    shard_before = glyph_shard_path(target, "A").read_bytes()
+
+    compiled, _ = compile_centerline_font(test_font, {"A", "B"}, config)
+
+    assert set(compiled.glyphs) == {"A", "B"}
+    assert target.read_bytes() == snapshot_before
+    assert glyph_shard_path(target, "A").read_bytes() == shard_before
+    assert glyph_shard_path(target, "B").is_file()
+
+
 def test_centerline_worker_policy_is_ram_capped_and_bounded() -> None:
     assert resolve_centerline_worker_count("auto", 20) <= 4
     assert resolve_centerline_worker_count(8, 3) == 3
@@ -181,6 +198,29 @@ def test_corrupted_cache_is_safely_rebuilt(
     assert set(compiled.glyphs) == {"A"}
     assert json.loads(path.read_text(encoding="utf-8"))["format"] == "plotter-centerline-font"
     assert json.loads(metadata_path(path).read_text(encoding="utf-8"))["glyph_count"] == 1
+
+
+def test_corrupted_glyph_rebuilds_locally_without_touching_valid_shard(
+    tmp_path: Path, test_font: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    monkeypatch.setattr(compiler, "_compile_glyph", _fake_glyph)
+    _, target = compile_centerline_font(test_font, {"A", "B"}, config)
+    valid_before = glyph_shard_path(target, "A").read_bytes()
+    glyph_shard_path(target, "B").write_text("{broken", encoding="utf-8")
+    rebuilt: list[str] = []
+
+    def record(*args):
+        rebuilt.append(args[1])
+        return _fake_glyph(*args)
+
+    monkeypatch.setattr(compiler, "_compile_glyph", record)
+
+    compiled, _ = compile_centerline_font(test_font, {"A", "B"}, config)
+
+    assert rebuilt == ["B"]
+    assert set(compiled.glyphs) == {"A", "B"}
+    assert glyph_shard_path(target, "A").read_bytes() == valid_before
 
 
 def test_atomic_failure_leaves_no_partial_target(
