@@ -98,8 +98,6 @@ def compile_centerline_font(
         compiled.cache_misses = len(missing)
         cached_chars = set(manifest["glyphs"]) if manifest is not None else set()
         cached_chars.update(compiled.glyphs)
-        if manifest is None or missing:
-            write_shard_manifest_atomic(target, identity=identity, glyphs=cached_chars)
         worker_count = resolve_centerline_worker_count(workers, len(missing))
         results: dict[str, CenterlineGlyph] = {}
         if worker_count == 1:
@@ -137,24 +135,22 @@ def compile_centerline_font(
                         compiled, results[char], target, serialized_config
                     )
                     cached_chars.add(char)
-                    write_shard_manifest_atomic(
-                        target, identity=identity, glyphs=cached_chars
-                    )
         for char in sorted(results, key=ord):
             glyph = results[char]
             compiled.glyphs[char] = glyph
             if worker_count == 1:
                 _write_glyph_shard(compiled, glyph, target, serialized_config)
                 cached_chars.add(char)
-                write_shard_manifest_atomic(
-                    target, identity=identity, glyphs=cached_chars
-                )
             if glyph.quality.get("needs_review"):
                 warning = f'Glyph "{char}" needs centerline review'
                 if warning not in compiled.warnings:
                     compiled.warnings.append(warning)
                 if strict_quality or config.fail_on_low_quality:
                     raise ValueError(f'Centerline quality gate failed for "{char}"')
+        if manifest is None or missing:
+            write_shard_manifest_atomic(
+                target, identity=identity, glyphs=cached_chars
+            )
         if strict_quality or config.fail_on_low_quality:
             failed = [char for char in requested if compiled.glyphs[char].quality.get("needs_review")]
             if failed:

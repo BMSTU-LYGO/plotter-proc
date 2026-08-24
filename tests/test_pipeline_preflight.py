@@ -139,3 +139,32 @@ def test_page_processes_preserve_order_and_output_bytes(
         assert (sequential.output_dir / relative).read_bytes() == (
             parallel.output_dir / relative
         ).read_bytes()
+
+
+def test_small_document_lazily_compiles_only_required_centerline_glyph(
+    tmp_path: Path, test_font: Path
+) -> None:
+    machine = _machine_config(tmp_path, max_y=320.0)
+    options = _options(tmp_path, test_font, machine, output_name="lazy-centerline")
+    options.input_path.write_text("AAAA", encoding="utf-8")
+    raw = yaml.safe_load(Path("configs/layout.yaml").read_text(encoding="utf-8"))
+    raw["centerline"]["render"]["em_resolution_px"] = 512
+    raw["centerline"]["render"]["padding_px"] = 16
+    raw["centerline"]["skeleton"]["candidate_methods"] = ["skeletonize"]
+    layout = tmp_path / "lazy-layout.yaml"
+    layout.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    cache = tmp_path / "lazy-cache" / "centerlines.json"
+    options.layout_config_path = layout
+    options.centerline_cache_path = cache
+    options.font_mode = "centerline"
+    options.connections = "off"
+    options.workers = 1
+
+    result = run_pipeline(options)
+
+    assert result.status == "ok"
+    manifest = json.loads((cache.parent / "manifest.json").read_text(encoding="utf-8"))
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert manifest["glyphs"] == ["A"]
+    assert report["centerline"]["compiled_glyphs"] == 1
+    assert report["centerline"]["cache_misses"] == 1

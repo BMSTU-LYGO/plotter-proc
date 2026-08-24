@@ -99,6 +99,28 @@ def test_centerline_worker_policy_is_ram_capped_and_bounded() -> None:
         resolve_centerline_worker_count(0, 3)
 
 
+def test_glyph_batch_publishes_manifest_once(
+    tmp_path: Path, test_font: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    monkeypatch.setattr(compiler, "_compile_glyph", _fake_glyph)
+    original = compiler.write_shard_manifest_atomic
+    writes: list[set[str]] = []
+
+    def record_manifest(cache_path, *, identity, glyphs):
+        writes.append(set(glyphs))
+        return original(cache_path, identity=identity, glyphs=glyphs)
+
+    monkeypatch.setattr(compiler, "write_shard_manifest_atomic", record_manifest)
+
+    compiled, _ = compile_centerline_font(
+        test_font, {"A", "B", "C"}, config, workers=1
+    )
+
+    assert set(compiled.glyphs) == {"A", "B", "C"}
+    assert writes == [{"A", "B", "C"}]
+
+
 def test_parallel_glyph_merge_matches_sequential_geometry(
     tmp_path: Path, test_font: Path
 ) -> None:
