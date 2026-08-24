@@ -68,6 +68,7 @@ from plotter_processor.path_simplifier import (
 from plotter_processor.performance import PagePerformance, StageTimings
 from plotter_processor.pipeline_fingerprints import (
     document_stage_fingerprint,
+    geometry_stage_fingerprint,
     layout_stage_fingerprint,
 )
 from plotter_processor.pipeline_stages import (
@@ -157,6 +158,20 @@ class PageProcessRequest:
     joining_config: JoiningConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
+    geometry_ready: bool = False
+    cached_handwriting: dict[str, object] | None = None
+    cached_simplification: dict[str, object] | None = None
+
+
+@dataclass(slots=True)
+class PreparedPage:
+    page_layout: PageLayout
+    paths: PathDocument
+    page_dir: Path
+    body_glyphs: list[PositionedGlyph]
+    geometry_ready: bool = False
+    handwriting: dict[str, object] | None = None
+    simplification: dict[str, object] | None = None
 
 
 @dataclass(slots=True)
@@ -220,31 +235,42 @@ def process_page(
     """Process one page without mutating pipeline-wide structures."""
     page_layout = request.page_layout
     page_metrics = request.page_metrics
-    geometry = process_page_geometry(
-        PageGeometryRequest(
-            request.paths,
-            request.body_glyphs,
-            request.page_dir,
-            page_metrics,
-            request.optimize_travel,
-            request.font_mode,
-            request.vector,
-            request.simplification_config,
-            request.variation_config,
-            request.joining_config,
-            request.connection_debug,
-            request.simplification_template_cache,
-        ),
-        stage_progress,
-    )
-    paths = geometry.paths
-    handwriting = geometry.handwriting
-    simplification = geometry.simplification
-    stage_ms = {
-        **geometry.stage_ms,
-        "preview": 0.0,
-        "gcode": 0.0,
-    }
+    if request.geometry_ready:
+        paths = request.paths
+        handwriting = request.cached_handwriting or {"enabled": False}
+        simplification = request.cached_simplification or {"enabled": False}
+        stage_ms = {
+            "handwriting": 0.0,
+            "simplification": 0.0,
+            "preview": 0.0,
+            "gcode": 0.0,
+        }
+    else:
+        geometry = process_page_geometry(
+            PageGeometryRequest(
+                request.paths,
+                request.body_glyphs,
+                request.page_dir,
+                page_metrics,
+                request.optimize_travel,
+                request.font_mode,
+                request.vector,
+                request.simplification_config,
+                request.variation_config,
+                request.joining_config,
+                request.connection_debug,
+                request.simplification_template_cache,
+            ),
+            stage_progress,
+        )
+        paths = geometry.paths
+        handwriting = geometry.handwriting
+        simplification = geometry.simplification
+        stage_ms = {
+            **geometry.stage_ms,
+            "preview": 0.0,
+            "gcode": 0.0,
+        }
 
     paths.warnings = list(dict.fromkeys(request.page_warnings))
     validate_path_document(
@@ -524,6 +550,56 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "features": features,
             },
         )
+        analysis_config = _mapping(machine_config, "motion_analysis")
+        simplification_config = machine_config.get("path_simplification", {})
+        if not isinstance(simplification_config, dict):
+            raise TypeError("path_simplification must be a mapping")
+        variation_config = load_variation_config(layout_config)
+        joining_config = load_joining_config(
+            layout_config,
+            enabled=options.join_writing or options.connections not in {None, "off"},
+            mode=options.connections,
+        )
+        centerline_config = load_centerline_config(layout_config)
+        geometry_fingerprint = geometry_stage_fingerprint(
+            layout_fingerprint,
+            settings={
+                "font_mode": options.font_mode,
+                "font_sha256": font_sha256(options.font_path),
+                "centerline": (
+                    centerline_config_fingerprint(
+                        centerline_config,
+                        font_hash=font_sha256(options.font_path),
+                    )
+                    if options.font_mode == "centerline"
+                    else None
+                ),
+                "vector": vector,
+                "optimize_travel": options.optimize_travel,
+                "variation": _mapping(_mapping(layout_config, "handwriting"), "variation"),
+                "connections": layout_config.get("connections", {}),
+                "connections_mode": options.connections,
+                "join_writing": options.join_writing,
+                "simplification": simplification_config,
+            },
+        )
+        geometry_cache_allowed = not (
+            connection_debug_enabled or options.force_centerline_rebuild
+        )
+        geometry_lookup = (
+            stage_cache.load("geometry", geometry_fingerprint)
+            if geometry_cache_allowed
+            else None
+        )
+        cached_geometry_pages: dict[int, dict[str, object]] = {}
+        if geometry_lookup is not None and geometry_lookup.hit:
+            cached_payload = geometry_lookup.value
+            if isinstance(cached_payload, list):
+                cached_geometry_pages = {
+                    int(item["page_index"]): item
+                    for item in cached_payload
+                    if isinstance(item, dict) and "page_index" in item
+                }
 
         with load_font(options.font_path) as font:
             def compute_layout(source_document: SourceDocument):
@@ -617,14 +693,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 for glyph in page_layout.layout.glyphs
                 if (page_layout.page_index, glyph.glyph_index) in number_indices
             ]
-            centerline_config = load_centerline_config(layout_config)
             compiled = None
             centerline_info = None
             cache_path = options.centerline_cache_path
             requested_centerline_chars = {glyph.char for glyph in number_glyphs}
             if options.font_mode == "centerline":
                 requested_centerline_chars.update(glyph.char for glyph in body_glyphs)
-            if requested_centerline_chars:
+            geometry_cache_hit = len(cached_geometry_pages) == page_count
+            if requested_centerline_chars and not geometry_cache_hit:
                 with timings.measure("font_compile"):
                     compiled, cache_path = compile_centerline_font(
                         options.font_path,
@@ -709,7 +785,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             "hits" if centerline_result.hit else "misses"
                         ] += 1
 
-            raw_pages: list[tuple[object, PathDocument, Path, list[object]]] = []
+            raw_pages: list[PreparedPage] = []
             page_performance: dict[int, PagePerformance] = {}
             path_template_cache = CenterlinePathTemplateCache()
             outline_template_cache = OutlinePathTemplateCache()
@@ -730,6 +806,30 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 page_number_set = set(page_layout.metadata.get("page_number_glyph_indices", []))
                 body = [g for g in page_layout.layout.glyphs if g.glyph_index not in page_number_set]
                 numbers = [g for g in page_layout.layout.glyphs if g.glyph_index in page_number_set]
+                cached_page = cached_geometry_pages.get(page_layout.page_index)
+                if cached_page is not None and isinstance(
+                    cached_page.get("paths"), PathDocument
+                ):
+                    raw_pages.append(
+                        PreparedPage(
+                            page_layout,
+                            cached_page["paths"],
+                            page_dir,
+                            [],
+                            True,
+                            (
+                                cached_page.get("handwriting")
+                                if isinstance(cached_page.get("handwriting"), dict)
+                                else None
+                            ),
+                            (
+                                cached_page.get("simplification")
+                                if isinstance(cached_page.get("simplification"), dict)
+                                else None
+                            ),
+                        )
+                    )
+                    continue
                 build_cache = (
                     outline_template_cache
                     if options.font_mode == "outline"
@@ -793,18 +893,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     paths.strokes.append(stroke)
                 if page_layout.graphic_strokes:
                     paths.metadata["pipeline"] = "document-mixed"
-                raw_pages.append((page_layout, paths, page_dir, body))
+                raw_pages.append(PreparedPage(page_layout, paths, page_dir, body))
 
-        analysis_config = _mapping(machine_config, "motion_analysis")
-        simplification_config = machine_config.get("path_simplification", {})
-        variation_config = load_variation_config(layout_config)
-        joining_config = load_joining_config(
-            layout_config,
-            enabled=options.join_writing or options.connections not in {None, "off"},
-            mode=options.connections,
-        )
         simplification_template_cache = SimplificationTemplateCache()
-        if simplification_config.get("enabled", False) and not variation_config.enabled:
+        if (
+            not geometry_cache_hit
+            and simplification_config.get("enabled", False)
+            and not variation_config.enabled
+        ):
             deviations = _mapping(simplification_config, "max_deviation_mm")
             prime_simplification_template_cache(
                 [
@@ -813,7 +909,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         if options.optimize_travel and _boolean(vector, "optimize_travel")
                         else paths
                     )
-                    for _, paths, _, _ in raw_pages
+                    for prepared in raw_pages
+                    if not prepared.geometry_ready
+                    for paths in (prepared.paths,)
                 ],
                 duplicate_epsilon_mm=_non_negative(
                     simplification_config, "duplicate_epsilon_mm"
@@ -832,20 +930,26 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         )
                         for glyph in body_glyphs_for_page
                     }
-                    for _, paths, _, body_glyphs_for_page in raw_pages
+                    for prepared in raw_pages
+                    if not prepared.geometry_ready
+                    for paths, body_glyphs_for_page in (
+                        (prepared.paths, prepared.body_glyphs),
+                    )
                 ],
             )
 
         requests: list[PageProcessRequest] = []
         cumulative_warnings = list(warnings)
-        for page_layout, paths, page_dir, body_glyphs_for_page in raw_pages:
+        for prepared in raw_pages:
+            page_layout = prepared.page_layout
+            paths = prepared.paths
             cumulative_warnings.extend(paths.warnings)
             requests.append(
                 PageProcessRequest(
                     page_layout,
                     paths,
-                    page_dir,
-                    body_glyphs_for_page,
+                    prepared.page_dir,
+                    prepared.body_glyphs,
                     page_count,
                     page_performance[page_layout.page_index],
                     [*cumulative_warnings, *page_layout.warnings],
@@ -861,6 +965,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     joining_config,
                     connection_debug_enabled,
                     simplification_template_cache,
+                    prepared.geometry_ready,
+                    prepared.handwriting,
+                    prepared.simplification,
                 )
             )
         warnings[:] = cumulative_warnings
@@ -907,6 +1014,20 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         page_reports = [result.page_report for result in page_results]
         handwriting_reports = [result.handwriting for result in page_results]
         simplification_reports = [result.simplification for result in page_results]
+        if geometry_cache_allowed and not geometry_cache_hit:
+            stage_cache.store(
+                "geometry",
+                geometry_fingerprint,
+                [
+                    {
+                        "page_index": result.page_index,
+                        "paths": result.page_job.path_document,
+                        "handwriting": result.handwriting,
+                        "simplification": result.simplification,
+                    }
+                    for result in page_results
+                ],
+            )
         for result in page_results:
             page_performance[result.page_index].values.update(
                 result.page_report["performance"]
