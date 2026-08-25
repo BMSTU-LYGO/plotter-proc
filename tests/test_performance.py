@@ -131,6 +131,18 @@ def test_latex_renderer_reuses_identical_local_geometry() -> None:
     assert renderer.cache_hits == 1
 
 
+def test_math_glyph_cache_is_shared_across_formulas_and_renderers() -> None:
+    first_renderer = MathTextRenderer()
+    second_renderer = MathTextRenderer()
+
+    first_renderer.render(r"q_{glyph181}+17", 5.181)
+    second_renderer.render(r"q_{glyph181}+18", 5.181)
+
+    assert first_renderer.glyph_cache_misses > 0
+    assert second_renderer.glyph_cache_hits > 0
+    assert second_renderer.glyph_cache_version.startswith("math-glyph-centerline-")
+
+
 def test_image_vectorizer_reuses_pixel_geometry() -> None:
     grayscale = np.ones((20, 30), dtype=np.float32)
     grayscale[5:15, 14:16] = 0

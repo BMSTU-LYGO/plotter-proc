@@ -35,6 +35,10 @@ from plotter_processor.raster_centerline import (
 PT_TO_MM = 25.4 / 72.0
 _RENDER_CACHE: OrderedDict[tuple[object, ...], RenderedMath] = OrderedDict()
 _RENDER_CACHE_LIMIT = 128
+_GLYPH_CACHE: OrderedDict[tuple[object, ...], _CachedMathGlyph] = OrderedDict()
+_GLYPH_CACHE_LIMIT = 2048
+_GLYPH_CACHE_VERSION = "math-glyph-centerline-v1"
+_GLYPH_CANONICAL_SIZE_PT = 12.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +46,13 @@ class MathMetrics:
     width_mm: float
     height_mm: float
     baseline_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class _CachedMathGlyph:
+    strokes_pt: tuple[tuple[tuple[float, float], ...], ...]
+    bbox_pt: tuple[float, float, float, float]
+    quality: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +137,14 @@ class MathTextRenderer:
         self.source_kind = source_kind
         self.cache_hits = 0
         self.cache_misses = 0
+        self.glyph_cache_hits = 0
+        self.glyph_cache_misses = 0
+        self.vector_renders = 0
+        self.raster_fallbacks = 0
+
+    @property
+    def glyph_cache_version(self) -> str:
+        return _GLYPH_CACHE_VERSION
 
     def measure(self, expression: str | MathExpression, size_mm: float) -> MathMetrics:
         rendered = self.render(expression, size_mm)
@@ -168,15 +187,27 @@ class MathTextRenderer:
             rendered = self._render_outline(expression_text, size_mm)
         else:
             try:
-                rendered = self._render_centerline(expression_text, size_mm)
-            except ValueError as error:
-                if not self.fallback_to_outline:
-                    raise
-                rendered = replace(
-                    self._render_outline(expression_text, size_mm),
-                    warnings=("latex_centerline_outline_fallback", str(error)),
-                    quality={"needs_review": True, "outline_fallback": True},
-                )
+                rendered = self._render_vector_centerline(expression_text, size_mm)
+                self.vector_renders += 1
+            except (RuntimeError, ValueError) as vector_error:
+                self.raster_fallbacks += 1
+                try:
+                    rendered = replace(
+                        self._render_raster_centerline(expression_text, size_mm),
+                        warnings=("latex_vector_raster_fallback", str(vector_error)),
+                    )
+                except ValueError as raster_error:
+                    if not self.fallback_to_outline:
+                        raise raster_error from vector_error
+                    rendered = replace(
+                        self._render_outline(expression_text, size_mm),
+                        warnings=(
+                            "latex_centerline_outline_fallback",
+                            str(vector_error),
+                            str(raster_error),
+                        ),
+                        quality={"needs_review": True, "outline_fallback": True},
+                    )
         _RENDER_CACHE[key] = rendered
         if len(_RENDER_CACHE) > _RENDER_CACHE_LIMIT:
             _RENDER_CACHE.popitem(last=False)
@@ -221,7 +252,183 @@ class MathTextRenderer:
             },
         )
 
-    def _render_centerline(self, expression: str, size_mm: float) -> RenderedMath:
+    def _render_vector_centerline(self, expression: str, size_mm: float) -> RenderedMath:
+        size_pt = size_mm / PT_TO_MM
+        normalized = " ".join(expression.split())
+        try:
+            parsed = MathTextParser("path").parse(
+                f"${normalized}$",
+                dpi=72.0,
+                prop=FontProperties(size=size_pt),
+            )
+        except (RuntimeError, ValueError) as error:
+            raise ValueError(f"MathText cannot layout formula {expression!r}: {error}") from error
+        width_pt = max(float(parsed.width), 0.01 / PT_TO_MM)
+        height_pt = max(float(parsed.height), 0.01 / PT_TO_MM)
+        depth_pt = max(float(parsed.depth), 0.0)
+        strokes: list[PlotterStroke] = []
+        lost_glyphs = 0
+        for font, font_size, codepoint, glyph_index, offset_x, offset_y in parsed.glyphs:
+            glyph = self._cached_glyph(font, int(codepoint), int(glyph_index))
+            if not glyph.strokes_pt:
+                lost_glyphs += 1
+                continue
+            scale = float(font_size) / _GLYPH_CANONICAL_SIZE_PT
+            for cached_points in glyph.strokes_pt:
+                points = [
+                    Point(
+                        (float(offset_x) + x * scale) * PT_TO_MM,
+                        (height_pt - (float(offset_y) + y * scale)) * PT_TO_MM,
+                    )
+                    for x, y in cached_points
+                ]
+                if len(points) >= 2:
+                    strokes.append(PlotterStroke(len(strokes), points, False))
+        structural_lines = 0
+        for x, y, width, height in parsed.rects:
+            center_y = float(y) + float(height) / 2.0
+            strokes.append(PlotterStroke(
+                len(strokes),
+                [
+                    Point(float(x) * PT_TO_MM, (height_pt - center_y) * PT_TO_MM),
+                    Point((float(x) + float(width)) * PT_TO_MM, (height_pt - center_y) * PT_TO_MM),
+                ],
+                False,
+            ))
+            structural_lines += 1
+        if not strokes:
+            raise ValueError(f"MathText produced no vector centerline for formula {expression!r}")
+        for index, stroke in enumerate(strokes):
+            stroke.id = index
+            stroke.element_type = "latex"
+            stroke.semantic_role = "latex-centerline"
+            stroke.source_chars = expression
+            stroke.segment_types = (
+                ("latex-structural-line",)
+                if index >= len(strokes) - structural_lines
+                else ("latex-centerline",)
+            )
+        points_count = sum(len(stroke.points) for stroke in strokes)
+        draw_length = sum(
+            math.dist((left.x, left.y), (right.x, right.y))
+            for stroke in strokes
+            for left, right in pairwise(stroke.points)
+        )
+        quality: dict[str, object] = {
+            "render_path": "vector-first",
+            "glyphs_expected": len(parsed.glyphs),
+            "glyphs_lost": lost_glyphs,
+            "structural_lines_expected": len(parsed.rects),
+            "structural_lines": structural_lines,
+            "strokes": len(strokes),
+            "points": points_count,
+            "components_before_pruning": len(strokes),
+            "components_after_pruning": len(strokes),
+            "graph_nodes": points_count,
+            "graph_edges": max(0, points_count - len(strokes)),
+            "junction_count": 0,
+            "draw_length_mm": draw_length,
+            "retraced_length_mm": 0.0,
+            "retrace_ratio": 0.0,
+            "centerline_coverage_ratio": 1.0,
+            "needs_review": lost_glyphs > 0,
+        }
+        return RenderedMath(
+            expression,
+            tuple(strokes),
+            width_pt * PT_TO_MM,
+            height_pt * PT_TO_MM,
+            (height_pt - depth_pt) * PT_TO_MM,
+            "centerline",
+            self.source_kind,
+            quality,
+        )
+
+    def _cached_glyph(self, font: object, codepoint: int, glyph_index: int) -> _CachedMathGlyph:
+        font_path = str(getattr(font, "fname", "unknown-math-font"))
+        key = (
+            _GLYPH_CACHE_VERSION,
+            font_path,
+            codepoint,
+            glyph_index,
+            round(self.render_ppmm, 6),
+            self.supersample,
+            self.threshold,
+            self.closing_radius_px,
+            round(self.min_component_length_mm, 6),
+            round(self.curve_tolerance_mm, 6),
+        )
+        if key in _GLYPH_CACHE:
+            self.glyph_cache_hits += 1
+            glyph = _GLYPH_CACHE.pop(key)
+            _GLYPH_CACHE[key] = glyph
+            return glyph
+        self.glyph_cache_misses += 1
+        glyph = self._compile_glyph(font, codepoint, glyph_index)
+        _GLYPH_CACHE[key] = glyph
+        if len(_GLYPH_CACHE) > _GLYPH_CACHE_LIMIT:
+            _GLYPH_CACHE.popitem(last=False)
+        return glyph
+
+    def _compile_glyph(self, font: object, codepoint: int, glyph_index: int) -> _CachedMathGlyph:
+        try:
+            font.set_size(_GLYPH_CANONICAL_SIZE_PT, 72.0)
+            font.load_glyph(glyph_index)
+            vertices, codes = font.get_path()
+        except (AttributeError, RuntimeError, ValueError) as error:
+            raise ValueError(f"Cannot extract MathText glyph U+{codepoint:04X}: {error}") from error
+        if len(vertices) == 0 or codes is None:
+            return _CachedMathGlyph((), (0.0, 0.0, 0.0, 0.0), {"empty": True})
+        min_x = float(vertices[:, 0].min())
+        max_x = float(vertices[:, 0].max())
+        min_y = float(vertices[:, 1].min())
+        max_y = float(vertices[:, 1].max())
+        pixels_per_pt = self.render_ppmm * self.supersample * PT_TO_MM
+        padding = max(2, self.closing_radius_px + 1)
+        width = max(1, math.ceil((max_x - min_x) * pixels_per_pt)) + padding * 2
+        height = max(1, math.ceil((max_y - min_y) * pixels_per_pt)) + padding * 2
+        if width * height > self.max_render_pixels:
+            raise ValueError(
+                f"Math glyph U+{codepoint:04X} mask has {width * height} pixels; "
+                f"limit is {self.max_render_pixels}"
+            )
+        xs = min_x + (np.arange(width) - padding + 0.5) / pixels_per_pt
+        ys = max_y - (np.arange(height) - padding + 0.5) / pixels_per_pt
+        grid_x, grid_y = np.meshgrid(xs, ys)
+        sample_points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
+        mask = MatplotlibPath(vertices, codes).contains_points(sample_points).reshape(height, width)
+        geometry = raster_to_centerline(
+            mask,
+            1.0 / (self.render_ppmm * self.supersample),
+            RasterCenterlineConfig(
+                threshold=self.threshold,
+                closing_radius_px=self.closing_radius_px,
+                min_component_length_mm=(
+                    self.min_component_length_mm
+                    * _GLYPH_CANONICAL_SIZE_PT
+                    / max(_GLYPH_CANONICAL_SIZE_PT, 1.0)
+                ),
+                simplify_tolerance_mm=self.curve_tolerance_mm,
+                max_render_pixels=self.max_render_pixels,
+                max_components=self.max_components,
+                max_points=self.max_points,
+                strict_quality=False,
+            ),
+        )
+        strokes_pt = tuple(
+            tuple(
+                (
+                    min_x + (point.x / PT_TO_MM) - padding / pixels_per_pt,
+                    max_y - (point.y / PT_TO_MM) + padding / pixels_per_pt,
+                )
+                for point in stroke.points
+            )
+            for stroke in geometry.strokes
+            if len(stroke.points) >= 2
+        )
+        return _CachedMathGlyph(strokes_pt, (min_x, min_y, max_x, max_y), geometry.quality)
+
+    def _render_raster_centerline(self, expression: str, size_mm: float) -> RenderedMath:
         normalized = " ".join(expression.split())
         pixels_per_mm = self.render_ppmm * self.supersample
         dpi = pixels_per_mm * 25.4

@@ -1210,6 +1210,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "latex": {
                     "hits": paginated.latex_statistics.get("cache_hits", 0),
                     "misses": paginated.latex_statistics.get("cache_misses", 0),
+                    "glyph_hits": paginated.latex_statistics.get("glyph_cache_hits", 0),
+                    "glyph_misses": paginated.latex_statistics.get("glyph_cache_misses", 0),
+                    "glyph_algorithm_version": paginated.latex_statistics.get(
+                        "glyph_cache_version"
+                    ),
                 },
                 "previews": preview_cache,
                 "stages": stage_cache.report(),
