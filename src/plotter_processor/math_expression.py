@@ -77,6 +77,14 @@ _SYMBOL_COMMANDS = frozenset({
     "supset", "supseteq", "cup", "cap", "setminus", "emptyset", "forall", "exists",
     "neg", "land", "lor", "to", "rightarrow", "leftarrow", "leftrightarrow",
     "Rightarrow", "Leftarrow", "Leftrightarrow", "ldots", "cdots", "vdots", "ddots",
+    "wedge", "vee", "mapsto", "perp", "parallel", "mid", "nmid",
+    "uparrow", "downarrow", "updownarrow", "Uparrow", "Downarrow", "Updownarrow",
+    "hookleftarrow", "hookrightarrow", "longleftarrow", "longrightarrow",
+    "Longleftarrow", "Longrightarrow", "Longleftrightarrow",
+    "prec", "succ", "preceq", "succeq", "cong", "simeq", "asymp", "doteq",
+    "ni", "sqsubset", "sqsubseteq", "sqsupset", "sqsupseteq", "sqcup", "sqcap",
+    "uplus", "oplus", "ominus", "otimes", "oslash", "odot",
+    "bot", "top", "ast", "star", "circ", "bullet",
     "quad", "qquad", "enspace", ",", ":", ";", "!", " ", "{", "}", "%", "_",
 })
 
@@ -84,6 +92,7 @@ _SUPPORTED_COMMANDS = frozenset(_SUPPORTED_COMMAND_KINDS) | _SYMBOL_COMMANDS
 _COMMAND_RE = re.compile(r"\\([A-Za-z]+|.)")
 _ENVIRONMENT_RE = re.compile(r"\\(begin|end)\s*\{([^{}]+)\}")
 _SUPPORTED_ENVIRONMENTS = frozenset({"matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix"})
+_COMMAND_ALIASES = {"land": "wedge", "lor": "vee"}
 
 
 def normalize_latex_expression(
@@ -92,6 +101,12 @@ def normalize_latex_expression(
     source_syntax: str = "latex",
 ) -> MathExpression:
     normalized = " ".join(source.strip().split())
+    for alias, canonical in _COMMAND_ALIASES.items():
+        normalized = re.sub(
+            rf"\\{alias}(?![A-Za-z])",
+            lambda _match, command=canonical: f"\\{command}",
+            normalized,
+        )
     diagnostics: list[MathDiagnostic] = []
     forbidden = False
     unsupported = False

@@ -70,3 +70,35 @@ def test_vector_failure_uses_whole_formula_raster_fallback(monkeypatch: pytest.M
 
     assert "latex_vector_raster_fallback" in rendered.warnings
     assert renderer.raster_fallbacks == 1
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        r"\sum_{i=0}^{n}",
+        r"\prod_{k=1}^{m}",
+        r"\int_0^\infty",
+        r"\iint_A f(x)\,dx",
+        r"\iiint_V f(x)\,dx",
+        r"\lim_{x\to0}\frac{\sin x}{x}",
+        r"x_{i_j}^{n^2}",
+    ],
+)
+def test_large_operators_limits_and_nested_scripts_are_vector_first(expression: str) -> None:
+    rendered = MathTextRenderer().render(expression, 5.0)
+
+    assert rendered.quality["render_path"] == "vector-first"
+    assert rendered.quality["glyphs_lost"] == 0
+    assert not rendered.warnings
+
+
+def test_left_right_delimiters_scale_with_nested_content() -> None:
+    renderer = MathTextRenderer()
+    simple = renderer.render(r"\left(x\right)", 5.0)
+    nested = renderer.render(
+        r"\left(\frac{x^2+1}{\sqrt{1-x}}\right)",
+        5.0,
+    )
+
+    assert nested.height_mm > simple.height_mm * 1.5
+    assert nested.quality["render_path"] == "vector-first"

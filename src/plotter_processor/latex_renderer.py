@@ -276,11 +276,14 @@ class MathTextRenderer:
         depth_pt = max(float(parsed.depth), 0.0)
         strokes: list[PlotterStroke] = []
         lost_glyphs = 0
+        drawable_glyphs = 0
         for font, font_size, codepoint, glyph_index, offset_x, offset_y in parsed.glyphs:
             glyph = self._cached_glyph(font, int(codepoint), int(glyph_index))
             if not glyph.strokes_pt:
-                lost_glyphs += 1
+                if not chr(int(codepoint)).isspace():
+                    lost_glyphs += 1
                 continue
+            drawable_glyphs += 1
             scale = float(font_size) / _GLYPH_CANONICAL_SIZE_PT
             for cached_points in glyph.strokes_pt:
                 points = [
@@ -332,7 +335,7 @@ class MathTextRenderer:
             strokes,
             width_pt * PT_TO_MM,
             height_pt * PT_TO_MM,
-            expected_glyphs=len(parsed.glyphs),
+            expected_glyphs=drawable_glyphs + lost_glyphs,
             lost_glyphs=lost_glyphs,
             expected_structural_lines=len(parsed.rects),
             structural_lines=structural_lines,
@@ -341,7 +344,8 @@ class MathTextRenderer:
         )
         quality: dict[str, object] = {
             "render_path": "vector-first",
-            "glyphs_expected": len(parsed.glyphs),
+            "glyphs_expected": drawable_glyphs + lost_glyphs,
+            "layout_glyphs": len(parsed.glyphs),
             "glyphs_lost": lost_glyphs,
             "structural_lines_expected": len(parsed.rects),
             "structural_lines": structural_lines,
