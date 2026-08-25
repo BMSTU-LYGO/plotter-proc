@@ -1,6 +1,8 @@
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
 
+from plotter_processor.latex_renderer import MathTextRenderer
+from plotter_processor.math_expression import MathValidationStatus
 from plotter_processor.omml_parser import parse_omml
 
 
@@ -37,3 +39,7 @@ def test_unknown_node_is_reported_without_losing_text() -> None:
 
     assert parsed.expression == "x"
     assert parsed.warnings == ("omml_unsupported_node:unknown",)
+    assert parsed.model is not None
+    assert parsed.model.status is MathValidationStatus.PARTIALLY_SUPPORTED
+    fallback = MathTextRenderer(source_kind="omml").render(parsed.model, 5.0)
+    assert fallback.strokes

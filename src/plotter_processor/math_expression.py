@@ -91,7 +91,13 @@ _SYMBOL_COMMANDS = frozenset({
 _SUPPORTED_COMMANDS = frozenset(_SUPPORTED_COMMAND_KINDS) | _SYMBOL_COMMANDS
 _COMMAND_RE = re.compile(r"\\([A-Za-z]+|.)")
 _ENVIRONMENT_RE = re.compile(r"\\(begin|end)\s*\{([^{}]+)\}")
-_SUPPORTED_ENVIRONMENTS = frozenset({"matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix"})
+_SUPPORTED_ENVIRONMENTS = frozenset({
+    "matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "cases", "aligned"
+})
+_FULL_ENVIRONMENT_RE = re.compile(
+    r"^\\begin\{([A-Za-z]+)\}(.*)\\end\{\1\}$",
+    re.DOTALL,
+)
 _COMMAND_ALIASES = {"land": "wedge", "lor": "vee"}
 
 
@@ -149,7 +155,24 @@ def normalize_latex_expression(
         else MathValidationStatus.PARTIALLY_SUPPORTED if unsupported
         else MathValidationStatus.SUPPORTED
     )
-    root = _model_row(normalized, commands)
+    environment = parse_math_environment(normalized)
+    root = (
+        MathNode(
+            environment[0],
+            children=tuple(
+                MathNode(
+                    "row",
+                    children=tuple(
+                        MathNode("group", value=cell, children=(_model_row(cell, []),))
+                        for cell in row
+                    ),
+                )
+                for row in environment[1]
+            ),
+        )
+        if environment is not None
+        else _model_row(normalized, commands)
+    )
     return MathExpression(root, normalized, source_syntax, status, tuple(diagnostics))
 
 
@@ -164,12 +187,47 @@ def visual_math_expression(label: str, *, source_syntax: str = "pdf-visual") -> 
 
 def require_renderable(expression: MathExpression) -> MathExpression:
     if expression.status is MathValidationStatus.PARTIALLY_SUPPORTED:
+        if expression.source_syntax == "omml" and expression.normalized:
+            return expression
         diagnostic = expression.diagnostics[0]
         raise ValueError(diagnostic.message)
     if expression.status in {MathValidationStatus.INVALID, MathValidationStatus.FORBIDDEN}:
         diagnostic = expression.diagnostics[0]
         raise ValueError(diagnostic.message)
     return expression
+
+
+def parse_math_environment(source: str) -> tuple[str, tuple[tuple[str, ...], ...]] | None:
+    match = _FULL_ENVIRONMENT_RE.fullmatch(source.strip())
+    if match is None or match.group(1) not in _SUPPORTED_ENVIRONMENTS:
+        return None
+    rows = tuple(
+        tuple(cell.strip() for cell in _split_at_level(row, "&"))
+        for row in _split_at_level(match.group(2), r"\\")
+    )
+    if not rows or any(not row or any(not cell for cell in row) for row in rows):
+        return None
+    return match.group(1), rows
+
+
+def _split_at_level(source: str, separator: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    index = 0
+    while index < len(source):
+        if source[index] == "{" and (index == 0 or source[index - 1] != "\\"):
+            depth += 1
+        elif source[index] == "}" and (index == 0 or source[index - 1] != "\\"):
+            depth = max(0, depth - 1)
+        elif depth == 0 and source.startswith(separator, index):
+            parts.append(source[start:index])
+            index += len(separator)
+            start = index
+            continue
+        index += 1
+    parts.append(source[start:])
+    return parts
 
 
 def _syntax_error(source: str) -> MathDiagnostic | None:

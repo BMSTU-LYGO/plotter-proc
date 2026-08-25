@@ -24,6 +24,7 @@ from PIL import Image
 from plotter_processor.math_expression import (
     MathExpression,
     normalize_latex_expression,
+    parse_math_environment,
     require_renderable,
 )
 from plotter_processor.models import PlotterStroke, Point
@@ -261,6 +262,14 @@ class MathTextRenderer:
         )
 
     def _render_vector_centerline(self, expression: str, size_mm: float) -> RenderedMath:
+        environment = parse_math_environment(expression)
+        if environment is not None:
+            return self._render_structured_environment(
+                expression,
+                environment[0],
+                environment[1],
+                size_mm,
+            )
         size_pt = size_mm / PT_TO_MM
         normalized = " ".join(expression.split())
         try:
@@ -371,6 +380,135 @@ class MathTextRenderer:
             width_pt * PT_TO_MM,
             height_pt * PT_TO_MM,
             (height_pt - depth_pt) * PT_TO_MM,
+            "centerline",
+            self.source_kind,
+            quality,
+        )
+
+    def _render_structured_environment(
+        self,
+        expression: str,
+        environment: str,
+        rows: tuple[tuple[str, ...], ...],
+        size_mm: float,
+    ) -> RenderedMath:
+        column_count = max(len(row) for row in rows)
+        if environment == "cases" and column_count > 2:
+            raise ValueError("LaTeX cases supports at most two columns")
+        cell_size = size_mm * 0.88
+        rendered_rows: list[list[RenderedMath | None]] = []
+        for row in rows:
+            rendered_row: list[RenderedMath | None] = []
+            for column in range(column_count):
+                cell = row[column] if column < len(row) else ""
+                rendered_row.append(
+                    self._render_vector_centerline(cell, cell_size) if cell else None
+                )
+            rendered_rows.append(rendered_row)
+        column_gap = size_mm * (0.65 if environment == "cases" else 0.45)
+        row_gap = size_mm * 0.30
+        column_widths = [
+            max(
+                (row[column].width_mm for row in rendered_rows if row[column] is not None),
+                default=0.0,
+            )
+            for column in range(column_count)
+        ]
+        row_ascents = [
+            max((cell.ascent_mm for cell in row if cell is not None), default=cell_size * 0.7)
+            for row in rendered_rows
+        ]
+        row_descents = [
+            max((cell.descent_mm for cell in row if cell is not None), default=cell_size * 0.2)
+            for row in rendered_rows
+        ]
+        content_width = sum(column_widths) + column_gap * max(0, column_count - 1)
+        content_height = sum(
+            ascent + descent for ascent, descent in zip(row_ascents, row_descents, strict=True)
+        ) + row_gap * max(0, len(rows) - 1)
+        delimiter_gap = size_mm * 0.22
+        delimiter_width = size_mm * 0.42 if environment not in {"matrix", "aligned"} else 0.0
+        left_width = delimiter_width if environment not in {"matrix", "aligned"} else 0.0
+        right_width = delimiter_width if environment not in {"matrix", "aligned", "cases"} else 0.0
+        content_x = left_width + (delimiter_gap if left_width else 0.0)
+        width = content_x + content_width + (delimiter_gap + right_width if right_width else 0.0)
+        height = max(content_height, size_mm)
+        strokes: list[PlotterStroke] = []
+        glyphs_expected = 0
+        y = 0.0
+        for row_index, row in enumerate(rendered_rows):
+            baseline = y + row_ascents[row_index]
+            x = content_x
+            for column_index, cell in enumerate(row):
+                if cell is not None:
+                    glyphs_expected += int(cell.quality.get("glyphs_expected", 0))
+                    if environment == "aligned" and column_index == 0:
+                        cell_x = x + column_widths[column_index] - cell.width_mm
+                    else:
+                        cell_x = x + (column_widths[column_index] - cell.width_mm) / 2.0
+                    cell_y = baseline - cell.ascent_mm
+                    for stroke in cell.strokes:
+                        strokes.append(replace(
+                            stroke,
+                            id=len(strokes),
+                            points=[
+                                Point(point.x + cell_x, point.y + cell_y)
+                                for point in stroke.points
+                            ],
+                        ))
+                x += column_widths[column_index] + column_gap
+            y += row_ascents[row_index] + row_descents[row_index] + row_gap
+        delimiter_strokes = _environment_delimiters(
+            environment,
+            width,
+            height,
+            delimiter_width,
+            size_mm,
+        )
+        for points in delimiter_strokes:
+            strokes.append(PlotterStroke(len(strokes), points, False))
+        for index, stroke in enumerate(strokes):
+            stroke.id = index
+            stroke.element_type = "latex"
+            stroke.semantic_role = "latex-centerline"
+            stroke.source_chars = expression
+            if index >= len(strokes) - len(delimiter_strokes):
+                stroke.segment_types = ("latex-structural-delimiter",)
+        gate = _evaluate_math_geometry(
+            strokes,
+            width,
+            height,
+            expected_glyphs=glyphs_expected,
+            lost_glyphs=0,
+            expected_structural_lines=len(delimiter_strokes),
+            structural_lines=len(delimiter_strokes),
+            max_components=self.max_components,
+            max_points=self.max_points,
+        )
+        if gate["quality_failures"]:
+            raise ValueError(
+                "Math environment quality gate failed: "
+                + ", ".join(str(item) for item in gate["quality_failures"])
+            )
+        quality = {
+            "render_path": "vector-first",
+            "environment": environment,
+            "rows": len(rows),
+            "columns": column_count,
+            "glyphs_expected": glyphs_expected,
+            "glyphs_lost": 0,
+            "structural_lines_expected": len(delimiter_strokes),
+            "structural_lines": len(delimiter_strokes),
+            "strokes": len(strokes),
+            "points": sum(len(stroke.points) for stroke in strokes),
+            **gate,
+        }
+        return RenderedMath(
+            expression,
+            tuple(strokes),
+            width,
+            height,
+            height / 2.0 + size_mm * 0.12,
             "centerline",
             self.source_kind,
             quality,
@@ -911,6 +1049,65 @@ def _evaluate_math_geometry(
         "quality_failures": tuple(dict.fromkeys(failures)),
         "needs_review": bool(failures),
     }
+
+
+def _environment_delimiters(
+    environment: str,
+    width: float,
+    height: float,
+    delimiter_width: float,
+    size_mm: float,
+) -> list[list[Point]]:
+    if environment in {"matrix", "aligned"}:
+        return []
+    inset = size_mm * 0.08
+    top, bottom = inset, height - inset
+    left_x = delimiter_width
+    right_x = width - delimiter_width
+    if environment in {"bmatrix", "Bmatrix"}:
+        return [
+            [Point(left_x, top), Point(0.0, top), Point(0.0, bottom), Point(left_x, bottom)],
+            [
+                Point(right_x, top), Point(width, top), Point(width, bottom),
+                Point(right_x, bottom),
+            ],
+        ]
+    if environment in {"vmatrix", "Vmatrix"}:
+        offset = delimiter_width * 0.30 if environment == "Vmatrix" else 0.0
+        lines = [
+            [Point(offset, top), Point(offset, bottom)],
+            [Point(width - offset, top), Point(width - offset, bottom)],
+        ]
+        if environment == "Vmatrix":
+            lines.extend([
+                [Point(delimiter_width * 0.70, top), Point(delimiter_width * 0.70, bottom)],
+                [
+                    Point(width - delimiter_width * 0.70, top),
+                    Point(width - delimiter_width * 0.70, bottom),
+                ],
+            ])
+        return lines
+    if environment == "cases":
+        middle = height / 2.0
+        return [[
+            Point(delimiter_width, top),
+            Point(delimiter_width * 0.35, top + height * 0.08),
+            Point(delimiter_width * 0.35, middle - height * 0.08),
+            Point(0.0, middle),
+            Point(delimiter_width * 0.35, middle + height * 0.08),
+            Point(delimiter_width * 0.35, bottom - height * 0.08),
+            Point(delimiter_width, bottom),
+        ]]
+    steps = 12
+    left = [
+        Point(
+            delimiter_width * (1.0 - math.sin(math.pi * index / steps)),
+            top + (bottom - top) * index / steps,
+        )
+        for index in range(steps + 1)
+    ]
+    right = [Point(width - point.x, point.y) for point in left]
+    return [left, right]
 
 
 def _flatten_quadratic(
