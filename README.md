@@ -17,6 +17,29 @@ plotter-processor run <input> --font <font.ttf> [флаги]
 каталог сборки; параметры ниже позволяют отдельно управлять качеством,
 разметкой, математикой, изображениями, диагностикой и G-code.
 
+## Готовые профили Makefile
+
+Три базовых сценария хранят все профильные флаги в
+`configs/run_conf.yaml`. В Makefile остаются только короткие команды; входной
+файл, шрифт и корневой каталог сборки можно переопределить переменными `INPUT`,
+`FONT` и `BUILD`:
+
+```bash
+make run-fast INPUT=document.docx FONT=assets/1.ttf
+make run-balanced INPUT=document.docx FONT=assets/1.ttf
+make run-quality INPUT=document.docx FONT=assets/1.ttf
+```
+
+- `run-fast` — максимально быстрая печать с motion profile `fast`,
+  `aggressive`-соединениями, объединением букв и минимальными артефактами.
+- `run-balanced` — повседневная печать с безопасными соединениями и балансом
+  скорости/качества.
+- `run-quality` — строгая обработка формул, таблиц и диаграмм с audit-артефактами.
+
+Результаты сохраняются соответственно в `build/super-fast`,
+`build/balanced` и `build/quality`. Менять состав профилей следует в
+`configs/run_conf.yaml`, а не в рецептах Makefile.
+
 ## Флаги команды `run`
 
 ### --help

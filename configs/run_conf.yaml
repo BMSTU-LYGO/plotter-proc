@@ -1,0 +1,54 @@
+version: 1
+
+# Общие флаги для всех готовых команд Makefile.
+common:
+  font: "{font}"
+  page: A5
+  size: normal
+  layout-config: configs/layout.yaml
+  machine-config: configs/machine.yaml
+  font-mode: centerline
+  document-layout: hybrid
+  images: auto
+  latex: auto
+  latex-stroke-mode: centerline
+  pdf-math: auto
+  workers: auto
+
+profiles:
+  super-fast:
+    description: Максимально быстрая физическая печать черновиков с минимумом подъёмов пера.
+    flags:
+      output-dir: "{build_root}/super-fast"
+      stage-cache: "{build_root}/super-fast/.stage-cache"
+      preset: fast
+      motion-profile: fast
+      connections: aggressive
+      join-writing: true
+      artifacts: minimal
+      no-page-numbers: true
+
+  balanced:
+    description: Повседневная печать документов с балансом скорости и безопасной геометрии.
+    flags:
+      output-dir: "{build_root}/balanced"
+      stage-cache: "{build_root}/balanced/.stage-cache"
+      motion-profile: balanced
+      connections: safe
+      join-writing: true
+      artifacts: normal
+      page-numbers: true
+
+  quality:
+    description: Точная печать формул, таблиц и диаграмм с полным контролем качества.
+    flags:
+      output-dir: "{build_root}/quality"
+      stage-cache: "{build_root}/quality/.stage-cache"
+      preset: quality
+      motion-profile: safe
+      connections: safe
+      layout-engine: harfbuzz
+      strict-centerline-quality: true
+      strict-latex-quality: true
+      artifacts: audit
+      page-numbers: true
