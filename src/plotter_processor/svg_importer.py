@@ -14,6 +14,7 @@ from plotter_processor.models import PlotterStroke
 SUPPORTED = {"svg", "g", "path", "line", "polyline", "polygon", "rect", "circle", "ellipse"}
 FORBIDDEN = {"script", "foreignObject", "image", "text", "use", "filter", "style", "animate", "animateTransform"}
 NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+PX_TO_MM = 25.4 / 96.0
 
 
 def import_svg(
@@ -51,6 +52,25 @@ def import_svg(
     return strokes
 
 
+def svg_intrinsic_size_mm(path: Path) -> tuple[float, float]:
+    data = path.read_bytes()
+    if len(data) > 2_000_000:
+        raise ValueError("SVG exceeds safe file size limit")
+    lowered = data.lower()
+    if b"<!doctype" in lowered or b"<!entity" in lowered:
+        raise ValueError("SVG entities and DOCTYPE are forbidden")
+    root = ElementTree.fromstring(data)
+    viewbox = _viewbox(root)
+    width = _svg_length_mm(root.attrib.get("width"))
+    height = _svg_length_mm(root.attrib.get("height"))
+    if width is None or height is None:
+        width = viewbox[2] * PX_TO_MM
+        height = viewbox[3] * PX_TO_MM
+    if width <= 0 or height <= 0:
+        raise ValueError("SVG intrinsic dimensions must be positive")
+    return width, height
+
+
 def _validate_tree(nodes: list[ElementTree.Element]) -> None:
     for node in nodes:
         name = _local(node.tag)
@@ -81,6 +101,9 @@ def _walk(node, parent_matrix, output, element_id, depth: int) -> None:
                 output.append(
                     PlotterStroke(
                         len(output), contour.points, contour.closed,
+                        element_id=element_id,
+                        element_type="svg-vector",
+                        semantic_role="svg-vector",
                         source_chars="", segment_types=("svg",),
                     )
                 )
@@ -180,6 +203,25 @@ def _finite(value: str) -> float:
     if not math.isfinite(number):
         raise ValueError("SVG contains NaN or Infinity")
     return number
+
+
+def _svg_length_mm(value: str | None) -> float | None:
+    if value is None:
+        return None
+    match = re.fullmatch(rf"\s*({NUMBER})\s*(px|mm|cm|in|pt|pc)?\s*", value)
+    if match is None:
+        return None
+    number = _finite(match.group(1))
+    factor = {
+        None: PX_TO_MM,
+        "px": PX_TO_MM,
+        "mm": 1.0,
+        "cm": 10.0,
+        "in": 25.4,
+        "pt": 25.4 / 72.0,
+        "pc": 25.4 / 6.0,
+    }[match.group(2)]
+    return number * factor
 
 
 def _local(tag: str) -> str:

@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 
 from plotter_processor.document_models import (
     SourceLineElement,
+    SourceMathElement,
     SourceRasterImageElement,
     SourceTextElement,
 )
@@ -54,3 +55,31 @@ def test_complex_pdf_fill_is_rasterized_with_warning(tmp_path: Path) -> None:
 
     assert any(isinstance(item, SourceRasterImageElement) for item in result.elements)
     assert any("pdf_complex_drawing_rasterized" in warning for warning in result.warnings)
+
+
+def test_pdf_math_absorbs_formula_primitives_once_and_keeps_neighbor_text(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "math.pdf"
+    pdf = pymupdf.open()
+    page = pdf.new_page()
+    page.insert_text((40, 40), "Ordinary neighboring text", fontsize=11)
+    page.insert_text((70, 90), "x^2 + y^2 = z^2", fontsize=16)
+    page.draw_line((68, 95), (205, 95), width=0.6)
+    pdf.save(source)
+    pdf.close()
+
+    document = read_structured_document(
+        source,
+        assets_dir=tmp_path / "assets",
+        pdf_math_mode="auto",
+    )
+    elements = document.pages[0].elements
+    math = [item for item in elements if isinstance(item, SourceMathElement)]
+    text = [item for item in elements if isinstance(item, SourceTextElement)]
+
+    assert len(math) == 1
+    assert math[0].absorbed_element_ids
+    assert any("Ordinary neighboring text" in paragraph for item in text for paragraph in item.paragraphs)
+    assert not any("x^2" in paragraph for item in text for paragraph in item.paragraphs)
+    assert not any(isinstance(item, SourceLineElement) for item in elements)
