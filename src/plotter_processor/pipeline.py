@@ -61,7 +61,11 @@ from plotter_processor.path_builder import (
     path_statistics,
     save_path_document,
 )
-from plotter_processor.path_optimizer import optimize_paths
+from plotter_processor.path_optimizer import (
+    RetraceConfig,
+    load_retrace_config,
+    optimize_paths,
+)
 from plotter_processor.path_simplifier import (
     SimplificationTemplateCache,
     prime_simplification_template_cache,
@@ -159,6 +163,7 @@ class PageProcessRequest:
     simplification_config: dict[str, object]
     variation_config: VariationConfig
     joining_config: JoiningConfig
+    retrace_config: RetraceConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
     preview_enabled: bool = True
@@ -262,6 +267,7 @@ def process_page(
                 request.simplification_config,
                 request.variation_config,
                 request.joining_config,
+                request.retrace_config,
                 request.connection_debug,
                 request.simplification_template_cache,
             ),
@@ -565,6 +571,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             enabled=options.join_writing or options.connections not in {None, "off"},
             mode=options.connections,
         )
+        retrace_config = load_retrace_config(config_profiles.handwriting.retrace)
         centerline_config = load_centerline_config(layout_config)
         geometry_fingerprint = geometry_stage_fingerprint(
             layout_fingerprint,
@@ -582,6 +589,12 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "vector": vector,
                 "optimize_travel": options.optimize_travel,
                 "variation": _mapping(_mapping(layout_config, "handwriting"), "variation"),
+                "handwriting_profile": {
+                    "spacing": config_profiles.handwriting.spacing,
+                    "stroke_order": config_profiles.handwriting.stroke_order,
+                    "routing": config_profiles.handwriting.routing,
+                    "retrace": config_profiles.handwriting.retrace,
+                },
                 "connections": layout_config.get("connections", {}),
                 "connections_mode": options.connections,
                 "join_writing": options.join_writing,
@@ -968,6 +981,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     simplification_config,
                     variation_config,
                     joining_config,
+                    retrace_config,
                     connection_debug_enabled,
                     simplification_template_cache,
                     options.artifact_level != "minimal",
@@ -1106,6 +1120,18 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "stages": stages.report(),
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
+            "handwriting_profile": {
+                "variation": config_profiles.handwriting.variation,
+                "spacing": config_profiles.handwriting.spacing,
+                "connections": {
+                    **config_profiles.handwriting.connections,
+                    "enabled": joining_config.enabled,
+                    "mode": joining_config.mode,
+                },
+                "stroke_order": config_profiles.handwriting.stroke_order,
+                "routing": config_profiles.handwriting.routing,
+                "retrace": config_profiles.handwriting.retrace,
+            },
             "document_import": {
                 **paginated.import_statistics,
                 "layout_mode": document_layout_mode,

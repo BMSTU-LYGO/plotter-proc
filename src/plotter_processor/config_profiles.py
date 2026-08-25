@@ -32,7 +32,11 @@ class PenConfigProfile:
 @dataclass(frozen=True, slots=True)
 class HandwritingConfigProfile:
     variation: dict[str, object]
+    spacing: dict[str, object]
     connections: dict[str, object]
+    stroke_order: dict[str, object]
+    routing: dict[str, object]
+    retrace: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +96,12 @@ def resolve_config_profiles(
         ),
         PenConfigProfile(_mapping(machine, "pen")),
         HandwritingConfigProfile(
-            _mapping(handwriting, "variation"), dict(connections_value)
+            _mapping(handwriting, "variation"),
+            _mapping(handwriting, "spacing"),
+            dict(connections_value),
+            _mapping(handwriting, "stroke_order"),
+            _mapping(handwriting, "routing"),
+            _mapping(handwriting, "retrace"),
         ),
         ConversionConfigProfile(
             size,

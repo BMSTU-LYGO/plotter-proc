@@ -14,7 +14,7 @@ from plotter_processor.handwriting import (
     route_words,
 )
 from plotter_processor.models import PathDocument, PositionedGlyph
-from plotter_processor.path_optimizer import optimize_paths
+from plotter_processor.path_optimizer import RetraceConfig, optimize_paths
 from plotter_processor.path_simplifier import (
     SimplificationTemplateCache,
     path_complexity,
@@ -35,6 +35,7 @@ class PageGeometryRequest:
     simplification_config: dict[str, object]
     variation_config: VariationConfig
     joining_config: JoiningConfig
+    retrace_config: RetraceConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
 
@@ -59,7 +60,7 @@ def process_page_geometry(
         len(stroke.points) for stroke in paths.strokes
     )
     if request.optimize_travel and _boolean(request.vector, "optimize_travel"):
-        paths = optimize_paths(paths)
+        paths = optimize_paths(paths, request.retrace_config)
 
     stage_ms = {"handwriting": 0.0, "simplification": 0.0}
     handwriting: dict[str, object] = {"enabled": False}
@@ -82,6 +83,9 @@ def process_page_geometry(
                     collect_debug=request.connection_debug,
                     hotspots=metrics.hotspots,
                 )
+            retrace = paths.metadata.get("safe_retrace")
+            if isinstance(retrace, dict):
+                handwriting.update(retrace)
         if request.joining_config.enabled and request.connection_debug:
             export_handwriting_debug(paths, request.page_dir / "connection-debug.svg")
         paths.metadata.pop("connection_debug", None)

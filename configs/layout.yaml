@@ -260,6 +260,27 @@ handwriting:
     rotation_deg: 1.0
     scale_percent: 2.0
     spacing_jitter_mm: 0.15
+  spacing:
+    max_kerning_adjustment_mm: 0.15
+    shape_aware: true
+  stroke_order:
+    enabled: true
+    glyphs: ["ъ", "ь", "ы", "ж", "ф", "т"]
+  routing:
+    next_glyph_lookahead: true
+    max_current_travel_penalty_mm: 0.35
+    cost:
+      travel: 1.0
+      pen_lift: 8.0
+      retrace: 1.5
+      direction_change: 0.011111111111111112
+      connection_quality: 2.0
+      collision_risk: 100.0
+  retrace:
+    enabled: true
+    max_length_mm: 1.2
+    max_repeats: 1
+    allowed_segment_types: [glyph]
 
 connections:
   enabled: false

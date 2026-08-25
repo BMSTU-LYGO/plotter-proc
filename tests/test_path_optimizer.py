@@ -1,6 +1,6 @@
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.path_builder import path_statistics
-from plotter_processor.path_optimizer import optimize_paths
+from plotter_processor.path_optimizer import RetraceConfig, optimize_paths
 
 
 def test_optimizer_preserves_draw_distance_and_reduces_travel() -> None:
@@ -77,3 +77,70 @@ def test_explicit_stroke_order_is_not_rebuilt_for_next_glyph() -> None:
     assert [stroke.points for stroke in optimized.strokes[:2]] == [
         stroke.points for stroke in ordered
     ]
+
+
+def test_safe_short_retrace_saves_one_pen_lift() -> None:
+    trunk = PlotterStroke(
+        0,
+        [Point(0, 0), Point(1, 0), Point(2, 0)],
+        False,
+        0,
+        segment_types=("glyph",),
+    )
+    branch = PlotterStroke(
+        1,
+        [Point(1, 0), Point(1, 1)],
+        False,
+        0,
+        segment_types=("glyph",),
+    )
+
+    optimized = optimize_paths(PathDocument(100, 100, [trunk, branch], []))
+
+    assert len(optimized.strokes) == 1
+    assert optimized.strokes[0].points == [
+        Point(0, 0),
+        Point(1, 0),
+        Point(2, 0),
+        Point(1, 0),
+        Point(1, 1),
+    ]
+    assert "retrace" in optimized.strokes[0].segment_types
+    assert optimized.metadata["safe_retrace"] == {
+        "retrace_enabled": True,
+        "retrace_merges": 1,
+        "retrace_pen_lifts_saved": 1,
+        "retrace_distance_mm": 1.0,
+    }
+
+
+def test_retrace_rejects_long_or_non_glyph_repetition() -> None:
+    trunk = PlotterStroke(
+        0,
+        [Point(0, 0), Point(2, 0), Point(4, 0)],
+        False,
+        0,
+        segment_types=("glyph",),
+    )
+    long_branch = PlotterStroke(
+        1,
+        [Point(2, 0), Point(2, 1)],
+        False,
+        0,
+        segment_types=("glyph",),
+    )
+    connector = PlotterStroke(
+        2,
+        [Point(4, 0), Point(4, 1)],
+        False,
+        0,
+        segment_types=("connector",),
+    )
+
+    optimized = optimize_paths(
+        PathDocument(100, 100, [trunk, long_branch, connector], []),
+        RetraceConfig(max_length_mm=1.2),
+    )
+
+    assert len(optimized.strokes) == 3
+    assert optimized.metadata["safe_retrace"]["retrace_merges"] == 0

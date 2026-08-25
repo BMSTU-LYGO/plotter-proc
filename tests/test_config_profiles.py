@@ -16,5 +16,10 @@ def test_legacy_configs_are_split_into_typed_stage_profiles() -> None:
     assert profiles.pen.values == machine["pen"]
     assert profiles.machine.feedrate == machine["feedrate_mm_min"]
     assert profiles.handwriting.variation == layout["handwriting"]["variation"]
+    assert profiles.handwriting.spacing == layout["handwriting"]["spacing"]
+    assert profiles.handwriting.connections == layout["connections"]
+    assert profiles.handwriting.stroke_order == layout["handwriting"]["stroke_order"]
+    assert profiles.handwriting.routing == layout["handwriting"]["routing"]
+    assert profiles.handwriting.retrace == layout["handwriting"]["retrace"]
     assert profiles.conversion.layout == layout["layout"]
     assert "feedrate_mm_min" not in profiles.conversion.layout
