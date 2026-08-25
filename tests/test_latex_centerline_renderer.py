@@ -42,8 +42,12 @@ def test_explicit_outline_mode_remains_compatible() -> None:
     assert all(stroke.segment_types == ("latex-outline",) for stroke in rendered.strokes)
 
 
-def test_fraction_bar_comes_from_mathtext_structural_geometry() -> None:
-    rendered = MathTextRenderer().render(r"\frac{x+1}{x-1}", 5.0)
+@pytest.mark.parametrize(
+    "expression",
+    [r"\frac{x+1}{x-1}", r"\overline{x}", r"\underline{x}", r"\sqrt{x+1}"],
+)
+def test_math_lines_come_from_structural_geometry(expression: str) -> None:
+    rendered = MathTextRenderer().render(expression, 5.0)
 
     structural = [
         stroke for stroke in rendered.strokes

@@ -197,7 +197,7 @@ class MathTextRenderer:
                         warnings=("latex_vector_raster_fallback", str(vector_error)),
                     )
                 except ValueError as raster_error:
-                    if not self.fallback_to_outline:
+                    if self.strict_quality or not self.fallback_to_outline:
                         raise raster_error from vector_error
                     rendered = replace(
                         self._render_outline(expression_text, size_mm),
@@ -278,7 +278,7 @@ class MathTextRenderer:
                 points = [
                     Point(
                         (float(offset_x) + x * scale) * PT_TO_MM,
-                        (height_pt - (float(offset_y) + y * scale)) * PT_TO_MM,
+                        (height_pt - depth_pt - (float(offset_y) + y * scale)) * PT_TO_MM,
                     )
                     for x, y in cached_points
                 ]
@@ -290,8 +290,14 @@ class MathTextRenderer:
             strokes.append(PlotterStroke(
                 len(strokes),
                 [
-                    Point(float(x) * PT_TO_MM, (height_pt - center_y) * PT_TO_MM),
-                    Point((float(x) + float(width)) * PT_TO_MM, (height_pt - center_y) * PT_TO_MM),
+                    Point(
+                        float(x) * PT_TO_MM,
+                        (height_pt - depth_pt - center_y) * PT_TO_MM,
+                    ),
+                    Point(
+                        (float(x) + float(width)) * PT_TO_MM,
+                        (height_pt - depth_pt - center_y) * PT_TO_MM,
+                    ),
                 ],
                 False,
             ))
@@ -314,6 +320,17 @@ class MathTextRenderer:
             for stroke in strokes
             for left, right in pairwise(stroke.points)
         )
+        gate = _evaluate_math_geometry(
+            strokes,
+            width_pt * PT_TO_MM,
+            height_pt * PT_TO_MM,
+            expected_glyphs=len(parsed.glyphs),
+            lost_glyphs=lost_glyphs,
+            expected_structural_lines=len(parsed.rects),
+            structural_lines=structural_lines,
+            max_components=self.max_components,
+            max_points=self.max_points,
+        )
         quality: dict[str, object] = {
             "render_path": "vector-first",
             "glyphs_expected": len(parsed.glyphs),
@@ -331,8 +348,11 @@ class MathTextRenderer:
             "retraced_length_mm": 0.0,
             "retrace_ratio": 0.0,
             "centerline_coverage_ratio": 1.0,
-            "needs_review": lost_glyphs > 0,
+            **gate,
         }
+        failures = tuple(str(item) for item in quality["quality_failures"])
+        if failures:
+            raise ValueError("Math quality gate failed: " + ", ".join(failures))
         return RenderedMath(
             expression,
             tuple(strokes),
@@ -786,6 +806,99 @@ def _path_to_strokes(
             raise ValueError(f"Unsupported MathText path command: {code}")
     finish()
     return strokes
+
+
+def _evaluate_math_geometry(
+    strokes: list[PlotterStroke],
+    width_mm: float,
+    height_mm: float,
+    *,
+    expected_glyphs: int,
+    lost_glyphs: int,
+    expected_structural_lines: int,
+    structural_lines: int,
+    max_components: int,
+    max_points: int,
+) -> dict[str, object]:
+    failures: list[str] = []
+    points = [point for stroke in strokes for point in stroke.points]
+    if not strokes or not points:
+        failures.append("empty_geometry")
+    non_finite = int(sum(
+        not math.isfinite(point.x) or not math.isfinite(point.y) for point in points
+    ))
+    if non_finite:
+        failures.append("non_finite_geometry")
+    if len(strokes) > max_components:
+        failures.append("too_many_components")
+    if len(points) > max_points:
+        failures.append("too_many_points")
+    if lost_glyphs:
+        failures.append("lost_glyphs")
+    if structural_lines < expected_structural_lines:
+        failures.append("lost_structural_lines")
+
+    bbox: tuple[float, float, float, float] | None = None
+    outside = 0
+    bbox_too_large = False
+    if points and not non_finite:
+        bbox = (
+            float(min(point.x for point in points)),
+            float(min(point.y for point in points)),
+            float(max(point.x for point in points)),
+            float(max(point.y for point in points)),
+        )
+        tolerance = max(0.5, min(width_mm, height_mm) * 0.2)
+        outside = int(sum(
+            point.x < -tolerance
+            or point.y < -tolerance
+            or point.x > width_mm + tolerance
+            or point.y > height_mm + tolerance
+            for point in points
+        ))
+        bbox_too_large = (
+            bbox[2] - bbox[0] > width_mm * 1.25 + tolerance
+            or bbox[3] - bbox[1] > height_mm * 1.25 + tolerance
+        )
+        if outside > max(2, len(points) // 50):
+            failures.append("geometry_outside_formula_bbox")
+        if bbox_too_large:
+            failures.append("unexpected_formula_bbox")
+
+    seen_segments: set[tuple[tuple[float, float], tuple[float, float]]] = set()
+    draw_length = 0.0
+    retraced_length = 0.0
+    for stroke in strokes:
+        for left, right in pairwise(stroke.points):
+            segment_length = math.dist((left.x, left.y), (right.x, right.y))
+            draw_length += segment_length
+            endpoints = sorted(
+                ((round(left.x, 5), round(left.y, 5)), (round(right.x, 5), round(right.y, 5)))
+            )
+            segment = (endpoints[0], endpoints[1])
+            if segment in seen_segments:
+                retraced_length += segment_length
+            seen_segments.add(segment)
+    retrace_ratio = retraced_length / max(draw_length, 1e-9)
+    if retrace_ratio > 0.65:
+        failures.append("excessive_retrace")
+    pen_lift_limit = max(16, expected_glyphs * 4 + expected_structural_lines)
+    if len(strokes) > pen_lift_limit:
+        failures.append("too_many_pen_lifts")
+    return {
+        "empty_geometry": not strokes or not points,
+        "non_finite_points": non_finite,
+        "formula_bbox": bbox,
+        "expected_formula_bbox": (0.0, 0.0, width_mm, height_mm),
+        "outside_bbox_points": outside,
+        "bbox_too_large": bbox_too_large,
+        "pen_lifts": len(strokes),
+        "pen_lift_limit": pen_lift_limit,
+        "retraced_length_mm": round(retraced_length, 6),
+        "retrace_ratio": round(retrace_ratio, 6),
+        "quality_failures": tuple(dict.fromkeys(failures)),
+        "needs_review": bool(failures),
+    }
 
 
 def _flatten_quadratic(
