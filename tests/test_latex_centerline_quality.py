@@ -88,3 +88,18 @@ def test_strict_quality_does_not_hide_double_renderer_failure_in_outline() -> No
 
     with pytest.raises(ValueError, match="components|quality gate"):
         renderer.render("x+y+z", 5.246)
+
+
+@pytest.mark.parametrize(
+    ("expression", "minimum_points"),
+    [(r"\alpha", 20), (r"\beta", 20), (r"\infty", 16), ("0", 14), ("8", 20)],
+)
+def test_counter_glyphs_keep_their_inner_geometry(
+    expression: str, minimum_points: int
+) -> None:
+    rendered = MathTextRenderer(strict_quality=True).render(expression, 5.0)
+    points = sum(len(stroke.points) for stroke in rendered.strokes)
+    left, top, right, bottom = rendered.quality["formula_bbox"]
+
+    assert points >= minimum_points
+    assert bottom - top >= (right - left) * 0.45

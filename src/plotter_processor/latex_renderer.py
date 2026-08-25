@@ -38,7 +38,7 @@ _RENDER_CACHE: OrderedDict[tuple[object, ...], RenderedMath] = OrderedDict()
 _RENDER_CACHE_LIMIT = 128
 _GLYPH_CACHE: OrderedDict[tuple[object, ...], _CachedMathGlyph] = OrderedDict()
 _GLYPH_CACHE_LIMIT = 2048
-_GLYPH_CACHE_VERSION = "math-glyph-centerline-v1"
+_GLYPH_CACHE_VERSION = "math-glyph-centerline-v2"
 _GLYPH_CANONICAL_SIZE_PT = 12.0
 
 
@@ -566,7 +566,7 @@ class MathTextRenderer:
         ys = max_y - (np.arange(height) - padding + 0.5) / pixels_per_pt
         grid_x, grid_y = np.meshgrid(xs, ys)
         sample_points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
-        mask = MatplotlibPath(vertices, codes).contains_points(sample_points).reshape(height, width)
+        mask = _compound_path_mask(vertices, codes, sample_points, (height, width))
         geometry = raster_to_centerline(
             mask,
             1.0 / (self.render_ppmm * self.supersample),
@@ -862,6 +862,23 @@ def _debug_svg_lines(
 def _binary_debug_image(mask: np.ndarray) -> Image.Image:
     pixels = np.where(mask, 0, 255).astype(np.uint8)
     return Image.fromarray(pixels, mode="L")
+
+
+def _compound_path_mask(
+    vertices: np.ndarray,
+    codes: np.ndarray,
+    sample_points: np.ndarray,
+    shape: tuple[int, int],
+) -> np.ndarray:
+    """Rasterize a glyph with even-odd contour filling so counters stay hollow."""
+    starts = np.flatnonzero(codes == MatplotlibPath.MOVETO)
+    if not len(starts):
+        return np.zeros(shape, dtype=bool)
+    mask = np.zeros(len(sample_points), dtype=bool)
+    for start, end in zip(starts, (*starts[1:], len(codes)), strict=True):
+        contour = MatplotlibPath(vertices[start:end], codes[start:end])
+        mask ^= contour.contains_points(sample_points)
+    return mask.reshape(shape)
 
 
 def _overlay_svg(rendered: RenderedMath, mask_image: Image.Image) -> str:
