@@ -15,6 +15,8 @@ class StrokeAnchor:
     stroke_id: int
     point_index: int
     baseline_offset: float
+    kind: str = "terminal"
+    connectable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,3 +33,6 @@ class GlyphConnectionCandidate:
     score: float
     accepted: bool
     rejection_reason: str | None = None
+    curve_length_mm: float = 0.0
+    curvature_deg: float = 0.0
+    retrace_mm: float = 0.0

@@ -33,6 +33,7 @@ def test_pdf_extracts_text_two_image_placements_and_vector_line(tmp_path: Path) 
     document = read_structured_document(source, assets_dir=tmp_path / "assets")
     elements = document.pages[0].elements
 
+    assert document.metadata.source_format == "pdf"
     assert any(isinstance(item, SourceTextElement) for item in elements)
     images = [item for item in elements if isinstance(item, SourceRasterImageElement)]
     assert len(images) == 2

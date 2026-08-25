@@ -22,6 +22,7 @@ from plotter_processor.centerline_path_builder import (
     build_centerline_paths,
 )
 from plotter_processor.config import load_yaml
+from plotter_processor.config_profiles import resolve_config_profiles
 from plotter_processor.document_image_layout import save_document_structure
 from plotter_processor.document_models import (
     SourceDocument,
@@ -39,11 +40,8 @@ from plotter_processor.glyph_outline import extract_exact_outlines
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
-    apply_variation,
-    export_handwriting_debug,
     load_joining_config,
     load_variation_config,
-    route_words,
 )
 from plotter_processor.job_exporter import save_job_manifest
 from plotter_processor.job_models import PageJob, PlotterJob
@@ -56,18 +54,38 @@ from plotter_processor.motion_config import (
 )
 from plotter_processor.motion_statistics import calculate_motion_statistics
 from plotter_processor.multipage_gcode_exporter import generate_job_gcode
-from plotter_processor.path_builder import build_paths, path_statistics, save_path_document
-from plotter_processor.path_optimizer import optimize_paths
+from plotter_processor.page_geometry import PageGeometryRequest, process_page_geometry
+from plotter_processor.path_builder import (
+    OutlinePathTemplateCache,
+    build_paths,
+    path_statistics,
+    save_path_document,
+)
+from plotter_processor.path_optimizer import (
+    RetraceConfig,
+    load_retrace_config,
+    optimize_paths,
+)
 from plotter_processor.path_simplifier import (
     SimplificationTemplateCache,
-    path_complexity,
     prime_simplification_template_cache,
-    simplify_path_document,
 )
 from plotter_processor.performance import PagePerformance, StageTimings
+from plotter_processor.pipeline_fingerprints import (
+    document_stage_fingerprint,
+    geometry_stage_fingerprint,
+    layout_stage_fingerprint,
+)
+from plotter_processor.pipeline_stages import (
+    NORMALIZE_LAYOUT,
+    READ_DOCUMENT,
+    StageExecutor,
+)
 from plotter_processor.preview_cache import materialize_cached_preview
+from plotter_processor.schemas import SCHEMA_VERSIONS
 from plotter_processor.semantic_debug import export_semantic_debug
 from plotter_processor.semantic_metrics import semantic_report
+from plotter_processor.stage_cache import StageCacheManager
 from plotter_processor.structured_document_reader import read_structured_document
 from plotter_processor.svg_exporter import export_font_preview, export_plotter_preview
 from plotter_processor.validator import (
@@ -114,8 +132,9 @@ class PipelineOptions:
     math_debug: bool = False
     stage_progress: Callable[[str, str, float | None], None] | None = None
     workers: str | int = "auto"
-    centerline_workers: str | int = "auto"
     artifact_level: str = "normal"
+    stage_cache_path: Path | None = None
+    preset: str | None = None
 
 
 @dataclass(slots=True)
@@ -144,8 +163,24 @@ class PageProcessRequest:
     simplification_config: dict[str, object]
     variation_config: VariationConfig
     joining_config: JoiningConfig
+    retrace_config: RetraceConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
+    preview_enabled: bool = True
+    geometry_ready: bool = False
+    cached_handwriting: dict[str, object] | None = None
+    cached_simplification: dict[str, object] | None = None
+
+
+@dataclass(slots=True)
+class PreparedPage:
+    page_layout: PageLayout
+    paths: PathDocument
+    page_dir: Path
+    body_glyphs: list[PositionedGlyph]
+    geometry_ready: bool = False
+    handwriting: dict[str, object] | None = None
+    simplification: dict[str, object] | None = None
 
 
 @dataclass(slots=True)
@@ -163,6 +198,10 @@ _PAGE_PROCESS_REQUESTS: dict[int, PageProcessRequest] = {}
 
 def _process_page_index(page_index: int) -> PageProcessResult:
     return process_page(_PAGE_PROCESS_REQUESTS[page_index])
+
+
+def _process_page_request(request: PageProcessRequest) -> PageProcessResult:
+    return process_page(request)
 
 
 def resolve_worker_count(requested: str | int, page_count: int) -> int:
@@ -204,67 +243,44 @@ def process_page(
 ) -> PageProcessResult:
     """Process one page without mutating pipeline-wide structures."""
     page_layout = request.page_layout
-    paths = request.paths
     page_metrics = request.page_metrics
-    page_metrics.values["stroke_count_before"] = len(paths.strokes)
-    page_metrics.values["point_count_before"] = sum(
-        len(stroke.points) for stroke in paths.strokes
-    )
-    if request.optimize_travel and _boolean(request.vector, "optimize_travel"):
-        paths = optimize_paths(paths)
-
-    stage_ms = {"handwriting": 0.0, "simplification": 0.0, "preview": 0.0, "gcode": 0.0}
-    handwriting: dict[str, object] = {"enabled": False}
-    complexity_before_route = path_complexity(paths)
-    if request.font_mode == "centerline" and request.body_glyphs:
-        with _measure_page_stage("handwriting", stage_ms, stage_progress):
-            with page_metrics.measure("variation_ms"):
-                paths = apply_variation(paths, request.body_glyphs, request.variation_config)
-            complexity_before_route = path_complexity(paths)
-            with page_metrics.measure("word_routing_ms"):
-                paths, handwriting = route_words(
-                    paths,
-                    request.body_glyphs,
-                    request.joining_config,
-                    collect_debug=request.connection_debug,
-                )
-        if request.joining_config.enabled and request.connection_debug:
-            export_handwriting_debug(paths, request.page_dir / "connection-debug.svg")
-        paths.metadata.pop("connection_debug", None)
-
-    page_metrics.values["candidate_pairs"] = int(handwriting.get("pairs_total", 0))
-    page_metrics.values["accepted_connections"] = int(handwriting.get("accepted", 0))
-    simplification: dict[str, object] = {"enabled": False}
-    if request.simplification_config.get("enabled", False):
-        with (
-            _measure_page_stage("simplification", stage_ms, stage_progress),
-            page_metrics.measure("simplification_ms"),
-        ):
-            deviations = _mapping(request.simplification_config, "max_deviation_mm")
-            paths, simplification = simplify_path_document(
-                paths,
-                duplicate_epsilon_mm=_non_negative(
-                    request.simplification_config, "duplicate_epsilon_mm"
-                ),
-                min_segment_length_mm=_non_negative(
-                    request.simplification_config, "min_segment_length_mm"
-                ),
-                max_deviation_mm=_non_negative(deviations, request.font_mode),
-                template_cache=request.simplification_template_cache,
-                template_identities=(
-                    {
-                        glyph.glyph_index: (
-                            glyph.font_sha256 or paths.metadata.get("font_sha256"),
-                            glyph.char,
-                            glyph.scale_mm_per_font_unit,
-                        )
-                        for glyph in request.body_glyphs
-                    }
-                    if not request.variation_config.enabled
-                    else {}
-                ),
-                complexity_before_route=complexity_before_route,
-            )
+    if request.geometry_ready:
+        paths = request.paths
+        handwriting = request.cached_handwriting or {"enabled": False}
+        simplification = request.cached_simplification or {"enabled": False}
+        stage_ms = {
+            "handwriting": 0.0,
+            "simplification": 0.0,
+            "preview": 0.0,
+            "gcode": 0.0,
+        }
+    else:
+        geometry = process_page_geometry(
+            PageGeometryRequest(
+                request.paths,
+                request.body_glyphs,
+                request.page_dir,
+                page_metrics,
+                request.optimize_travel,
+                request.font_mode,
+                request.vector,
+                request.simplification_config,
+                request.variation_config,
+                request.joining_config,
+                request.retrace_config,
+                request.connection_debug,
+                request.simplification_template_cache,
+            ),
+            stage_progress,
+        )
+        paths = geometry.paths
+        handwriting = geometry.handwriting
+        simplification = geometry.simplification
+        stage_ms = {
+            **geometry.stage_ms,
+            "preview": 0.0,
+            "gcode": 0.0,
+        }
 
     paths.warnings = list(dict.fromkeys(request.page_warnings))
     validate_path_document(
@@ -273,16 +289,17 @@ def process_page(
     )
     with page_metrics.measure("serialization_ms"):
         save_path_document(paths, request.page_dir / "paths.json")
-    with (
-        _measure_page_stage("preview", stage_ms, stage_progress),
-        page_metrics.measure("preview_ms"),
-    ):
-        export_plotter_preview(
-            paths,
-            request.page_dir / "plotter-preview.svg",
-            stroke_width_mm=_positive(request.preview, "plotter_stroke_width_mm"),
-            show_page_border=_boolean(request.preview, "show_page_border"),
-        )
+    if request.preview_enabled:
+        with (
+            _measure_page_stage("preview", stage_ms, stage_progress),
+            page_metrics.measure("preview_ms"),
+        ):
+            export_plotter_preview(
+                paths,
+                request.page_dir / "plotter-preview.svg",
+                stroke_width_mm=_positive(request.preview, "plotter_stroke_width_mm"),
+                show_page_border=_boolean(request.preview, "show_page_border"),
+            )
     statistics = path_statistics(paths)
     motion = calculate_motion_statistics(
         paths,
@@ -365,11 +382,15 @@ def process_page(
 
 def run_pipeline(options: PipelineOptions) -> PipelineResult:
     timings = StageTimings(options.stage_progress)
+    stages = StageExecutor(timings)
     output_dir = options.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "report.json"
     gcode_path = output_dir / "output.gcode"
     warnings: list[str] = []
+    stage_cache = StageCacheManager(
+        options.stage_cache_path or output_dir.parent / ".plotter-stage-cache"
+    )
     try:
         layout_config = load_yaml(options.layout_config_path)
         if options.font_mode not in {"outline", "centerline"}:
@@ -382,7 +403,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             raise ValueError(f"Unknown LaTeX stroke mode: {options.latex_stroke_mode}")
         if options.pdf_math not in {"auto", "visual", "off"}:
             raise ValueError(f"Unknown PDF math mode: {options.pdf_math}")
-        if options.artifact_level not in {"normal", "debug", "audit"}:
+        if options.artifact_level not in {"minimal", "normal", "debug", "audit"}:
             raise ValueError(f"Unknown artifact level: {options.artifact_level}")
         debug_artifacts = options.artifact_level in {"debug", "audit"}
         audit_artifacts = options.artifact_level == "audit"
@@ -414,26 +435,50 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         motion_profile = resolve_motion_profile(machine_config, options.motion_profile)
         machine_config = apply_motion_profile(machine_config, motion_profile)
         _apply_page_change_overrides(machine_config, options)
-        page_values = _mapping(_mapping(layout_config, "pages"), options.page)
+        config_profiles = resolve_config_profiles(
+            layout_config, machine_config, page=options.page, size=options.size
+        )
         page = PageSpec(
             options.page,
-            _positive(page_values, "width_mm"),
-            _positive(page_values, "height_mm"),
+            config_profiles.paper.width_mm,
+            config_profiles.paper.height_mm,
         )
-        margins = _mapping(layout_config, "margins_mm")
+        margins = config_profiles.paper.margins
         validate_page_spec(page, margins)
         validate_page_workspace(page, machine_config)
         initial_latex_options = _mapping(layout_config, "latex")
         initial_pdf_math_options = initial_latex_options.get("pdf_math", {})
         if not isinstance(initial_pdf_math_options, dict):
             raise TypeError("latex.pdf_math must be a mapping")
-        with timings.measure("read_document"):
-            document = read_structured_document(
+        document_fingerprint = document_stage_fingerprint(
+            options.input_path,
+            pdf_math_mode=options.pdf_math,
+            pdf_math_options=initial_pdf_math_options,
+        )
+        read_operation = lambda input_path: read_structured_document(
+            input_path,
+            assets_dir=stage_cache.assets_directory(
+                READ_DOCUMENT.name, document_fingerprint
+            ),
+            pdf_math_mode=options.pdf_math,
+            pdf_math_options=dict(initial_pdf_math_options),
+            math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
+        )
+        if math_debug_enabled:
+            document = stages.run(
+                READ_DOCUMENT,
                 options.input_path,
-                assets_dir=output_dir / "extracted-assets",
-                pdf_math_mode=options.pdf_math,
-                pdf_math_options=dict(initial_pdf_math_options),
-                math_debug_dir=output_dir / "latex-debug" if math_debug_enabled else None,
+                read_operation,
+                metadata={"format": options.input_path.suffix.lower() or ".txt"},
+            )
+        else:
+            document = stages.run_cached(
+                READ_DOCUMENT,
+                options.input_path,
+                read_operation,
+                cache=stage_cache,
+                fingerprint=document_fingerprint,
+                metadata={"format": options.input_path.suffix.lower() or ".txt"},
             )
         text = "\n".join(
             paragraph
@@ -441,20 +486,21 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             if isinstance(element, SourceTextElement)
             for paragraph in element.paragraphs
         )
-        extracted_path = output_dir / "extracted.txt"
-        extracted_path.write_text(text, encoding="utf-8")
+        extracted_path = output_dir / "extracted.txt" if debug_artifacts else None
+        if extracted_path is not None:
+            extracted_path.write_text(text, encoding="utf-8")
         warnings.extend(document.warnings)
 
-        sizes = _mapping(layout_config, "sizes")
-        size_options = _mapping(sizes, options.size)
-        vector = _mapping(layout_config, "vector")
-        preview = _mapping(layout_config, "preview")
-        layout_options = _mapping(layout_config, "layout")
-        paragraph_options = _mapping(layout_config, "paragraphs")
-        table_options = _mapping(layout_config, "tables")
-        image_options = _mapping(layout_config, "images")
-        latex_options = _mapping(layout_config, "latex")
-        pagination_options = dict(_mapping(layout_config, "pagination"))
+        sizes = config_profiles.conversion.sizes
+        size_options = config_profiles.conversion.size
+        vector = config_profiles.conversion.vector
+        preview = config_profiles.conversion.preview
+        layout_options = config_profiles.conversion.layout
+        paragraph_options = config_profiles.conversion.paragraphs
+        table_options = config_profiles.conversion.tables
+        image_options = config_profiles.conversion.images
+        latex_options = config_profiles.conversion.latex
+        pagination_options = dict(config_profiles.paper.pagination)
         footer_options = dict(_mapping(pagination_options, "footer"))
         pagination_enabled = (
             bool(pagination_options.get("enabled", True))
@@ -486,11 +532,97 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         script = str(layout_options.get("script", "Cyrl"))
         direction = str(layout_options.get("direction", "ltr"))
         features = tuple(layout_options.get("features", []))
+        layout_fingerprint = layout_stage_fingerprint(
+            document_fingerprint,
+            font_path=options.font_path,
+            settings={
+                "page": [page.name, page.width_mm, page.height_mm],
+                "margins": margins,
+                "size": size_options,
+                "images": image_options,
+                "pagination": pagination_options,
+                "pagination_enabled": pagination_enabled,
+                "page_numbers_enabled": page_numbers_enabled,
+                "image_mode": options.images,
+                "latex_mode": latex_mode,
+                "latex": latex_options,
+                "latex_stroke_mode": options.latex_stroke_mode,
+                "strict_latex_quality": options.strict_latex_quality,
+                "document_layout_mode": document_layout_mode,
+                "document_layout": document_layout_options,
+                "paragraphs": paragraph_options,
+                "tables": table_options,
+                "preserve_source_page_breaks": bool(
+                    pagination_options.get("preserve_source_page_breaks", True)
+                ),
+                "tab_spaces": _positive_int(layout_options, "tab_spaces"),
+                "engine": engine,
+                "language": language,
+                "script": script,
+                "direction": direction,
+                "features": features,
+            },
+        )
+        analysis_config = config_profiles.machine.motion_analysis
+        simplification_config = config_profiles.machine.path_simplification
+        variation_config = load_variation_config(layout_config)
+        joining_config = load_joining_config(
+            layout_config,
+            enabled=options.join_writing or options.connections not in {None, "off"},
+            mode=options.connections,
+        )
+        retrace_config = load_retrace_config(config_profiles.handwriting.retrace)
+        centerline_config = load_centerline_config(layout_config)
+        geometry_fingerprint = geometry_stage_fingerprint(
+            layout_fingerprint,
+            settings={
+                "font_mode": options.font_mode,
+                "font_sha256": font_sha256(options.font_path),
+                "centerline": (
+                    centerline_config_fingerprint(
+                        centerline_config,
+                        font_hash=font_sha256(options.font_path),
+                    )
+                    if options.font_mode == "centerline"
+                    else None
+                ),
+                "vector": vector,
+                "optimize_travel": options.optimize_travel,
+                "variation": _mapping(_mapping(layout_config, "handwriting"), "variation"),
+                "handwriting_profile": {
+                    "spacing": config_profiles.handwriting.spacing,
+                    "stroke_order": config_profiles.handwriting.stroke_order,
+                    "routing": config_profiles.handwriting.routing,
+                    "retrace": config_profiles.handwriting.retrace,
+                },
+                "connections": layout_config.get("connections", {}),
+                "connections_mode": options.connections,
+                "join_writing": options.join_writing,
+                "simplification": simplification_config,
+            },
+        )
+        geometry_cache_allowed = not (
+            connection_debug_enabled or options.force_centerline_rebuild
+        )
+        geometry_lookup = (
+            stage_cache.load("geometry", geometry_fingerprint)
+            if geometry_cache_allowed
+            else None
+        )
+        cached_geometry_pages: dict[int, dict[str, object]] = {}
+        if geometry_lookup is not None and geometry_lookup.hit:
+            cached_payload = geometry_lookup.value
+            if isinstance(cached_payload, list):
+                cached_geometry_pages = {
+                    int(item["page_index"]): item
+                    for item in cached_payload
+                    if isinstance(item, dict) and "page_index" in item
+                }
 
         with load_font(options.font_path) as font:
-            with timings.measure("layout"):
-                paginated = paginate_document(
-                    document, font, page, margins, size_options, image_options,
+            def compute_layout(source_document: SourceDocument):
+                result = paginate_document(
+                    source_document, font, page, margins, size_options, image_options,
                     pagination_options, enabled=pagination_enabled,
                     image_mode=options.images,
                     image_debug_dir=(
@@ -518,19 +650,50 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     language=language, script=script, direction=direction,
                     features=features, stage_timings=timings,
                 )
-            warnings.extend(paginated.warnings)
-            if page_numbers_enabled:
-                number_size = str(footer_options.get("size", "small"))
-                add_page_numbers(
-                    paginated, font, page, margins, footer_options,
-                    _mapping(sizes, number_size), engine=engine, language=language,
-                    script=script, direction=direction, features=features,
-                )
-            page_count = len(paginated.pages)
-            save_document_structure(
-                document, output_dir / "document-structure.json",
-                details=paginated.element_details, layout_mode=document_layout_mode,
+                if page_numbers_enabled:
+                    number_size = str(footer_options.get("size", "small"))
+                    add_page_numbers(
+                        result, font, page, margins, footer_options,
+                        _mapping(sizes, number_size), engine=engine,
+                        language=language, script=script, direction=direction,
+                        features=features,
+                    )
+                return result
+
+            layout_metadata = {"page": options.page, "mode": document_layout_mode}
+            layout_debug_requested = any(
+                (image_debug_enabled, layout_debug_enabled, latex_debug_enabled)
             )
+            if layout_debug_requested:
+                paginated = stages.run(
+                    NORMALIZE_LAYOUT,
+                    document,
+                    compute_layout,
+                    metadata=layout_metadata,
+                )
+            else:
+                paginated = stages.run_cached(
+                    NORMALIZE_LAYOUT,
+                    document,
+                    compute_layout,
+                    cache=stage_cache,
+                    fingerprint=layout_fingerprint,
+                    metadata=layout_metadata,
+                )
+            warnings.extend(paginated.warnings)
+            page_count = len(paginated.pages)
+            document_structure_path = (
+                output_dir / "document-structure.json"
+                if layout_debug_enabled or semantic_debug_enabled
+                else None
+            )
+            if document_structure_path is not None:
+                save_document_structure(
+                    document,
+                    document_structure_path,
+                    details=paginated.element_details,
+                    layout_mode=document_layout_mode,
+                )
             number_indices = {
                 (page_layout.page_index, index)
                 for page_layout in paginated.pages
@@ -548,14 +711,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 for glyph in page_layout.layout.glyphs
                 if (page_layout.page_index, glyph.glyph_index) in number_indices
             ]
-            centerline_config = load_centerline_config(layout_config)
             compiled = None
             centerline_info = None
             cache_path = options.centerline_cache_path
             requested_centerline_chars = {glyph.char for glyph in number_glyphs}
             if options.font_mode == "centerline":
                 requested_centerline_chars.update(glyph.char for glyph in body_glyphs)
-            if requested_centerline_chars:
+            geometry_cache_hit = len(cached_geometry_pages) == page_count
+            if requested_centerline_chars and not geometry_cache_hit:
                 with timings.measure("font_compile"):
                     compiled, cache_path = compile_centerline_font(
                         options.font_path,
@@ -567,7 +730,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             options.strict_centerline_quality
                             if options.font_mode == "centerline" else False
                         ),
-                        workers=options.centerline_workers,
+                        workers=options.workers,
                         debug_dir=(
                             output_dir / "centerline-debug" if audit_artifacts else None
                         ),
@@ -640,12 +803,17 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             "hits" if centerline_result.hit else "misses"
                         ] += 1
 
-            raw_pages: list[tuple[object, PathDocument, Path, list[object]]] = []
+            raw_pages: list[PreparedPage] = []
             page_performance: dict[int, PagePerformance] = {}
             path_template_cache = CenterlinePathTemplateCache()
+            outline_template_cache = OutlinePathTemplateCache()
             for page_layout in paginated.pages:
                 page_metrics = PagePerformance(
-                    page_layout.page_index + 1, len(page_layout.layout.glyphs)
+                    page_layout.page_index + 1,
+                    len(page_layout.layout.glyphs),
+                    collect_hotspots=(
+                        options.stage_progress is not None or debug_artifacts
+                    ),
                 )
                 page_performance[page_layout.page_index] = page_metrics
                 page_dir = (
@@ -656,13 +824,49 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 page_number_set = set(page_layout.metadata.get("page_number_glyph_indices", []))
                 body = [g for g in page_layout.layout.glyphs if g.glyph_index not in page_number_set]
                 numbers = [g for g in page_layout.layout.glyphs if g.glyph_index in page_number_set]
-                build_cache_before = path_template_cache.snapshot()
+                cached_page = cached_geometry_pages.get(page_layout.page_index)
+                if cached_page is not None and isinstance(
+                    cached_page.get("paths"), PathDocument
+                ):
+                    raw_pages.append(
+                        PreparedPage(
+                            page_layout,
+                            cached_page["paths"],
+                            page_dir,
+                            [],
+                            True,
+                            (
+                                cached_page.get("handwriting")
+                                if isinstance(cached_page.get("handwriting"), dict)
+                                else None
+                            ),
+                            (
+                                cached_page.get("simplification")
+                                if isinstance(cached_page.get("simplification"), dict)
+                                else None
+                            ),
+                        )
+                    )
+                    continue
+                build_cache = (
+                    outline_template_cache
+                    if options.font_mode == "outline"
+                    else path_template_cache
+                )
+                build_cache_before = build_cache.snapshot()
                 with (
                     timings.measure("build_paths"),
                     page_metrics.measure("build_paths_ms"),
                 ):
                     if options.font_mode == "outline":
-                        paths = build_paths(font, body, page, vector)
+                        paths = build_paths(
+                            font,
+                            body,
+                            page,
+                            vector,
+                            template_cache=outline_template_cache,
+                            hotspots=page_metrics.hotspots,
+                        )
                         warnings.append(
                             "Outline mode follows both boundaries of filled TTF strokes"
                         )
@@ -672,6 +876,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             body,
                             page,
                             template_cache=path_template_cache,
+                            hotspots=page_metrics.hotspots,
                         )
                     else:
                         paths = PathDocument(page.width_mm, page.height_mm, [], [], {})
@@ -685,6 +890,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             numbers,
                             page,
                             template_cache=path_template_cache,
+                            hotspots=page_metrics.hotspots,
                         )
                     for stroke in number_paths.strokes:
                         stroke.id = len(paths.strokes)
@@ -693,7 +899,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         stroke.font_role = "page-number"
                         stroke.glyph_index = None
                         paths.strokes.append(stroke)
-                build_cache_after = path_template_cache.snapshot()
+                build_cache_after = build_cache.snapshot()
                 page_metrics.values.update(
                     {
                         key: build_cache_after[key] - build_cache_before[key]
@@ -705,18 +911,14 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     paths.strokes.append(stroke)
                 if page_layout.graphic_strokes:
                     paths.metadata["pipeline"] = "document-mixed"
-                raw_pages.append((page_layout, paths, page_dir, body))
+                raw_pages.append(PreparedPage(page_layout, paths, page_dir, body))
 
-        analysis_config = _mapping(machine_config, "motion_analysis")
-        simplification_config = machine_config.get("path_simplification", {})
-        variation_config = load_variation_config(layout_config)
-        joining_config = load_joining_config(
-            layout_config,
-            enabled=options.join_writing or options.connections not in {None, "off"},
-            mode=options.connections,
-        )
         simplification_template_cache = SimplificationTemplateCache()
-        if simplification_config.get("enabled", False) and not variation_config.enabled:
+        if (
+            not geometry_cache_hit
+            and simplification_config.get("enabled", False)
+            and not variation_config.enabled
+        ):
             deviations = _mapping(simplification_config, "max_deviation_mm")
             prime_simplification_template_cache(
                 [
@@ -725,7 +927,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         if options.optimize_travel and _boolean(vector, "optimize_travel")
                         else paths
                     )
-                    for _, paths, _, _ in raw_pages
+                    for prepared in raw_pages
+                    if not prepared.geometry_ready
+                    for paths in (prepared.paths,)
                 ],
                 duplicate_epsilon_mm=_non_negative(
                     simplification_config, "duplicate_epsilon_mm"
@@ -744,20 +948,26 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         )
                         for glyph in body_glyphs_for_page
                     }
-                    for _, paths, _, body_glyphs_for_page in raw_pages
+                    for prepared in raw_pages
+                    if not prepared.geometry_ready
+                    for paths, body_glyphs_for_page in (
+                        (prepared.paths, prepared.body_glyphs),
+                    )
                 ],
             )
 
         requests: list[PageProcessRequest] = []
         cumulative_warnings = list(warnings)
-        for page_layout, paths, page_dir, body_glyphs_for_page in raw_pages:
+        for prepared in raw_pages:
+            page_layout = prepared.page_layout
+            paths = prepared.paths
             cumulative_warnings.extend(paths.warnings)
             requests.append(
                 PageProcessRequest(
                     page_layout,
                     paths,
-                    page_dir,
-                    body_glyphs_for_page,
+                    prepared.page_dir,
+                    prepared.body_glyphs,
                     page_count,
                     page_performance[page_layout.page_index],
                     [*cumulative_warnings, *page_layout.warnings],
@@ -771,8 +981,13 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     simplification_config,
                     variation_config,
                     joining_config,
+                    retrace_config,
                     connection_debug_enabled,
                     simplification_template_cache,
+                    options.artifact_level != "minimal",
+                    prepared.geometry_ready,
+                    prepared.handwriting,
+                    prepared.simplification,
                 )
             )
         warnings[:] = cumulative_warnings
@@ -787,17 +1002,31 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 request.page_layout.page_index: request for request in requests
             }
             try:
+                start_method = (
+                    "fork"
+                    if "fork" in multiprocessing.get_all_start_methods()
+                    else "spawn"
+                )
                 with ProcessPoolExecutor(
                     max_workers=worker_count,
-                    mp_context=multiprocessing.get_context("fork"),
+                    mp_context=multiprocessing.get_context(start_method),
                 ) as executor:
-                    page_results = list(
-                        executor.map(
-                            _process_page_index,
-                            sorted(_PAGE_PROCESS_REQUESTS),
-                            chunksize=1,
+                    if start_method == "fork":
+                        page_results = list(
+                            executor.map(
+                                _process_page_index,
+                                sorted(_PAGE_PROCESS_REQUESTS),
+                                chunksize=1,
+                            )
                         )
-                    )
+                    else:
+                        page_results = list(
+                            executor.map(
+                                _process_page_request,
+                                requests,
+                                chunksize=1,
+                            )
+                        )
             finally:
                 _PAGE_PROCESS_REQUESTS = {}
         page_results.sort(key=lambda result: result.page_index)
@@ -805,6 +1034,20 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         page_reports = [result.page_report for result in page_results]
         handwriting_reports = [result.handwriting for result in page_results]
         simplification_reports = [result.simplification for result in page_results]
+        if geometry_cache_allowed and not geometry_cache_hit:
+            stage_cache.store(
+                "geometry",
+                geometry_fingerprint,
+                [
+                    {
+                        "page_index": result.page_index,
+                        "paths": result.page_job.path_document,
+                        "handwriting": result.handwriting,
+                        "simplification": result.simplification,
+                    }
+                    for result in page_results
+                ],
+            )
         for result in page_results:
             page_performance[result.page_index].values.update(
                 result.page_report["performance"]
@@ -817,7 +1060,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         pause_seconds = _non_negative(page_change, "pause_seconds")
         job = PlotterJob(
             page, page_jobs, list(dict.fromkeys(warnings)),
-            {"page_count": page_count, "pause_seconds": pause_seconds},
+            {
+                "page_count": page_count,
+                "pause_seconds": pause_seconds,
+                "artifact_level": options.artifact_level,
+            },
         )
         if page_count > 1:
             with timings.measure("gcode"):
@@ -829,8 +1076,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     allow_home=bool(_mapping(machine_config, "gcode").get("home", False)),
                 )
                 write_gcode_atomic(job_gcode, gcode_path)
-            with timings.measure("preview"):
-                _export_job_preview(job, output_dir / "plotter-preview.svg", preview)
+            if options.artifact_level != "minimal":
+                with timings.measure("preview"):
+                    _export_job_preview(job, output_dir / "plotter-preview.svg", preview)
             save_job_manifest(job, output_dir / "job.json")
         else:
             save_job_manifest(job, output_dir / "job.json")
@@ -867,8 +1115,23 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             "page": options.page, "size": options.size, "shaping": engine,
             "workers": {"requested": options.workers, "resolved": worker_count},
             "artifact_level": options.artifact_level,
+            "preset": options.preset,
+            "schema_versions": SCHEMA_VERSIONS,
+            "stages": stages.report(),
             "statistics": statistics, "motion": motion,
             "simplification": simplification_reports[0], "handwriting": handwriting,
+            "handwriting_profile": {
+                "variation": config_profiles.handwriting.variation,
+                "spacing": config_profiles.handwriting.spacing,
+                "connections": {
+                    **config_profiles.handwriting.connections,
+                    "enabled": joining_config.enabled,
+                    "mode": joining_config.mode,
+                },
+                "stroke_order": config_profiles.handwriting.stroke_order,
+                "routing": config_profiles.handwriting.routing,
+                "retrace": config_profiles.handwriting.retrace,
+            },
             "document_import": {
                 **paginated.import_statistics,
                 "layout_mode": document_layout_mode,
@@ -949,15 +1212,23 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     "misses": paginated.latex_statistics.get("cache_misses", 0),
                 },
                 "previews": preview_cache,
+                "stages": stage_cache.report(),
             },
             "outputs": {
-                "extracted": str(extracted_path),
-                "plotter_preview": str(output_dir / "plotter-preview.svg"),
                 "gcode": str(gcode_path),
                 "job": str(output_dir / "job.json"),
-                "document_structure": str(output_dir / "document-structure.json"),
             },
         }
+        if options.artifact_level != "minimal":
+            report["outputs"]["plotter_preview"] = str(
+                output_dir / "plotter-preview.svg"
+            )
+        if extracted_path is not None:
+            report["outputs"]["extracted"] = str(extracted_path)
+        if document_structure_path is not None:
+            report["outputs"]["document_structure"] = str(
+                document_structure_path
+            )
         if font_previews_enabled:
             report["outputs"]["font_preview"] = str(output_dir / "font-preview.svg")
         if font_previews_enabled and compiled is not None:
@@ -994,7 +1265,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             json.dumps(report, ensure_ascii=False, separators=(",", ":"))
         performance_report = timings.report()
         performance_report["pages"] = [
-            page_performance[index].report() for index in sorted(page_performance)
+            page_report["performance"] for page_report in page_reports
         ]
         report["performance"] = performance_report
         _write_report(report_path, report)
@@ -1209,6 +1480,9 @@ def _aggregate_handwriting(reports: list[dict[str, object]]) -> dict[str, object
         "pen_lifts_saved": sum(int(report.get("pen_lifts_saved", 0)) for report in reports),
         "cheap_rejected_pairs": sum(
             int(report.get("cheap_rejected_pairs", 0)) for report in reports
+        ),
+        "solver_calls": sum(
+            int(report.get("solver_calls", 0)) for report in reports
         ),
         "beziers_built": sum(int(report.get("beziers_built", 0)) for report in reports),
         "collision_queries": sum(

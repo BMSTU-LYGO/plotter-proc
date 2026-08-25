@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass, field, replace
-from functools import lru_cache
-from itertools import pairwise
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from plotter_processor.document_models import (
@@ -39,10 +37,32 @@ from plotter_processor.layout_models import (
     RectMM,
     available_intervals,
     choose_widest_interval,
-    intersection_area,
     rect_payload,
 )
-from plotter_processor.models import LayoutResult, PageSpec, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.layout_reporting import build_layout_statistics as _layout_statistics
+from plotter_processor.models import LayoutResult, PageSpec, Point
+from plotter_processor.page_layout_model import (
+    AnchoredPlacement,
+    LayoutModel,
+    PageLayout,
+    PageLayoutState,
+    PaginatedLayout,
+)
+from plotter_processor.page_text_flow import (
+    clear_blocking_zones as _clear_blocking_zones,
+)
+from plotter_processor.page_text_flow import (
+    layout_text_around_zones as _layout_text_around_zones,
+)
+from plotter_processor.page_text_flow import (
+    prune_expired_zones as _prune_expired_zones,
+)
+from plotter_processor.page_text_flow import (
+    text_width as _text_width,
+)
+from plotter_processor.page_text_flow import (
+    zone_payloads as _zone_payloads,
+)
 from plotter_processor.paragraph_layout import layout_paragraph
 from plotter_processor.performance import StageTimings
 from plotter_processor.shape_layout import arrow_strokes, line_strokes
@@ -55,57 +75,7 @@ from plotter_processor.text_decorations import build_underlines
 from plotter_processor.text_normalizer import normalize_text
 from plotter_processor.vector_layout import OVERFLOW_ERROR, layout_text
 
-
-@dataclass(slots=True)
-class PageLayout:
-    page_index: int
-    layout: LayoutResult
-    graphic_strokes: list[PlotterStroke]
-    source_element_ids: tuple[str, ...]
-    warnings: list[str]
-    metadata: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class PaginatedLayout:
-    pages: list[PageLayout]
-    warnings: list[str]
-    import_statistics: dict[str, object]
-    element_details: dict[str, dict[str, object]]
-    latex_statistics: dict[str, object] = field(default_factory=dict)
-    layout_statistics: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class AnchoredPlacement:
-    element_id: str
-    source_order: int
-    target_rect: RectMM
-    mapped_rect: RectMM | None
-    wrap_mode: str
-    anchor_type: str
-    warnings: list[str]
-    active: bool = False
-
-
-@dataclass(slots=True)
-class _PageState:
-    cursor_y: float
-    glyphs: list[PositionedGlyph] = field(default_factory=list)
-    graphics: list[PlotterStroke] = field(default_factory=list)
-    source_ids: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    text_fragments: list[str] = field(default_factory=list)
-    line_count: int = 0
-    formulas: list[FormulaInfo] = field(default_factory=list)
-    exclusion_zones: list[ExclusionZone] = field(default_factory=list)
-    line_boxes: list[RectMM] = field(default_factory=list)
-    placements: list[dict[str, object]] = field(default_factory=list)
-    table_fragments: list[dict[str, object]] = field(default_factory=list)
-
-    @property
-    def has_content(self) -> bool:
-        return bool(self.glyphs or self.graphics)
+_PageState = PageLayoutState
 
 
 def paginate_document(
@@ -138,7 +108,7 @@ def paginate_document(
     direction: str = "ltr",
     features: tuple[str, ...] = (),
     stage_timings: StageTimings | None = None,
-) -> PaginatedLayout:
+) -> LayoutModel:
     if document_layout_mode not in {"reflow", "hybrid", "preserve"}:
         raise ValueError(f"Unknown document layout mode: {document_layout_mode}")
     left = _number(margins, "left")
@@ -1649,14 +1619,6 @@ def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
     return value
 
 
-@lru_cache(maxsize=8192)
-def _text_width(text: str, font: LoadedFont, scale: float) -> float:
-    return sum(
-        font.advance_for_glyph(font.glyph_name_for_char(character)) * scale
-        for character in text
-    )
-
-
 def _merge_multiline_math_blocks(lines: list[str]) -> list[str]:
     merged: list[str] = []
     pending: list[str] = []
@@ -1733,240 +1695,3 @@ def _table_x(
     else:
         x = content.x + transform.scale_length(table.left_indent_mm or 0.0)
     return min(content.right - width, max(content.x, x)), alignment
-
-
-def _zone_payloads(zones: list[ExclusionZone]) -> list[dict[str, object]]:
-    return [
-        {
-            "element_id": zone.element_id,
-            "bbox": rect_payload(zone.padded_bbox),
-            "wrap_side": zone.wrap_side,
-        }
-        for zone in zones
-    ]
-
-
-def _clear_blocking_zones(
-    cursor_y: float,
-    height: float,
-    zones: list[ExclusionZone],
-) -> float:
-    current = cursor_y
-    while True:
-        blockers = [
-            zone.padded_bbox
-            for zone in zones
-            if not (current + height <= zone.padded_bbox.y or current >= zone.padded_bbox.bottom)
-        ]
-        if not blockers:
-            return current
-        current = max(box.bottom for box in blockers)
-
-
-def _prune_expired_zones(zones: list[ExclusionZone], cursor_y: float) -> None:
-    zones[:] = [zone for zone in zones if zone.padded_bbox.bottom > cursor_y + 1e-9]
-
-
-def _layout_text_around_zones(
-    paragraph: str,
-    state: _PageState,
-    font: LoadedFont,
-    page: PageSpec,
-    margins: Mapping[str, object],
-    size_options: Mapping[str, object],
-    content_bottom: float,
-    glyph_height: float,
-    line_advance: float,
-    scale: float,
-    add_source_id,
-    element_id: str,
-    finish_page,
-    *,
-    tab_spaces: int,
-    engine: str,
-    language: str,
-    script: str,
-    direction: str,
-    features: tuple[str, ...],
-) -> None:
-    remaining = paragraph.strip()
-    left = _number(margins, "left")
-    right = page.width_mm - _number(margins, "right")
-    while remaining:
-        if state.cursor_y + glyph_height > content_bottom + 1e-9:
-            state = finish_page()
-        state.exclusion_zones[:] = [
-            zone for zone in state.exclusion_zones
-            if zone.padded_bbox.bottom > state.cursor_y + 1e-9
-        ]
-        intervals = available_intervals(
-            left,
-            right,
-            state.cursor_y,
-            state.cursor_y + line_advance,
-            state.exclusion_zones,
-        )
-        interval = choose_widest_interval(intervals)
-        if interval is None:
-            state.cursor_y = _clear_blocking_zones(
-                state.cursor_y, line_advance, state.exclusion_zones
-            )
-            continue
-        line, remaining = _take_text_line(
-            remaining, interval[1] - interval[0], font, scale
-        )
-        local_margins = dict(margins)
-        local_margins.update({
-            "left": interval[0],
-            "right": page.width_mm - interval[1],
-            "top": 0.0,
-            "bottom": 0.0,
-        })
-        flowed = layout_text(
-            [line],
-            font,
-            PageSpec("flow-line", page.width_mm, 1_000_000.0),
-            local_margins,
-            size_options,
-            tab_spaces=tab_spaces,
-            engine=engine,
-            language=language,
-            script=script,
-            direction=direction,
-            features=features,
-        )
-        baseline = state.cursor_y + font.metrics.ascent * scale
-        global_line = state.line_count
-        for glyph in flowed.glyphs:
-            state.glyphs.append(replace(
-                glyph,
-                baseline_y_mm=baseline,
-                line_index=global_line,
-                glyph_index=len(state.glyphs),
-            ))
-        used_width = sum(glyph.advance_mm for glyph in flowed.glyphs)
-        state.line_boxes.append(RectMM(
-            interval[0], state.cursor_y, min(used_width, interval[1] - interval[0]), line_advance
-        ))
-        state.cursor_y += line_advance
-        state.line_count += 1
-        add_source_id(element_id)
-
-
-def _take_text_line(
-    text: str, max_width: float, font: LoadedFont, scale: float
-) -> tuple[str, str]:
-    words = text.split()
-    if not words:
-        return "", ""
-    current = words[0]
-    if _text_width(current, font, scale) > max_width:
-        split = 1
-        while split < len(current) and _text_width(current[: split + 1], font, scale) <= max_width:
-            split += 1
-        return current[:split], " ".join([current[split:], *words[1:]]).strip()
-    consumed = 1
-    while consumed < len(words):
-        candidate = f"{current} {words[consumed]}"
-        if _text_width(candidate, font, scale) > max_width:
-            break
-        current = candidate
-        consumed += 1
-    return current, " ".join(words[consumed:])
-
-
-def _layout_statistics(
-    mode: str,
-    placements: list[dict[str, object]],
-    line_boxes: list[dict[str, object]],
-    trace_records: list[dict[str, object]],
-    line_advance: float,
-) -> dict[str, object]:
-    graphics = [
-        item
-        for item in placements
-        if item.get("element_type") in {"raster-image", "pdf-vector"}
-    ]
-    displacements = [
-        float(value)
-        for item in graphics
-        if (value := item.get("center_displacement_mm")) is not None
-    ]
-    scales = [float(item.get("scale", 1.0)) for item in graphics]
-    overlaps = 0.0
-    for item in graphics:
-        image = _payload_rect(item.get("output_bbox_mm"))
-        if image is None:
-            continue
-        for line in line_boxes:
-            if int(line.get("page_index", -1)) != int(item.get("target_page_index", -2)):
-                continue
-            text = _payload_rect(line.get("bbox"))
-            if text is not None:
-                overlaps += intersection_area(image, text)
-    threshold = 1.0 if mode == "preserve" else 10.0
-    unexplained_gaps: list[float] = []
-    lines_by_page: dict[int, list[RectMM]] = {}
-    for item in line_boxes:
-        rect = _payload_rect(item.get("bbox"))
-        if rect is not None:
-            lines_by_page.setdefault(int(item.get("page_index", -1)), []).append(rect)
-    for page_index, page_lines in lines_by_page.items():
-        ordered = sorted(page_lines, key=lambda rect: (rect.y, rect.x))
-        for previous, following in pairwise(ordered):
-            gap = following.y - previous.bottom
-            if gap <= 2.5 * line_advance + 1e-9:
-                continue
-            gap_top = previous.bottom
-            gap_bottom = following.y
-            explained_by_graphic = any(
-                int(item.get("target_page_index", -2)) == page_index
-                and (rect := _payload_rect(item.get("output_bbox_mm"))) is not None
-                and rect.bottom > gap_top
-                and rect.y < gap_bottom
-                for item in placements
-            )
-            explained_by_flow_event = any(
-                int(item.get("page_index", -2)) == page_index
-                and str(item.get("placement_reason")) in {
-                    "explicit_blank_paragraph",
-                    "configured_block_spacing",
-                    "latex_in_flow",
-                    "activated_at_source_order",
-                }
-                and float(item.get("cursor_y_before", 0.0)) < gap_bottom
-                and float(item.get("cursor_y_after", 0.0)) > gap_top
-                for item in trace_records
-            )
-            if not explained_by_graphic and not explained_by_flow_event:
-                unexplained_gaps.append(gap)
-    return {
-        "mode": mode,
-        "images": len(graphics),
-        "images_with_source_bbox": sum(
-            item.get("source_bbox_mm") is not None for item in graphics
-        ),
-        "images_wrapped": sum(item.get("wrap_mode") == "square" for item in graphics),
-        "images_top_bottom": sum(
-            item.get("wrap_mode") == "top_bottom" for item in graphics
-        ),
-        "position_preserved": sum(
-            item.get("center_displacement_mm") is not None
-            and float(item["center_displacement_mm"]) <= threshold
-            for item in graphics
-        ),
-        "position_fallbacks": sum(bool(item.get("fallbacks")) for item in graphics),
-        "mean_center_displacement_mm": round(
-            sum(displacements) / len(displacements), 6
-        ) if displacements else None,
-        "max_center_displacement_mm": round(max(displacements), 6) if displacements else None,
-        "mean_scale_factor": round(sum(scales) / len(scales), 6) if scales else None,
-        "overlaps_remaining": round(overlaps, 6),
-        "page_overflow_area_mm2": round(
-            sum(float(item.get("page_overflow_area_mm2", 0.0)) for item in graphics), 6
-        ),
-        "max_unexplained_vertical_gap_mm": round(max(unexplained_gaps), 6)
-        if unexplained_gaps else 0.0,
-        "unexplained_vertical_gap_count": len(unexplained_gaps),
-        "elements": placements,
-    }

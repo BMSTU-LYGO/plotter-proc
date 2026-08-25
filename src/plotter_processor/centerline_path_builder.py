@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 
 from plotter_processor.centerline_font.models import (
     CenterlineGlyph,
-    CompiledCenterlineFont,
+    CompiledPlotterFont,
 )
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.performance import HotspotTimings
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +16,7 @@ class _LocalStrokeTemplate:
     id: int
     points: tuple[Point, ...]
     closed: bool
+    preserve_order: bool = False
 
 
 @dataclass(slots=True)
@@ -45,11 +48,12 @@ class CenterlinePathTemplateCache:
 
 
 def build_centerline_paths(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     glyphs: list[PositionedGlyph],
     page: PageSpec,
     *,
     template_cache: CenterlinePathTemplateCache | None = None,
+    hotspots: HotspotTimings | None = None,
 ) -> PathDocument:
     cache = template_cache or CenterlinePathTemplateCache()
     strokes: list[PlotterStroke] = []
@@ -61,26 +65,30 @@ def build_centerline_paths(
                 f'Centerline cache is missing glyph "{positioned.char}" '
                 f"(U+{positioned.codepoint:04X})"
             ) from error
-        templates = _local_templates(compiled_font, glyph, positioned, cache)
-        positioned_points = _positioned_points(
-            compiled_font, positioned, templates, cache
-        )
-        for template, cached_points in zip(templates, positioned_points, strict=True):
-            points = list(cached_points)
-            strokes.append(
-                PlotterStroke(
-                    id=len(strokes),
-                    points=points,
-                    closed=template.closed,
-                    glyph_index=positioned.glyph_index,
-                    char=positioned.char,
-                    contour_index=template.id,
-                    source_glyph_indices=(positioned.glyph_index,),
-                    source_chars=positioned.char,
-                    segment_types=("glyph",),
-                    word_index=positioned.word_index,
-                )
+        with hotspots.measure("build_paths.template_lookup") if hotspots else nullcontext():
+            templates = _local_templates(compiled_font, glyph, positioned, cache)
+        with hotspots.measure("build_paths.transform") if hotspots else nullcontext():
+            positioned_points = _positioned_points(
+                compiled_font, positioned, templates, cache
             )
+        with hotspots.measure("build_paths.stroke_materialization") if hotspots else nullcontext():
+            for template, cached_points in zip(templates, positioned_points, strict=True):
+                points = list(cached_points)
+                strokes.append(
+                    PlotterStroke(
+                        id=len(strokes),
+                        points=points,
+                        closed=template.closed,
+                        glyph_index=positioned.glyph_index,
+                        char=positioned.char,
+                        contour_index=template.id,
+                        source_glyph_indices=(positioned.glyph_index,),
+                        source_chars=positioned.char,
+                        segment_types=("glyph",),
+                        word_index=positioned.word_index,
+                        preserve_order=template.preserve_order,
+                    )
+                )
     if not strokes:
         raise ValueError("Font processing produced no drawable paths")
     return PathDocument(
@@ -92,7 +100,7 @@ def build_centerline_paths(
             "coordinate_system": "page-mm-top-left",
             "pipeline": "ttf-centerline",
             "centerline_format": "plotter-centerline-font",
-            "centerline_version": 2,
+            "centerline_version": compiled_font.schema_version,
             "routing_strategy": "one_stroke_per_component",
             "font_sha256": compiled_font.font_sha256,
         },
@@ -100,7 +108,7 @@ def build_centerline_paths(
 
 
 def _local_templates(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     glyph: CenterlineGlyph,
     positioned: PositionedGlyph,
     cache: CenterlinePathTemplateCache,
@@ -116,7 +124,17 @@ def _local_templates(
         return cached
     cache.template_cache_misses += 1
     templates: list[_LocalStrokeTemplate] = []
-    for centerline in glyph.strokes:
+    metadata_by_stroke = {item.stroke_id: item for item in glyph.stroke_metadata}
+    ordered_strokes = sorted(
+        enumerate(glyph.strokes),
+        key=lambda item: (
+            metadata_by_stroke.get(item[1].id).recommended_order
+            if metadata_by_stroke.get(item[1].id) is not None
+            and metadata_by_stroke[item[1].id].recommended_order is not None
+            else item[0]
+        ),
+    )
+    for _, centerline in ordered_strokes:
         points = _dedupe(
             [
                 Point(
@@ -129,8 +147,16 @@ def _local_templates(
         cache.local_points_built += len(points)
         if len(points) < (3 if centerline.closed else 2):
             continue
+        metadata = metadata_by_stroke.get(centerline.id)
+        if metadata is not None and metadata.recommended_direction == "reverse":
+            points.reverse()
         templates.append(
-            _LocalStrokeTemplate(centerline.id, tuple(points), centerline.closed)
+            _LocalStrokeTemplate(
+                centerline.id,
+                tuple(points),
+                centerline.closed,
+                metadata is not None and metadata.recommended_order is not None,
+            )
         )
     result = tuple(templates)
     cache.entries[key] = result
@@ -138,7 +164,7 @@ def _local_templates(
 
 
 def _positioned_points(
-    compiled_font: CompiledCenterlineFont,
+    compiled_font: CompiledPlotterFont,
     positioned: PositionedGlyph,
     templates: tuple[_LocalStrokeTemplate, ...],
     cache: CenterlinePathTemplateCache,

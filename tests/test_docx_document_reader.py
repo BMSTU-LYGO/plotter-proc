@@ -34,6 +34,7 @@ def test_docx_inline_image_preserves_run_order_and_table_image(tmp_path: Path) -
     result = read_structured_document(source, assets_dir=tmp_path / "assets")
     elements = result.pages[0].elements
 
+    assert result.metadata.source_format == "docx"
     assert isinstance(elements[0], SourceTextElement)
     assert isinstance(elements[1], SourceRasterImageElement)
     assert isinstance(elements[2], SourceTextElement)

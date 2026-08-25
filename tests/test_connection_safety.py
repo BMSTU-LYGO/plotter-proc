@@ -1,9 +1,15 @@
+import math
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from plotter_processor.handwriting import JoiningConfig, load_joining_config, route_words
+from plotter_processor.handwriting import (
+    JoiningConfig,
+    _curve_visual_metrics,
+    load_joining_config,
+    route_words,
+)
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
 
 
@@ -98,6 +104,76 @@ def test_tangent_mismatch_keeps_pen_lift() -> None:
     )
     assert metrics["accepted"] == 0
     assert metrics["rejected_tangent"] == 1
+
+
+def test_connector_starts_and_ends_along_glyph_tangents() -> None:
+    document, glyphs = _pair(
+        [Point(0, 10), Point(1.5, 10.4), Point(2, 10.8)],
+        [Point(2.8, 10.2), Point(3.5, 10), Point(4, 10)],
+    )
+    result, metrics = route_words(
+        document,
+        glyphs,
+        _config(
+            max_join_angle_deg=180,
+            min_corridor_inside_ratio=0,
+            collision_clearance_mm=0.001,
+        ),
+        collect_debug=True,
+    )
+
+    assert metrics["accepted"] == 1
+    assert metrics["candidate_variants_evaluated"] == 3
+    [candidate] = result.metadata["connection_debug"]
+    curve = [Point(*point) for point in candidate["curve"]]
+    left_tangent = Point(0.5, 0.4)
+    right_tangent = Point(0.7, -0.2)
+
+    assert _direction_cosine(curve[0], curve[1], left_tangent) > 0.85
+    assert _direction_cosine(curve[-2], curve[-1], right_tangent) > 0.85
+    assert candidate["curve_length_mm"] > 0
+    assert candidate["curvature_deg"] > 0
+    assert candidate["retrace_mm"] == 0
+
+
+def test_visual_cost_metrics_prefer_short_smooth_forward_curve() -> None:
+    smooth = [Point(0, 0), Point(1, 0.1), Point(2, 0)]
+    bent = [Point(0, 0), Point(1, 1), Point(0.8, -1), Point(2, 0)]
+
+    smooth_length, smooth_curvature, smooth_retrace = _curve_visual_metrics(smooth)
+    bent_length, bent_curvature, bent_retrace = _curve_visual_metrics(bent)
+
+    assert smooth_length < bent_length
+    assert smooth_curvature < bent_curvature
+    assert smooth_retrace == 0
+    assert bent_retrace > 0
+
+
+def test_russian_pair_rule_reaches_kerning_and_connector_solver() -> None:
+    document, glyphs = _pair(
+        [Point(0, 10), Point(2, 10)],
+        [Point(2.7, 10), Point(4, 10)],
+        left_char="с",
+        right_char="т",
+    )
+
+    result, metrics = route_words(
+        document, glyphs, _config(), collect_debug=True
+    )
+
+    assert metrics["kerning_pairs_adjusted"] == 1
+    assert metrics["pair_rules_applied"] >= 1
+    assert metrics["connector_pair_rules_applied"] == 1
+    assert result.metadata["handwriting_kerning_offsets"]["1"] < 0
+
+
+def _direction_cosine(first: Point, second: Point, expected: Point) -> float:
+    actual_x, actual_y = second.x - first.x, second.y - first.y
+    actual_length = math.hypot(actual_x, actual_y)
+    expected_length = math.hypot(expected.x, expected.y)
+    return (actual_x * expected.x + actual_y * expected.y) / (
+        actual_length * expected_length
+    )
 
 
 def test_collision_with_secondary_stroke_keeps_pen_lift() -> None:
@@ -214,6 +290,8 @@ def test_debug_mode_keeps_full_geometry_without_changing_connection_result() -> 
         assert fast_metrics[key] == debug_metrics[key]
     assert fast_metrics["collision_queries"] == 0
     assert debug_metrics["collision_queries"] == 1
+    assert fast_metrics["solver_calls"] == 0
+    assert debug_metrics["solver_calls"] == 1
 
 
 def test_problem_word_corpus_has_required_coverage() -> None:
@@ -233,12 +311,20 @@ def test_canonical_connection_config_loads_corridor_and_collision_values() -> No
                 "min_corridor_inside_ratio": 0.8,
                 "outside_ink_margin_mm": 0.25,
                 "collision_clearance_mm": 0.12,
+                "pair_rules": {
+                    "ст": {
+                        "spacing_adjustment_mm": -0.09,
+                        "handle_scale": 1.1,
+                    }
+                },
             }
         }
     )
     assert config.min_corridor_inside_ratio == 0.8
     assert config.outside_ink_margin_mm == 0.25
     assert config.collision_clearance_mm == 0.12
+    assert config.pair_rules[0].pair == "ст"
+    assert config.pair_rules[0].spacing_adjustment_mm == -0.09
 
 
 def test_legacy_joining_config_is_only_a_warned_compatibility_alias() -> None:

@@ -6,6 +6,7 @@ from plotter_processor.latex_renderer import MathTextRenderer
 from plotter_processor.performance import (
     GLYPH_TIMING_STAGES,
     FunctionProfiler,
+    HotspotTimings,
     PagePerformance,
     StageTimings,
     collect_glyph_performance,
@@ -86,6 +87,23 @@ def test_page_performance_reports_required_fields() -> None:
     assert report["stroke_count_before"] == 4
     assert report["point_count_before"] == 23
     assert set(PagePerformance.TIMINGS) <= report.keys()
+
+
+def test_hotspot_timings_are_opt_in_and_report_calls() -> None:
+    disabled = PagePerformance(page=1, glyph_count=2)
+    with disabled.hotspots.measure("build_paths.glyph_draw"):
+        sum(range(10))
+    assert "hotspots" not in disabled.report()
+
+    enabled = PagePerformance(page=1, glyph_count=2, collect_hotspots=True)
+    with enabled.hotspots.measure("build_paths.glyph_draw"):
+        sum(range(10))
+    enabled.hotspots.record("simplification.rdp", 1.25)
+
+    report = enabled.report()
+    assert report["hotspots"]["build_paths.glyph_draw"]["calls"] == 1
+    assert report["hotspots"]["simplification.rdp"]["total_ms"] == 1.25
+    assert isinstance(enabled.hotspots, HotspotTimings)
 
 
 def test_glyph_performance_reports_every_compiler_stage() -> None:

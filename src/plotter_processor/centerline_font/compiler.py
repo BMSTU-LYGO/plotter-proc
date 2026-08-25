@@ -23,7 +23,11 @@ from plotter_processor.centerline_font.edge_geometry import build_smoothed_edge_
 from plotter_processor.centerline_font.glyph_patch import apply_glyph_patch, load_glyph_patch
 from plotter_processor.centerline_font.glyph_renderer import render_glyph
 from plotter_processor.centerline_font.mask_processor import build_ink_mask
-from plotter_processor.centerline_font.models import CenterlineGlyph, CompiledCenterlineFont
+from plotter_processor.centerline_font.models import (
+    CenterlineGlyph,
+    CompiledCenterlineFont,
+    compiled_glyph_metadata,
+)
 from plotter_processor.centerline_font.quality import score_quality, validate_strokes
 from plotter_processor.centerline_font.route_assembler import assemble_component_route
 from plotter_processor.centerline_font.route_planner import plan_glyph_routes
@@ -96,10 +100,9 @@ def compile_centerline_font(
         missing = requested if force else [char for char in requested if char not in compiled.glyphs]
         compiled.cache_hits = 0 if force else len(requested) - len(missing)
         compiled.cache_misses = len(missing)
-        cached_chars = set(manifest["glyphs"]) if manifest is not None else set()
+        manifest_chars = set(manifest["glyphs"]) if manifest is not None else set()
+        cached_chars = set(manifest_chars)
         cached_chars.update(compiled.glyphs)
-        if manifest is None or missing:
-            write_shard_manifest_atomic(target, identity=identity, glyphs=cached_chars)
         worker_count = resolve_centerline_worker_count(workers, len(missing))
         results: dict[str, CenterlineGlyph] = {}
         if worker_count == 1:
@@ -137,24 +140,22 @@ def compile_centerline_font(
                         compiled, results[char], target, serialized_config
                     )
                     cached_chars.add(char)
-                    write_shard_manifest_atomic(
-                        target, identity=identity, glyphs=cached_chars
-                    )
         for char in sorted(results, key=ord):
             glyph = results[char]
             compiled.glyphs[char] = glyph
             if worker_count == 1:
                 _write_glyph_shard(compiled, glyph, target, serialized_config)
                 cached_chars.add(char)
-                write_shard_manifest_atomic(
-                    target, identity=identity, glyphs=cached_chars
-                )
             if glyph.quality.get("needs_review"):
                 warning = f'Glyph "{char}" needs centerline review'
                 if warning not in compiled.warnings:
                     compiled.warnings.append(warning)
                 if strict_quality or config.fail_on_low_quality:
                     raise ValueError(f'Centerline quality gate failed for "{char}"')
+        if manifest is None or missing or cached_chars != manifest_chars:
+            write_shard_manifest_atomic(
+                target, identity=identity, glyphs=cached_chars
+            )
         if strict_quality or config.fail_on_low_quality:
             failed = [char for char in requested if compiled.glyphs[char].quality.get("needs_review")]
             if failed:
@@ -165,8 +166,9 @@ def compile_centerline_font(
         for char in requested:
             if char in patches:
                 compiled.glyphs[char] = apply_glyph_patch(compiled.glyphs[char], patches[char])
-    if manifest is None or missing:
+    if manifest is None:
         write_centerline_font_atomic(compiled, target, config=serialized_config)
+    if manifest is None or missing:
         write_cache_metadata_atomic(
             target,
             font_hash=digest,
@@ -319,6 +321,7 @@ def _compile_glyph(
             min_coverage=config.min_mask_coverage,
             max_extra=config.max_reconstruction_extra,
             max_endpoint_factor=config.max_endpoint_factor,
+            distance_map=selected.distance,
         )
         quality.update(routing_metrics(edges, routes))
     selected_metrics = selected.candidate_metrics[selected.method]
@@ -330,6 +333,8 @@ def _compile_glyph(
             "candidate_score_components": selected.candidate_score_components,
             "candidate_fast_first": selected.fast_first,
             "candidate_confidence_checks": selected.confidence_checks,
+            "candidate_methods_evaluated": selected.methods_evaluated,
+            "candidate_methods_skipped": selected.methods_skipped,
             "graph_nodes": len(nodes),
             "junctions": sum(node.kind == "junction" for node in nodes),
             "short_edges": int(selected_metrics["short_edge_count"]),
@@ -362,14 +367,21 @@ def _compile_glyph(
             quality,
             candidate_skeletons=selected.candidate_skeletons,
         )
+    compiled_strokes = tuple(strokes)
+    entry_anchor, exit_anchor, stroke_metadata = compiled_glyph_metadata(
+        compiled_strokes, char=char
+    )
     return CenterlineGlyph(
         char,
         ord(char),
         raster.glyph_name,
         raster.advance_font_units,
-        tuple(strokes),
+        compiled_strokes,
         tuple(warnings + quality_warnings),
         quality,
+        entry_anchor,
+        exit_anchor,
+        stroke_metadata,
     )
 
 

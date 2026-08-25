@@ -4,6 +4,7 @@ from plotter_processor.centerline_font.models import (
     CenterlineGlyph,
     CenterlineStroke,
     CompiledCenterlineFont,
+    compiled_glyph_metadata,
 )
 from plotter_processor.centerline_path_builder import (
     CenterlinePathTemplateCache,
@@ -116,3 +117,29 @@ def test_reuses_immutable_points_for_identically_positioned_glyphs() -> None:
     assert cache.positioned_template_misses == 1
     assert results[0].strokes[0].points is not results[1].strokes[0].points
     assert results[0].strokes[0].points[0] is results[1].strokes[0].points[0]
+
+
+def test_materializes_recommended_cyrillic_stroke_order_and_direction() -> None:
+    right = CenterlineStroke(5, (Point(20, 0), Point(10, 0)), False)
+    left = CenterlineStroke(2, (Point(0, 0), Point(5, -10)), False)
+    entry, exit_anchor, metadata = compiled_glyph_metadata((right, left), char="ы")
+    glyph = CenterlineGlyph(
+        "ы",
+        ord("ы"),
+        "uni044B",
+        600,
+        (right, left),
+        entry_anchor=entry,
+        exit_anchor=exit_anchor,
+        stroke_metadata=metadata,
+    )
+    font = CompiledCenterlineFont(
+        Path("font.ttf"), "a" * 64, 1000, 800, -200, 0, {"ы": glyph}
+    )
+    positioned = PositionedGlyph("ы", ord("ы"), "uni044B", 10, 20, 3, 0.01, 0, 0)
+
+    paths = build_centerline_paths(font, [positioned], PageSpec("A5", 148, 210))
+
+    assert [stroke.contour_index for stroke in paths.strokes] == [2, 5]
+    assert paths.strokes[0].points == [Point(10, 20), Point(10.05, 20.1)]
+    assert paths.strokes[1].points == [Point(10.1, 20), Point(10.2, 20)]

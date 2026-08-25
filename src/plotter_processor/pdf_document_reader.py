@@ -9,6 +9,7 @@ import pymupdf
 from PIL import Image, UnidentifiedImageError
 
 from plotter_processor.document_models import (
+    DocumentMetadata,
     SourceArrowElement,
     SourceBBox,
     SourceDocument,
@@ -321,7 +322,12 @@ def read_pdf_document(
             ))
     finally:
         document.close()
-    return SourceDocument(path, tuple(pages), tuple(dict.fromkeys(warnings)))
+    return SourceDocument(
+        path,
+        tuple(pages),
+        tuple(dict.fromkeys(warnings)),
+        metadata=DocumentMetadata(source_format="pdf"),
+    )
 
 
 def _pdf_paragraph_model(

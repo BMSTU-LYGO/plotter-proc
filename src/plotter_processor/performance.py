@@ -83,6 +83,47 @@ class StageTimings:
         metric.max_ms = max(metric.max_ms, elapsed_ms)
 
 
+class HotspotTimings:
+    """Optional fine-grained timings used by benchmarks and debug runs."""
+
+    def __init__(self, enabled: bool = False) -> None:
+        self.enabled = enabled
+        self.metrics: dict[str, StageMetric] = {}
+
+    @contextmanager
+    def measure(self, hotspot: str) -> Iterator[None]:
+        if not self.enabled:
+            yield
+            return
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            elapsed = (time.perf_counter() - started) * 1000.0
+            metric = self.metrics.setdefault(hotspot, StageMetric())
+            metric.calls += 1
+            metric.total_ms += elapsed
+            metric.max_ms = max(metric.max_ms, elapsed)
+
+    def report(self) -> dict[str, dict[str, int | float]]:
+        return {
+            name: {
+                "calls": metric.calls,
+                "total_ms": round(metric.total_ms, 3),
+                "max_ms": round(metric.max_ms, 3),
+            }
+            for name, metric in sorted(self.metrics.items())
+        }
+
+    def record(self, hotspot: str, elapsed_ms: float) -> None:
+        if not self.enabled:
+            return
+        metric = self.metrics.setdefault(hotspot, StageMetric())
+        metric.calls += 1
+        metric.total_ms += elapsed_ms
+        metric.max_ms = max(metric.max_ms, elapsed_ms)
+
+
 class FunctionProfiler:
     """Optional stdlib profiler for a whole run or one repeated pipeline stage."""
 
@@ -166,7 +207,10 @@ class PagePerformance:
         "build_positioned_template_misses",
     )
 
-    def __init__(self, page: int, glyph_count: int) -> None:
+    def __init__(
+        self, page: int, glyph_count: int, *, collect_hotspots: bool = False
+    ) -> None:
+        self.hotspots = HotspotTimings(collect_hotspots)
         self.values: dict[str, int | float] = {
             "page": page,
             "glyph_count": glyph_count,
@@ -191,10 +235,13 @@ class PagePerformance:
             ) * 1000.0
 
     def report(self) -> dict[str, int | float]:
-        return {
+        report: dict[str, object] = {
             key: round(value, 3) if isinstance(value, float) else value
             for key, value in self.values.items()
         }
+        if self.hotspots.enabled:
+            report["hotspots"] = self.hotspots.report()
+        return report
 
 
 GLYPH_TIMING_STAGES = (

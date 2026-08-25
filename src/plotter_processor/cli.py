@@ -26,10 +26,32 @@ from plotter_processor.job_comparison import compare_jobs
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.path_builder import load_path_document
 from plotter_processor.pipeline import PipelineOptions, run_pipeline
+from plotter_processor.presets import resolve_preset
 from plotter_processor.unicode_coverage import inspect_coverage
 
 
+class _ExplicitValue(argparse.Action):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        setattr(namespace, self.dest, values)
+        setattr(namespace, f"{self.dest}_explicit", True)
+
+
 def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
+    preset = resolve_preset(
+        args.preset,
+        font_mode=args.font_mode if args.font_mode_explicit else None,
+        connections=args.connections,
+        workers=args.workers if args.workers_explicit else None,
+        artifact_level=args.artifacts if args.artifacts_explicit else None,
+        strict_centerline_quality=args.strict_centerline_quality,
+    )
     return PipelineOptions(
         input_path=args.input,
         font_path=args.font,
@@ -39,10 +61,10 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         machine_config_path=args.machine_config,
         output_dir=args.output_dir,
         optimize_travel=not args.no_optimize_travel,
-        font_mode=args.font_mode,
+        font_mode=preset.font_mode,
         centerline_cache_path=args.centerline_cache,
         force_centerline_rebuild=args.force_centerline_rebuild,
-        strict_centerline_quality=args.strict_centerline_quality,
+        strict_centerline_quality=preset.strict_centerline_quality,
         motion_profile=args.motion_profile,
         latex=args.latex,
         latex_debug=args.latex_debug,
@@ -52,7 +74,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         math_debug=args.math_debug,
         join_writing=args.join_writing,
         layout_engine=args.layout_engine,
-        connections=args.connections,
+        connections=preset.connections,
         connection_debug=args.connection_debug,
         images=args.images,
         image_debug=args.image_debug,
@@ -64,9 +86,10 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         page_numbers=args.page_numbers,
         page_pause_seconds=args.page_pause_seconds,
         park_corner=args.park_corner,
-        workers=args.workers,
-        centerline_workers=args.centerline_workers,
-        artifact_level=args.artifacts,
+        workers=preset.workers,
+        artifact_level=preset.artifact_level,
+        stage_cache_path=args.stage_cache,
+        preset=preset.name,
     )
 
 
@@ -208,7 +231,7 @@ def _compile_centerline(args: argparse.Namespace) -> int:
             force=args.force,
             strict_quality=args.strict_quality,
             debug_dir=args.debug_dir,
-            workers=args.centerline_workers,
+            workers=args.workers,
         )
         preview = args.preview or output.with_suffix(".svg")
         export_centerline_font_preview(compiled, sorted(chars, key=ord), preview)
@@ -281,9 +304,16 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
     parser.add_argument("--machine-config", type=Path, default=Path("configs/machine.yaml"))
     parser.add_argument("--output-dir", type=Path, default=Path("build"))
+    parser.add_argument("--preset", choices=("fast", "quality", "debug"))
     parser.add_argument("--no-optimize-travel", action="store_true")
-    parser.add_argument("--font-mode", choices=("outline", "centerline"), default="outline")
+    parser.add_argument(
+        "--font-mode",
+        choices=("outline", "centerline"),
+        default="outline",
+        action=_ExplicitValue,
+    )
     parser.add_argument("--centerline-cache", type=Path)
+    parser.add_argument("--stage-cache", type=Path)
     parser.add_argument("--force-centerline-rebuild", action="store_true")
     parser.add_argument("--strict-centerline-quality", action="store_true")
     parser.add_argument("--motion-profile", choices=("safe", "balanced", "fast"))
@@ -316,25 +346,28 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--math-debug", action="store_true")
     parser.add_argument(
         "--workers",
-        default="auto",
-        type=_workers_value,
-        metavar="auto|N",
-        help="Page worker processes (default: auto, capped at 4).",
-    )
-    parser.add_argument(
         "--centerline-workers",
+        dest="workers",
         default="auto",
         type=_workers_value,
+        action=_ExplicitValue,
         metavar="auto|N",
-        help="Cold centerline glyph worker processes (default: auto, capped at 4).",
+        help="Page and centerline worker processes (default: auto, capped at 4).",
     )
     parser.add_argument(
         "--artifacts",
-        choices=("normal", "debug", "audit"),
+        choices=("minimal", "normal", "debug", "audit"),
         default="normal",
-        help="Artifact level (default: normal).",
+        action=_ExplicitValue,
+        help="Artifact level (default: normal; explicit value overrides preset).",
     )
-    parser.set_defaults(paginate=None, page_numbers=None)
+    parser.set_defaults(
+        paginate=None,
+        page_numbers=None,
+        font_mode_explicit=False,
+        workers_explicit=False,
+        artifacts_explicit=False,
+    )
 
 
 def _workers_value(value: str) -> str | int:
@@ -388,7 +421,9 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--force", action="store_true")
     compile_parser.add_argument("--strict-quality", action="store_true")
     compile_parser.add_argument(
+        "--workers",
         "--centerline-workers",
+        dest="workers",
         default="auto",
         type=_workers_value,
         metavar="auto|N",

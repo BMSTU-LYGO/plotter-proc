@@ -1,11 +1,18 @@
 from dataclasses import replace
 from pathlib import Path
 
+from plotter_processor import handwriting
 from plotter_processor.handwriting import (
     JoiningConfig,
+    PairConnectionRule,
     VariationConfig,
+    _collision_points,
+    _ConnectionCounters,
     _SegmentObstacleIndex,
+    apply_handwriting_kerning,
     apply_variation,
+    build_variation_context,
+    connection_pair_rule,
     export_handwriting_debug,
     route_words,
 )
@@ -83,6 +90,229 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
     assert 'id="travel"' in svg
 
 
+def test_variation_context_is_deterministic_and_seeded() -> None:
+    glyphs = [_glyph("а", index, float(index)) for index in range(4)]
+    first = build_variation_context(
+        glyphs, VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    )
+    repeated = build_variation_context(
+        glyphs, VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    )
+    changed = build_variation_context(
+        glyphs, VariationConfig(True, 8, 0.1, 1, 2, 0.1)
+    )
+
+    assert first == repeated
+    assert first != changed
+    variants = [first.for_glyph(index).glyph_variant for index in range(4)]
+    assert len(set(variants)) == 3
+    assert variants[0] == variants[3]
+
+
+def test_repeated_glyphs_receive_readable_local_variants() -> None:
+    glyphs = [_glyph("а", index, float(index * 2)) for index in range(4)]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [Point(glyph.x_mm, 9), Point(glyph.x_mm + 1, 11)],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    config = VariationConfig(True, 7, 0, 0, 0, 0)
+
+    result = apply_variation(document, glyphs, config)
+    relative_shapes = {
+        tuple((round(point.x - glyph.x_mm, 4), round(point.y - 10, 4)) for point in stroke.points)
+        for glyph, stroke in zip(glyphs, result.strokes, strict=True)
+    }
+
+    assert len(relative_shapes) == 3
+    variants = result.metadata["glyph_variants"]
+    assert len(set(variants.values())) == 3
+    assert variants["0"] == variants["3"]
+
+
+def test_glyph_scale_variation_is_independent_small_and_post_layout() -> None:
+    glyphs = [_glyph("а", index, float(index * 3)) for index in range(8)]
+    original_positions = [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs]
+
+    context = build_variation_context(
+        glyphs, VariationConfig(True, 11, 0, 0, 20, 0)
+    )
+
+    scales = [context.for_glyph(index) for index in range(len(glyphs))]
+    assert all(0.97 <= item.scale_x <= 1.03 for item in scales)
+    assert all(0.97 <= item.scale_y <= 1.03 for item in scales)
+    assert any(item.scale_x != item.scale_y for item in scales)
+    assert [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs] == original_positions
+
+
+def test_rotation_and_baseline_variation_stay_inside_safe_limits() -> None:
+    glyphs = [
+        _glyph("а", index, float(index * 2), line=index // 4) for index in range(8)
+    ]
+    glyphs = [
+        replace(glyph, baseline_y_mm=10.0 + glyph.line_index * 4.0)
+        for glyph in glyphs
+    ]
+    context = build_variation_context(
+        glyphs, VariationConfig(True, 21, 5.0, 10.0, 0, 0)
+    )
+
+    variations = context.glyphs.values()
+    assert all(abs(item.rotation_deg) <= 2.0 for item in variations)
+    assert all(abs(item.baseline_offset_mm) <= 0.12 for item in variations)
+
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [
+                    Point(glyph.x_mm, glyph.baseline_y_mm - 1),
+                    Point(glyph.x_mm + 1, glyph.baseline_y_mm + 1),
+                ],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    result = apply_variation(
+        document, glyphs, VariationConfig(True, 21, 5.0, 10.0, 0, 0)
+    )
+    first_line = [point.y for stroke in result.strokes[:4] for point in stroke.points]
+    second_line = [point.y for stroke in result.strokes[4:] for point in stroke.points]
+
+    assert max(first_line) < min(second_line)
+
+
+def test_word_variation_is_shared_and_glyph_variation_is_weaker() -> None:
+    glyphs = [
+        replace(_glyph(char, index, float(index * 2)), word_index=word)
+        for index, (char, word) in enumerate(
+            [("м", 0), ("а", 0), ("м", 0), ("а", 1), ("м", 1), ("а", 1)]
+        )
+    ]
+    config = VariationConfig(True, 31, 0.15, 1.0, 2.0, 0.1)
+
+    context = build_variation_context(glyphs, config)
+
+    assert set(context.words) == {(0, 0), (0, 1)}
+    first_word = context.words[(0, 0)]
+    second_word = context.words[(0, 1)]
+    assert first_word != second_word
+    assert abs(first_word.rotation_deg) <= 0.4
+    assert abs(first_word.scale_x_delta) <= 0.008
+    assert abs(first_word.baseline_offset_mm) <= 0.06
+
+
+def test_line_variation_is_correlated_bounded_and_does_not_reflow() -> None:
+    glyphs = [
+        replace(
+            _glyph(char, index, float(column * 2), line=line),
+            baseline_y_mm=8.0 + line * 4.0,
+            word_index=0,
+        )
+        for line in range(3)
+        for column, (index, char) in enumerate(
+            ((line * 3, "м"), (line * 3 + 1, "а"), (line * 3 + 2, "м"))
+        )
+    ]
+    config = VariationConfig(True, 41, 0.15, 1.0, 2.0, 0)
+    context = build_variation_context(glyphs, config)
+
+    assert set(context.lines) == {0, 1, 2}
+    assert len(set(context.lines.values())) == 3
+    assert all(abs(line.rotation_deg) <= 0.2 for line in context.lines.values())
+    assert all(
+        abs(line.baseline_offset_mm) <= 0.018
+        for line in context.lines.values()
+    )
+    assert all(
+        abs(line.baseline_drift_mm) <= 0.024 for line in context.lines.values()
+    )
+
+    original_layout = [
+        (glyph.x_mm, glyph.baseline_y_mm, glyph.line_index) for glyph in glyphs
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [
+                    Point(glyph.x_mm, glyph.baseline_y_mm - 1),
+                    Point(glyph.x_mm + 1, glyph.baseline_y_mm + 1),
+                ],
+                False,
+                glyph.glyph_index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    result = apply_variation(document, glyphs, config)
+
+    assert [
+        (glyph.x_mm, glyph.baseline_y_mm, glyph.line_index) for glyph in glyphs
+    ] == original_layout
+    line_ranges = [
+        [point.y for stroke in result.strokes[start : start + 3] for point in stroke.points]
+        for start in (0, 3, 6)
+    ]
+    assert max(line_ranges[0]) < min(line_ranges[1])
+    assert max(line_ranges[1]) < min(line_ranges[2])
+
+
+def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:
+    document = PathDocument(
+        10,
+        10,
+        [
+            PlotterStroke(0, [Point(1, 5), Point(2, 5)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(1, 4), Point(2, 4)], False, 0, "а", 1),
+        ],
+        [],
+    )
+    config = VariationConfig(True, 7, 0.1, 1, 2, 0.1)
+    calls = {"cos": 0, "sin": 0}
+    original_cos = handwriting.math.cos
+    original_sin = handwriting.math.sin
+
+    def counted_cos(value: float) -> float:
+        calls["cos"] += 1
+        return original_cos(value)
+
+    def counted_sin(value: float) -> float:
+        calls["sin"] += 1
+        return original_sin(value)
+
+    monkeypatch.setattr(handwriting.math, "cos", counted_cos)
+    monkeypatch.setattr(handwriting.math, "sin", counted_sin)
+
+    result = apply_variation(document, [_glyph("а", 0, 1)], config)
+
+    assert len(result.strokes) == 2
+    assert calls == {"cos": 1, "sin": 1}
+
+
 def test_segment_index_returns_overlapping_segments_in_source_order() -> None:
     strokes = [
         PlotterStroke(0, [Point(0, 0), Point(1, 1)], False),
@@ -93,6 +323,35 @@ def test_segment_index_returns_overlapping_segments_in_source_order() -> None:
 
     assert [item.stroke.id for item in index.query((-1, -1, 4, 2))] == [0, 2]
     assert index.query((10, 10, 11, 11)) == []
+
+
+def test_collision_checks_query_only_segments_near_each_curve_sample() -> None:
+    left = PlotterStroke(0, [Point(-1, 0), Point(0, 0)], False)
+    right = PlotterStroke(1, [Point(10, 10), Point(11, 10)], False)
+    collision = PlotterStroke(2, [Point(4.9, 5), Point(5.1, 5)], False)
+    distant = [
+        PlotterStroke(
+            index + 3,
+            [Point(index / 10, 8), Point(index / 10 + 0.05, 8)],
+            False,
+        )
+        for index in range(100)
+    ]
+    counters = _ConnectionCounters()
+
+    collisions = _collision_points(
+        [Point(0, 0), Point(5, 5), Point(10, 10)],
+        _SegmentObstacleIndex.build([left, right, collision, *distant]),
+        left,
+        right,
+        Point(0, 0),
+        Point(10, 10),
+        0.1,
+        counters,
+    )
+
+    assert collisions == [Point(5, 5)]
+    assert counters.segments_tested == 1
 
 
 def test_distance_rejections_skip_bezier_and_collision_work() -> None:
@@ -121,10 +380,70 @@ def test_distance_rejections_skip_bezier_and_collision_work() -> None:
 
     assert len(result.strokes) == 1001
     assert metrics["cheap_rejected_pairs"] == 1000
+    assert metrics["solver_calls"] == 0
     assert metrics["beziers_built"] == 0
     assert metrics["collision_queries"] == 0
     assert metrics["segments_tested"] == 0
     assert "connection_debug" not in result.metadata
+
+
+def test_pair_rule_can_adjust_spacing_and_connector_shape() -> None:
+    config = replace(
+        _config(),
+        pair_rules=(PairConnectionRule("ст", -0.1, 1.15, 0.03),),
+    )
+
+    rule = connection_pair_rule("С", "т", config)
+
+    assert rule == PairConnectionRule("ст", -0.1, 1.15, 0.03)
+    assert connection_pair_rule("а", "б", config) is None
+
+
+def test_handwriting_kerning_uses_ink_gap_and_stays_bounded() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 2.8), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(2.8, 10), Point(4, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+
+    adjusted, positioned, metrics = apply_handwriting_kerning(
+        document, glyphs, _config()
+    )
+
+    assert adjusted.page_width_mm == document.page_width_mm
+    assert adjusted.strokes[1].points[0].x < document.strokes[1].points[0].x
+    assert positioned[1].x_mm < glyphs[1].x_mm
+    assert metrics["kerning_pairs_adjusted"] == 1
+    assert 0 < metrics["kerning_max_offset_mm"] <= 0.15
+
+
+def test_handwriting_kerning_separates_overlapping_ink() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 1.8), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(1.8, 10), Point(4, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+
+    adjusted, _, metrics = apply_handwriting_kerning(document, glyphs, _config())
+
+    assert adjusted.strokes[1].points[0].x > document.strokes[1].points[0].x
+    assert metrics["kerning_pairs_adjusted"] == 1
 
 
 def test_aggressive_accepts_bounded_gap_that_safe_rejects() -> None:

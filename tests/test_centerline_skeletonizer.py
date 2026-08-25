@@ -28,6 +28,11 @@ def test_shared_preprocessing_preserves_each_candidate_byte_for_byte() -> None:
         (x >= 18) & (x <= 39) & (y >= 22) & (y <= 28)
     )
     prepared = preprocess_skeleton(mask)
+    boundary = mask & ~ndimage.binary_erosion(mask)
+    assert np.array_equal(
+        prepared.boundary_distance,
+        ndimage.distance_transform_edt(~boundary),
+    )
 
     for index, method in enumerate(("skeletonize", "medial_axis"), start=1):
         reference = build_skeleton(mask, method=method, candidate_index=index)

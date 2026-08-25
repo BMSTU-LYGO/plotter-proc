@@ -26,7 +26,6 @@ def test_run_parser_defaults_to_outline_mode() -> None:
     args = build_parser().parse_args(["run", "input.txt", "--font", "font.ttf"])
     assert args.font_mode == "outline"
     assert args.workers == "auto"
-    assert args.centerline_workers == "auto"
     assert args.artifacts == "normal"
 
 
@@ -43,7 +42,20 @@ def test_run_parser_accepts_explicit_centerline_worker_count() -> None:
         ["run", "input.txt", "--font", "font.ttf", "--centerline-workers", "2"]
     )
 
-    assert args.centerline_workers == 2
+    assert args.workers == 2
+
+
+def test_compile_parser_uses_the_same_worker_option_and_legacy_alias() -> None:
+    parser = build_parser()
+    unified = parser.parse_args(
+        ["compile-centerline-font", "font.ttf", "--workers", "3"]
+    )
+    legacy = parser.parse_args(
+        ["compile-centerline-font", "font.ttf", "--centerline-workers", "2"]
+    )
+
+    assert unified.workers == 3
+    assert legacy.workers == 2
 
 
 def test_run_parser_accepts_artifact_level() -> None:

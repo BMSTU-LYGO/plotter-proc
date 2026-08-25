@@ -39,6 +39,8 @@ class SelectedSkeleton:
     candidate_skeletons: dict[str, np.ndarray]
     fast_first: bool = False
     confidence_checks: dict[str, bool] | None = None
+    methods_evaluated: tuple[str, ...] = ()
+    methods_skipped: tuple[str, ...] = ()
 
 
 # Offline allowlist from build/upd12-block7-dual-candidate-audit.json. The full
@@ -108,7 +110,14 @@ def select_best_skeleton(
                     nodes, edges, distance=result.distance, config=config
                 )
             report = replace(report, spurs_removed=int(result.mask.sum() - pruned.sum()))
-            metrics = _candidate_metrics(mask, pruned, result.distance, nodes, edges)
+            metrics = _candidate_metrics(
+                mask,
+                pruned,
+                result.distance,
+                prepared.boundary_distance,
+                nodes,
+                edges,
+            )
             with measure_glyph_stage("routing"):
                 metrics["estimated_retrace_ratio"] = float(
                     routing_metrics(edges, plan_glyph_routes(nodes, edges, config))[
@@ -161,6 +170,8 @@ def select_best_skeleton(
         {candidate[2]: candidate[4] for candidate in candidates},
         fast_first,
         confidence_checks,
+        tuple(candidate[2] for candidate in candidates),
+        tuple(method for method in methods if method not in {item[2] for item in candidates}),
     )
 
 
@@ -202,6 +213,7 @@ def _candidate_metrics(
     mask: np.ndarray,
     skeleton: np.ndarray,
     distance: np.ndarray,
+    boundary_distance: np.ndarray,
     nodes: list[SkeletonNode],
     edges: list[SkeletonEdge],
 ) -> dict[str, float | int | str]:
@@ -217,8 +229,6 @@ def _candidate_metrics(
     components = len({node.component_id for node in nodes})
     false_negative = float((mask & ~reconstructed).sum()) / max(1, int(mask.sum()))
     false_positive = float((reconstructed & ~mask).sum()) / max(1, int(reconstructed.sum()))
-    mask_boundary = mask & ~ndimage.binary_erosion(mask)
-    boundary_distance = ndimage.distance_transform_edt(~mask_boundary)
     endpoint_nodes = [node for node in nodes if node.kind == "endpoint"]
     endpoint_penalty = sum(boundary_distance[round(node.y), round(node.x)] for node in endpoint_nodes)
     endpoint_penalty /= max(1, len(endpoint_nodes) * max(mask.shape))

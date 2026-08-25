@@ -39,7 +39,9 @@ def main() -> int:
         "--output", type=Path, default=Path("build/profile-centerline-font.json")
     )
     parser.add_argument("--profile-top", type=int, default=20)
-    parser.add_argument("--centerline-workers", default=1)
+    parser.add_argument(
+        "--workers", "--centerline-workers", dest="workers", default=1
+    )
     args = parser.parse_args()
     if args.profile_top < 20:
         parser.error("--profile-top must be at least 20")
@@ -69,7 +71,7 @@ def main() -> int:
                     config,
                     cache_path=cache_path,
                     force=True,
-                    workers=args.centerline_workers,
+                    workers=args.workers,
                 )
         finally:
             wall_ms = (time.perf_counter() - started) * 1000.0

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from plotter_processor.models import PlotterStroke
+from plotter_processor.schemas import DOCUMENT_MODEL_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,11 +245,26 @@ class SourcePage:
 
 
 @dataclass(frozen=True, slots=True)
-class SourceDocument:
+class DocumentMetadata:
+    source_format: str = "unknown"
+    title: str | None = None
+    properties: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentModel:
+    """Parser-independent semantic document consumed by layout."""
+
     source_path: Path
     pages: tuple[SourcePage, ...]
     warnings: tuple[str, ...] = ()
+    metadata: DocumentMetadata = DocumentMetadata()
+    schema_version: int = DOCUMENT_MODEL_SCHEMA_VERSION
 
     @property
     def elements(self) -> tuple[SourceElement, ...]:
         return tuple(element for page in self.pages for element in page.elements)
+
+
+# Compatibility name retained for callers written before the common model boundary.
+SourceDocument = DocumentModel

@@ -9,6 +9,7 @@ from docx.oxml.ns import qn
 from PIL import Image, UnidentifiedImageError
 
 from plotter_processor.document_models import (
+    DocumentMetadata,
     SourceArrowElement,
     SourceBBox,
     SourceDocument,
@@ -314,6 +315,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             ),
         ),
         tuple(dict.fromkeys(warnings)),
+        metadata=DocumentMetadata(source_format="docx"),
     )
 
 

@@ -23,6 +23,7 @@ class SkeletonInput:
     component_labels: np.ndarray
     component_count: int
     distance: np.ndarray
+    boundary_distance: np.ndarray
 
 
 def preprocess_skeleton(mask: np.ndarray) -> SkeletonInput:
@@ -34,7 +35,9 @@ def preprocess_skeleton(mask: np.ndarray) -> SkeletonInput:
         )
     with measure_glyph_stage("distance_transform"):
         distance = ndimage.distance_transform_edt(source)
-    return SkeletonInput(source, labels, int(count), distance)
+        boundary = source & ~ndimage.binary_erosion(source)
+        boundary_distance = ndimage.distance_transform_edt(~boundary)
+    return SkeletonInput(source, labels, int(count), distance, boundary_distance)
 
 
 def build_skeleton(
