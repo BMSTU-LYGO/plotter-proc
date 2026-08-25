@@ -77,6 +77,14 @@ class RenderedMath:
     debug_mask: np.ndarray | None = field(default=None, repr=False, compare=False)
     debug_skeleton: np.ndarray | None = field(default=None, repr=False, compare=False)
 
+    @property
+    def ascent_mm(self) -> float:
+        return self.baseline_mm
+
+    @property
+    def descent_mm(self) -> float:
+        return max(0.0, self.height_mm - self.baseline_mm)
+
 
 @dataclass(frozen=True, slots=True)
 class MathLayoutElement:

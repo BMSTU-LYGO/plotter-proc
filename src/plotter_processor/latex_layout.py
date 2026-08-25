@@ -48,6 +48,7 @@ class RichLine:
     spacing_after_mm: float
     formula_infos: list[FormulaInfo]
     warnings: list[str]
+    atomic_formula: bool = False
 
 
 def layout_latex_paragraph(
@@ -97,12 +98,12 @@ def layout_latex_paragraph(
         nonlocal glyphs, formulas, warnings, x
         if not glyphs and not formulas:
             return
-        formula_baseline = max((rendered.baseline_mm for rendered, _, _, _ in formulas), default=0)
+        formula_baseline = max((rendered.ascent_mm for rendered, _, _, _ in formulas), default=0)
         baseline = max(ascent if glyphs else 0.0, formula_baseline)
         below = max(
             descent if glyphs else 0.0,
             max(
-                (rendered.height_mm - rendered.baseline_mm for rendered, _, _, _ in formulas),
+                (rendered.descent_mm for rendered, _, _, _ in formulas),
                 default=0.0,
             ),
         )
@@ -152,6 +153,7 @@ def layout_latex_paragraph(
             placed_glyphs, placed_strokes, height,
             max(standard_advance, height * line_multiplier), before, after,
             infos, list(dict.fromkeys(warnings)),
+            any(run.display_mode for _, run, _, _ in formulas),
         ))
         glyphs, formulas, warnings, x = [], [], [], 0.0
 
@@ -335,6 +337,7 @@ def layout_math_element(
         _non_negative(latex_options, "block_spacing_after_mm") if display_mode else 0.0,
         [info],
         list(dict.fromkeys(warnings)),
+        display_mode,
     )
 
 
