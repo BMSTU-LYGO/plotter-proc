@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from plotter_processor.math_expression import MathExpression, normalize_latex_expression
+
 
 @dataclass(frozen=True, slots=True)
 class ParsedOMML:
     expression: str
     display_mode: bool
     warnings: tuple[str, ...] = ()
+    model: MathExpression | None = None
 
 
 def parse_omml(element: object) -> ParsedOMML:
@@ -16,7 +19,12 @@ def parse_omml(element: object) -> ParsedOMML:
     if not expression:
         raise ValueError("OMML equation contains no supported mathematical content")
     local = _local_name(getattr(element, "tag", ""))
-    return ParsedOMML(expression, local == "oMathPara", tuple(dict.fromkeys(warnings)))
+    return ParsedOMML(
+        expression,
+        local == "oMathPara",
+        tuple(dict.fromkeys(warnings)),
+        normalize_latex_expression(expression, source_syntax="omml"),
+    )
 
 
 def _convert(element: object, warnings: list[str]) -> str:

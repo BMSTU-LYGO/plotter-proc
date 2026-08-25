@@ -20,6 +20,11 @@ def test_fraction_radical_and_scripts() -> None:
     assert parsed.display_mode is True
     assert parsed.expression == r"\frac{a}{b}{x}^{2}\sqrt{y}"
     assert not parsed.warnings
+    assert parsed.model is not None
+    assert parsed.model.source_syntax == "omml"
+    assert {node.kind for node in parsed.model.root.children} >= {
+        "fraction", "superscript", "root"
+    }
 
 
 def test_unknown_node_is_reported_without_losing_text() -> None:

@@ -203,6 +203,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             parsed.expression,
             parsed.display_mode,
             "omml",
+            model=parsed.model,
         ))
 
     def add_arrow(pict: object) -> bool:

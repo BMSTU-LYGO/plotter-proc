@@ -1021,6 +1021,7 @@ def paginate_document(
                             source_page_index=element.source_page_index,
                             debug_dir=latex_debug_dir,
                             rendered_math=rendered_visual,
+                            expression_model=element.model,
                         )
                 except ValueError as error:
                     raise ValueError(

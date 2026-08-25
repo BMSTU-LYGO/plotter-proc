@@ -21,6 +21,11 @@ from matplotlib.path import Path as MatplotlibPath
 from matplotlib.textpath import TextPath
 from PIL import Image
 
+from plotter_processor.math_expression import (
+    MathExpression,
+    normalize_latex_expression,
+    require_renderable,
+)
 from plotter_processor.models import PlotterStroke, Point
 from plotter_processor.raster_centerline import (
     RasterCenterlineConfig,
@@ -73,9 +78,9 @@ class MathLayoutElement:
 
 
 class MathRenderer(Protocol):
-    def measure(self, expression: str, size_mm: float) -> MathMetrics: ...
+    def measure(self, expression: str | MathExpression, size_mm: float) -> MathMetrics: ...
 
-    def render(self, expression: str, size_mm: float) -> RenderedMath: ...
+    def render(self, expression: str | MathExpression, size_mm: float) -> RenderedMath: ...
 
 
 class MathTextRenderer:
@@ -122,17 +127,22 @@ class MathTextRenderer:
         self.cache_hits = 0
         self.cache_misses = 0
 
-    def measure(self, expression: str, size_mm: float) -> MathMetrics:
+    def measure(self, expression: str | MathExpression, size_mm: float) -> MathMetrics:
         rendered = self.render(expression, size_mm)
         return MathMetrics(rendered.width_mm, rendered.height_mm, rendered.baseline_mm)
 
-    def render(self, expression: str, size_mm: float) -> RenderedMath:
-        if not expression.strip():
-            raise ValueError("Cannot render an empty LaTeX formula")
+    def render(self, expression: str | MathExpression, size_mm: float) -> RenderedMath:
+        model = (
+            expression
+            if isinstance(expression, MathExpression)
+            else normalize_latex_expression(expression, source_syntax=self.source_kind)
+        )
+        require_renderable(model)
+        expression_text = model.normalized
         if size_mm <= 0 or not math.isfinite(size_mm):
             raise ValueError("Formula size must be finite and positive")
         key = (
-            expression,
+            expression_text,
             round(size_mm, 9),
             self.stroke_mode,
             self.curve_tolerance_mm,
@@ -155,15 +165,15 @@ class MathTextRenderer:
             return rendered
         self.cache_misses += 1
         if self.stroke_mode == "outline":
-            rendered = self._render_outline(expression, size_mm)
+            rendered = self._render_outline(expression_text, size_mm)
         else:
             try:
-                rendered = self._render_centerline(expression, size_mm)
+                rendered = self._render_centerline(expression_text, size_mm)
             except ValueError as error:
                 if not self.fallback_to_outline:
                     raise
                 rendered = replace(
-                    self._render_outline(expression, size_mm),
+                    self._render_outline(expression_text, size_mm),
                     warnings=("latex_centerline_outline_fallback", str(error)),
                     quality={"needs_review": True, "outline_fallback": True},
                 )

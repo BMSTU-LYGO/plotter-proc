@@ -200,7 +200,7 @@ def layout_latex_paragraph(
         formula_index += 1
         size = em_size * (block_scale if run.display_mode else inline_scale)
         try:
-            rendered = renderer.render(run.expression, size)
+            rendered = renderer.render(run.model or run.expression, size)
         except ValueError as error:
             raise ValueError(
                 f"LaTeX formula {formula_index} in element {element_id!r} "
@@ -256,13 +256,14 @@ def layout_math_element(
     source_page_index: int | None,
     debug_dir: Path | None = None,
     rendered_math: RenderedMath | None = None,
+    expression_model: object | None = None,
 ) -> RichLine:
     em_size = _positive(size_options, "em_size_mm")
     size_scale = _positive(
         latex_options, "block_size_scale" if display_mode else "inline_size_scale"
     )
     rendered = replace(
-        rendered_math or renderer.render(expression, em_size * size_scale),
+        rendered_math or renderer.render(expression_model or expression, em_size * size_scale),
         source_kind=source_syntax,
     )
     warnings = list(rendered.warnings)
