@@ -395,7 +395,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         layout_config = load_yaml(options.layout_config_path)
         if options.font_mode not in {"outline", "centerline"}:
             raise ValueError(f"Unknown font mode: {options.font_mode}")
-        if options.images not in {"auto", "outline", "centerline", "off"}:
+        if options.images not in {"auto", "outline", "centerline", "hatching", "off"}:
             raise ValueError(f"Unknown image mode: {options.images}")
         if options.latex not in {"auto", "mathtext", "off"}:
             raise ValueError(f"Unknown LaTeX mode: {options.latex}")

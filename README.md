@@ -72,6 +72,7 @@
 - `auto`
 - `outline`
 - `centerline`
+- `hatching`
 - `off`
 
 ### --image-debug

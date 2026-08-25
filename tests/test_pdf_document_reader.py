@@ -83,3 +83,28 @@ def test_pdf_math_absorbs_formula_primitives_once_and_keeps_neighbor_text(
     assert any("Ordinary neighboring text" in paragraph for item in text for paragraph in item.paragraphs)
     assert not any("x^2" in paragraph for item in text for paragraph in item.paragraphs)
     assert not any(isinstance(item, SourceLineElement) for item in elements)
+
+
+def test_pdf_rect_circle_and_connector_remain_vector_geometry(tmp_path: Path) -> None:
+    source = tmp_path / "diagram.pdf"
+    pdf = pymupdf.open()
+    page = pdf.new_page()
+    page.draw_rect((30, 30, 100, 70), color=(0, 0, 0))
+    page.draw_circle((145, 50), 20, color=(0, 0, 0))
+    page.draw_line((100, 50), (125, 50), color=(0, 0, 0))
+    pdf.save(source)
+    pdf.close()
+
+    document = read_structured_document(source, assets_dir=tmp_path / "assets")
+
+    assert not any(isinstance(item, SourceRasterImageElement) for item in document.elements)
+    segment_types = {
+        segment
+        for item in document.elements
+        if hasattr(item, "strokes")
+        for stroke in item.strokes
+        for segment in stroke.segment_types
+    }
+    assert "pdf-rectangle" in segment_types
+    assert "pdf-bezier" in segment_types
+    assert any(isinstance(item, SourceLineElement) for item in document.elements)

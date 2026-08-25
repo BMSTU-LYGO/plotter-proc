@@ -134,6 +134,10 @@ images:
     sigma: 1.2
     low_threshold: 0.08
     high_threshold: 0.20
+  hatching:
+    spacing_mm: 1.2
+    levels: 4
+    min_feature_size_mm: 0.4
   vector:
     simplify_tolerance_mm: 0.08
     min_stroke_length_mm: 0.35

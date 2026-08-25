@@ -44,7 +44,7 @@ def vectorize_image(
     source_path: str | None = None,
 ) -> VectorizedImage:
     selected = choose_vector_mode(image) if mode == "auto" else mode
-    if selected not in {"outline", "centerline"}:
+    if selected not in {"outline", "centerline", "hatching"}:
         raise ValueError(f"Unknown image vectorization mode: {mode}")
     vector = options.get("vector", {})
     if not isinstance(vector, Mapping):
@@ -61,8 +61,15 @@ def vectorize_image(
     image_digest = hashlib.sha256()
     image_digest.update(image.grayscale.tobytes())
     image_digest.update(image.binary.tobytes())
-    edge_key = json.dumps(dict(edge), sort_keys=True, separators=(",", ":"))
-    cache_key = (image_digest.hexdigest(), selected, edge_key)
+    hatching = options.get("hatching", {})
+    if not isinstance(hatching, Mapping):
+        raise TypeError("images.hatching must be a mapping")
+    mode_key = json.dumps(
+        {"edge": dict(edge), "hatching": dict(hatching)},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    cache_key = (image_digest.hexdigest(), selected, mode_key)
     cache_hit = cache_key in _PIXEL_STROKE_CACHE
     if cache_hit:
         cached = _PIXEL_STROKE_CACHE.pop(cache_key)
@@ -77,8 +84,18 @@ def vectorize_image(
                 high_threshold=float(edge.get("high_threshold", 0.20)),
             )
             pixel_strokes = [contour[:, ::-1] for contour in find_contours(edges, 0.5)]
-        else:
+        elif selected == "centerline":
             pixel_strokes = _trace_skeleton(skeletonize(image.binary))
+        else:
+            pixel_strokes = _trace_hatching(
+                image.grayscale,
+                spacing_px=max(1.0, float(hatching.get("spacing_mm", 1.2)) * scale),
+                levels=max(1, min(8, int(hatching.get("levels", 4)))),
+                min_feature_px=max(
+                    1,
+                    round(float(hatching.get("min_feature_size_mm", 0.4)) * scale),
+                ),
+            )
         _PIXEL_STROKE_CACHE[cache_key] = tuple(pixel_strokes)
         if len(_PIXEL_STROKE_CACHE) > _PIXEL_STROKE_CACHE_LIMIT:
             _PIXEL_STROKE_CACHE.popitem(last=False)
@@ -171,6 +188,32 @@ def _trace_skeleton(mask: np.ndarray) -> list[np.ndarray]:
         for nxt in neighbors[start]:
             if frozenset((start, nxt)) not in visited:
                 paths.append(np.asarray([(col, row) for row, col in trace(start, nxt)]))
+    return paths
+
+
+def _trace_hatching(
+    grayscale: np.ndarray,
+    *,
+    spacing_px: float,
+    levels: int,
+    min_feature_px: int,
+) -> list[np.ndarray]:
+    height, width = grayscale.shape
+    row_step = max(1, round(spacing_px / levels))
+    paths: list[np.ndarray] = []
+    for row_index, row in enumerate(range(0, height, row_step)):
+        phase = row_index % levels
+        darkness_threshold = (phase + 1) / (levels + 1)
+        active = (1.0 - grayscale[row]) >= darkness_threshold
+        start: int | None = None
+        for column in range(width + 1):
+            enabled = column < width and bool(active[column])
+            if enabled and start is None:
+                start = column
+            elif not enabled and start is not None:
+                if column - start >= min_feature_px:
+                    paths.append(np.asarray(((start, row), (column - 1, row)), dtype=float))
+                start = None
     return paths
 
 
