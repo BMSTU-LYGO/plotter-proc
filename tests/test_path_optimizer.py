@@ -1,6 +1,10 @@
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.path_builder import path_statistics
-from plotter_processor.path_optimizer import RetraceConfig, optimize_paths
+from plotter_processor.path_optimizer import (
+    RetraceConfig,
+    load_retrace_config,
+    optimize_paths,
+)
 
 
 def test_optimizer_preserves_draw_distance_and_reduces_travel() -> None:
@@ -144,3 +148,73 @@ def test_retrace_rejects_long_or_non_glyph_repetition() -> None:
 
     assert len(optimized.strokes) == 3
     assert optimized.metadata["safe_retrace"]["retrace_merges"] == 0
+
+
+def test_superfast_costs_make_short_retrace_cheaper_than_pen_lift() -> None:
+    config = load_retrace_config(
+        {
+            "enabled": True,
+            "max_length_mm": 1.2,
+            "max_repeats": 1,
+            "allowed_segment_types": ["glyph"],
+            "profiles": {
+                "superfast": {"max_length_mm": 3.0, "max_repeats": 3}
+            },
+        },
+        mode="superfast",
+        routing_values={
+            "cost": {},
+            "cost_profiles": {
+                "superfast": {"pen_lift": 24.0, "retrace": 0.65}
+            },
+        },
+    )
+
+    assert config.mode == "superfast"
+    assert config.max_length_mm == 3.0
+    assert config.weights.pen_lift > config.weights.retrace * config.max_length_mm
+
+
+def test_superfast_routes_each_cyrillic_glyph_as_endpoint_graph() -> None:
+    zhe_trunk = PlotterStroke(
+        0,
+        [Point(0, 0), Point(1, 0), Point(2, 0)],
+        False,
+        0,
+        char="ж",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    zhe_branch = PlotterStroke(
+        1,
+        [Point(1, 0), Point(1, 1)],
+        False,
+        0,
+        char="ж",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    em = PlotterStroke(
+        2,
+        [Point(10, 0), Point(11, 0)],
+        False,
+        1,
+        char="м",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    config = RetraceConfig(
+        max_length_mm=3.0,
+        max_repeats=3,
+        mode="superfast",
+        max_retrace_ratio=0.65,
+    )
+
+    optimized = optimize_paths(
+        PathDocument(100, 100, [zhe_trunk, zhe_branch, em], []), config
+    )
+
+    assert len(optimized.strokes) == 2
+    assert optimized.strokes[0].char == "ж"
+    assert optimized.strokes[0].points[-1] == Point(1, 1)
+    assert optimized.metadata["safe_retrace"]["retrace_pen_lifts_saved"] == 1

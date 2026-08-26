@@ -90,6 +90,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         artifact_level=preset.artifact_level,
         stage_cache_path=args.stage_cache,
         preset=preset.name,
+        path_mode=preset.path_mode,
     )
 
 
@@ -304,7 +305,7 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
     parser.add_argument("--machine-config", type=Path, default=Path("configs/machine.yaml"))
     parser.add_argument("--output-dir", type=Path, default=Path("build"))
-    parser.add_argument("--preset", choices=("fast", "quality", "debug"))
+    parser.add_argument("--preset", choices=("fast", "quality", "debug", "superfast"))
     parser.add_argument("--no-optimize-travel", action="store_true")
     parser.add_argument(
         "--font-mode",

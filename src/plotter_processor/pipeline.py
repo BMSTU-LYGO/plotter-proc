@@ -135,6 +135,7 @@ class PipelineOptions:
     artifact_level: str = "normal"
     stage_cache_path: Path | None = None
     preset: str | None = None
+    path_mode: str = "normal"
 
 
 @dataclass(slots=True)
@@ -571,7 +572,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             enabled=options.join_writing or options.connections not in {None, "off"},
             mode=options.connections,
         )
-        retrace_config = load_retrace_config(config_profiles.handwriting.retrace)
+        retrace_config = load_retrace_config(
+            config_profiles.handwriting.retrace,
+            mode=options.path_mode,
+            routing_values=config_profiles.handwriting.routing,
+        )
         centerline_config = load_centerline_config(layout_config)
         geometry_fingerprint = geometry_stage_fingerprint(
             layout_fingerprint,
@@ -594,6 +599,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     "stroke_order": config_profiles.handwriting.stroke_order,
                     "routing": config_profiles.handwriting.routing,
                     "retrace": config_profiles.handwriting.retrace,
+                    "path_mode": options.path_mode,
                 },
                 "connections": layout_config.get("connections", {}),
                 "connections_mode": options.connections,

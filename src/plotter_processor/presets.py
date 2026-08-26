@@ -11,9 +11,18 @@ class ResolvedPreset:
     workers: str | int
     artifact_level: str
     strict_centerline_quality: bool
+    path_mode: str
 
 
 _PRESETS: dict[str, dict[str, object]] = {
+    "superfast": {
+        "font_mode": "centerline",
+        "connections": "aggressive",
+        "workers": "auto",
+        "artifact_level": "minimal",
+        "strict_centerline_quality": False,
+        "path_mode": "superfast",
+    },
     "fast": {
         "font_mode": "outline",
         "connections": "off",
@@ -58,6 +67,7 @@ def resolve_preset(
         artifact_level or str(selected.get("artifact_level", "normal")),
         strict_centerline_quality
         or bool(selected.get("strict_centerline_quality", False)),
+        str(selected.get("path_mode", "normal")),
     )
 
 

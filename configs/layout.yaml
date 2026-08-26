@@ -280,11 +280,27 @@ handwriting:
       direction_change: 0.011111111111111112
       connection_quality: 2.0
       collision_risk: 100.0
+    cost_profiles:
+      superfast:
+        travel: 1.0
+        pen_lift: 24.0
+        retrace: 0.65
+        direction_change: 0.005555555555555556
+        connection_quality: 1.5
+        collision_risk: 100.0
   retrace:
     enabled: true
     max_length_mm: 1.2
     max_repeats: 1
     allowed_segment_types: [glyph]
+    endpoint_tolerance_mm: 0.000001
+    max_retrace_ratio: 1.0
+    profiles:
+      superfast:
+        max_length_mm: 3.0
+        max_repeats: 3
+        endpoint_tolerance_mm: 0.08
+        max_retrace_ratio: 0.65
 
 connections:
   enabled: false
