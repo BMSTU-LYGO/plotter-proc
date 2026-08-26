@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 from PIL import Image, ImageDraw
 
@@ -134,3 +135,84 @@ def test_a4_semantic_line_is_scaled_into_a5_page(test_font: Path) -> None:
     stroke = result.pages[0].graphic_strokes[0]
     assert max(point.x for point in stroke.points) <= page.width_mm
     assert stroke.points[1].x - stroke.points[0].x < 190.0
+
+
+@pytest.mark.parametrize(
+    "page",
+    [PageSpec("A5", 148.0, 210.0), PageSpec("A4", 210.0, 297.0)],
+)
+def test_display_math_is_centered_with_spacing_on_standard_pages(
+    page: PageSpec, test_font: Path
+) -> None:
+    config = _config()
+    document = SourceDocument(
+        Path("display.txt"),
+        (SourcePage(0, None, None, (
+            SourceTextElement("display", 0, 0, (r"$$\frac{x+1}{x-1}$$",)),
+        )),),
+    )
+    with load_font(test_font) as font:
+        result = paginate_document(
+            document,
+            font,
+            page,
+            config["margins_mm"],
+            config["sizes"]["normal"],
+            config["images"],
+            config["pagination"],
+            latex_mode="mathtext",
+            latex_options=config["latex"],
+            preserve_source_page_breaks=False,
+        )
+
+    formula = result.pages[0].metadata["formulas"][0]
+    target = formula["target_bbox"]
+    content_center = (
+        config["margins_mm"]["left"]
+        + page.width_mm
+        - config["margins_mm"]["right"]
+    ) / 2
+    assert target["x"] + target["width"] / 2 == pytest.approx(content_center, abs=0.2)
+    assert result.pages[0].layout.used_height_mm >= (
+        target["height"]
+        + config["latex"]["block_spacing_before_mm"]
+        + config["latex"]["block_spacing_after_mm"]
+    )
+
+
+def test_display_math_moves_whole_to_next_page(test_font: Path) -> None:
+    config = _config()
+    document = SourceDocument(
+        Path("display-break.txt"),
+        (SourcePage(0, None, None, (
+            SourceTextElement(
+                "display-break",
+                0,
+                0,
+                ("Line one", "Line two", "Line three", r"$$\frac{x+1}{x-1}$$"),
+            ),
+        )),),
+    )
+    with load_font(test_font) as font:
+        result = paginate_document(
+            document,
+            font,
+            PageSpec("small", 80.0, 55.0),
+            config["margins_mm"],
+            config["sizes"]["normal"],
+            config["images"],
+            config["pagination"],
+            latex_mode="mathtext",
+            latex_options=config["latex"],
+            preserve_source_page_breaks=False,
+        )
+
+    formula_pages = [
+        page for page in result.pages if page.metadata["formulas"]
+    ]
+    assert len(formula_pages) == 1
+    assert formula_pages[0].page_index > 0
+    formula_id = formula_pages[0].metadata["formulas"][0]["element_id"]
+    assert all(
+        stroke.element_id == formula_id for stroke in formula_pages[0].graphic_strokes
+    )

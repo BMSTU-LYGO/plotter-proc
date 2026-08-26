@@ -1,0 +1,22 @@
+<corpus xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <m:oMathPara><m:oMath>
+    <m:func><m:funcName><m:r><m:t>sin</m:t></m:r></m:funcName><m:e><m:r><m:t>x</m:t></m:r></m:e></m:func>
+    <m:r><m:t>+</m:t></m:r>
+    <m:sSup><m:e><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>
+  </m:oMath></m:oMathPara>
+  <m:oMathPara><m:oMath>
+    <m:d><m:dPr><m:begChr m:val="["/><m:endChr m:val="]"/></m:dPr><m:e>
+      <m:m><m:mr><m:e><m:r><m:t>1</m:t></m:r></m:e><m:e><m:r><m:t>2</m:t></m:r></m:e></m:mr><m:mr><m:e><m:r><m:t>3</m:t></m:r></m:e><m:e><m:r><m:t>4</m:t></m:r></m:e></m:mr></m:m>
+    </m:e></m:d>
+  </m:oMath></m:oMathPara>
+  <m:oMathPara><m:oMath>
+    <m:eqArr><m:e><m:r><m:t>x+y=10</m:t></m:r></m:e><m:e><m:r><m:t>2x-y=5</m:t></m:r></m:e></m:eqArr>
+  </m:oMath></m:oMathPara>
+  <m:oMathPara><m:oMath>
+    <m:acc><m:accPr><m:chr m:val="̂"/></m:accPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:acc>
+    <m:r><m:t>+</m:t></m:r>
+    <m:limLow><m:e><m:r><m:t>lim</m:t></m:r></m:e><m:lim><m:r><m:t>x→0</m:t></m:r></m:lim></m:limLow>
+    <m:nary><m:naryPr><m:chr m:val="∭"/></m:naryPr><m:sub><m:r><m:t>0</m:t></m:r></m:sub><m:sup><m:r><m:t>∞</m:t></m:r></m:sup><m:e><m:r><m:t>f</m:t></m:r></m:e></m:nary>
+    <m:groupChr><m:e><m:r><m:t>AB</m:t></m:r></m:e></m:groupChr>
+  </m:oMath></m:oMathPara>
+</corpus>

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
+from plotter_processor.math_expression import MathExpression
 from plotter_processor.models import PlotterStroke
 from plotter_processor.schemas import DOCUMENT_MODEL_SCHEMA_VERSION
 
@@ -137,6 +138,7 @@ class SourceMathElement:
     visual_ppmm: float | None = None
     absorbed_element_ids: tuple[str, ...] = ()
     detection_confidence: float | None = None
+    model: MathExpression | None = None
 
 
 @dataclass(frozen=True, slots=True)

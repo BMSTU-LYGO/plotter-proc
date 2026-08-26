@@ -21,6 +21,12 @@ from matplotlib.path import Path as MatplotlibPath
 from matplotlib.textpath import TextPath
 from PIL import Image
 
+from plotter_processor.math_expression import (
+    MathExpression,
+    normalize_latex_expression,
+    parse_math_environment,
+    require_renderable,
+)
 from plotter_processor.models import PlotterStroke, Point
 from plotter_processor.raster_centerline import (
     RasterCenterlineConfig,
@@ -30,6 +36,10 @@ from plotter_processor.raster_centerline import (
 PT_TO_MM = 25.4 / 72.0
 _RENDER_CACHE: OrderedDict[tuple[object, ...], RenderedMath] = OrderedDict()
 _RENDER_CACHE_LIMIT = 128
+_GLYPH_CACHE: OrderedDict[tuple[object, ...], _CachedMathGlyph] = OrderedDict()
+_GLYPH_CACHE_LIMIT = 2048
+_GLYPH_CACHE_VERSION = "math-glyph-centerline-v2"
+_GLYPH_CANONICAL_SIZE_PT = 12.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +47,13 @@ class MathMetrics:
     width_mm: float
     height_mm: float
     baseline_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class _CachedMathGlyph:
+    strokes_pt: tuple[tuple[tuple[float, float], ...], ...]
+    bbox_pt: tuple[float, float, float, float]
+    quality: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +78,14 @@ class RenderedMath:
     debug_mask: np.ndarray | None = field(default=None, repr=False, compare=False)
     debug_skeleton: np.ndarray | None = field(default=None, repr=False, compare=False)
 
+    @property
+    def ascent_mm(self) -> float:
+        return self.baseline_mm
+
+    @property
+    def descent_mm(self) -> float:
+        return max(0.0, self.height_mm - self.baseline_mm)
+
 
 @dataclass(frozen=True, slots=True)
 class MathLayoutElement:
@@ -73,9 +98,9 @@ class MathLayoutElement:
 
 
 class MathRenderer(Protocol):
-    def measure(self, expression: str, size_mm: float) -> MathMetrics: ...
+    def measure(self, expression: str | MathExpression, size_mm: float) -> MathMetrics: ...
 
-    def render(self, expression: str, size_mm: float) -> RenderedMath: ...
+    def render(self, expression: str | MathExpression, size_mm: float) -> RenderedMath: ...
 
 
 class MathTextRenderer:
@@ -121,18 +146,31 @@ class MathTextRenderer:
         self.source_kind = source_kind
         self.cache_hits = 0
         self.cache_misses = 0
+        self.glyph_cache_hits = 0
+        self.glyph_cache_misses = 0
+        self.vector_renders = 0
+        self.raster_fallbacks = 0
 
-    def measure(self, expression: str, size_mm: float) -> MathMetrics:
+    @property
+    def glyph_cache_version(self) -> str:
+        return _GLYPH_CACHE_VERSION
+
+    def measure(self, expression: str | MathExpression, size_mm: float) -> MathMetrics:
         rendered = self.render(expression, size_mm)
         return MathMetrics(rendered.width_mm, rendered.height_mm, rendered.baseline_mm)
 
-    def render(self, expression: str, size_mm: float) -> RenderedMath:
-        if not expression.strip():
-            raise ValueError("Cannot render an empty LaTeX formula")
+    def render(self, expression: str | MathExpression, size_mm: float) -> RenderedMath:
+        model = (
+            expression
+            if isinstance(expression, MathExpression)
+            else normalize_latex_expression(expression, source_syntax=self.source_kind)
+        )
+        require_renderable(model)
+        expression_text = model.normalized
         if size_mm <= 0 or not math.isfinite(size_mm):
             raise ValueError("Formula size must be finite and positive")
         key = (
-            expression,
+            expression_text,
             round(size_mm, 9),
             self.stroke_mode,
             self.curve_tolerance_mm,
@@ -155,18 +193,30 @@ class MathTextRenderer:
             return rendered
         self.cache_misses += 1
         if self.stroke_mode == "outline":
-            rendered = self._render_outline(expression, size_mm)
+            rendered = self._render_outline(expression_text, size_mm)
         else:
             try:
-                rendered = self._render_centerline(expression, size_mm)
-            except ValueError as error:
-                if not self.fallback_to_outline:
-                    raise
-                rendered = replace(
-                    self._render_outline(expression, size_mm),
-                    warnings=("latex_centerline_outline_fallback", str(error)),
-                    quality={"needs_review": True, "outline_fallback": True},
-                )
+                rendered = self._render_vector_centerline(expression_text, size_mm)
+                self.vector_renders += 1
+            except (RuntimeError, ValueError) as vector_error:
+                self.raster_fallbacks += 1
+                try:
+                    rendered = replace(
+                        self._render_raster_centerline(expression_text, size_mm),
+                        warnings=("latex_vector_raster_fallback", str(vector_error)),
+                    )
+                except ValueError as raster_error:
+                    if self.strict_quality or not self.fallback_to_outline:
+                        raise raster_error from vector_error
+                    rendered = replace(
+                        self._render_outline(expression_text, size_mm),
+                        warnings=(
+                            "latex_centerline_outline_fallback",
+                            str(vector_error),
+                            str(raster_error),
+                        ),
+                        quality={"needs_review": True, "outline_fallback": True},
+                    )
         _RENDER_CACHE[key] = rendered
         if len(_RENDER_CACHE) > _RENDER_CACHE_LIMIT:
             _RENDER_CACHE.popitem(last=False)
@@ -211,7 +261,344 @@ class MathTextRenderer:
             },
         )
 
-    def _render_centerline(self, expression: str, size_mm: float) -> RenderedMath:
+    def _render_vector_centerline(self, expression: str, size_mm: float) -> RenderedMath:
+        environment = parse_math_environment(expression)
+        if environment is not None:
+            return self._render_structured_environment(
+                expression,
+                environment[0],
+                environment[1],
+                size_mm,
+            )
+        size_pt = size_mm / PT_TO_MM
+        normalized = " ".join(expression.split())
+        try:
+            parsed = MathTextParser("path").parse(
+                f"${normalized}$",
+                dpi=72.0,
+                prop=FontProperties(size=size_pt),
+            )
+        except (RuntimeError, ValueError) as error:
+            raise ValueError(f"MathText cannot layout formula {expression!r}: {error}") from error
+        width_pt = max(float(parsed.width), 0.01 / PT_TO_MM)
+        height_pt = max(float(parsed.height), 0.01 / PT_TO_MM)
+        depth_pt = max(float(parsed.depth), 0.0)
+        strokes: list[PlotterStroke] = []
+        lost_glyphs = 0
+        drawable_glyphs = 0
+        for font, font_size, codepoint, glyph_index, offset_x, offset_y in parsed.glyphs:
+            glyph = self._cached_glyph(font, int(codepoint), int(glyph_index))
+            if not glyph.strokes_pt:
+                if not chr(int(codepoint)).isspace():
+                    lost_glyphs += 1
+                continue
+            drawable_glyphs += 1
+            scale = float(font_size) / _GLYPH_CANONICAL_SIZE_PT
+            for cached_points in glyph.strokes_pt:
+                points = [
+                    Point(
+                        (float(offset_x) + x * scale) * PT_TO_MM,
+                        (height_pt - depth_pt - (float(offset_y) + y * scale)) * PT_TO_MM,
+                    )
+                    for x, y in cached_points
+                ]
+                if len(points) >= 2:
+                    strokes.append(PlotterStroke(len(strokes), points, False))
+        structural_lines = 0
+        for x, y, width, height in parsed.rects:
+            center_y = float(y) + float(height) / 2.0
+            strokes.append(PlotterStroke(
+                len(strokes),
+                [
+                    Point(
+                        float(x) * PT_TO_MM,
+                        (height_pt - depth_pt - center_y) * PT_TO_MM,
+                    ),
+                    Point(
+                        (float(x) + float(width)) * PT_TO_MM,
+                        (height_pt - depth_pt - center_y) * PT_TO_MM,
+                    ),
+                ],
+                False,
+            ))
+            structural_lines += 1
+        if not strokes:
+            raise ValueError(f"MathText produced no vector centerline for formula {expression!r}")
+        for index, stroke in enumerate(strokes):
+            stroke.id = index
+            stroke.element_type = "latex"
+            stroke.semantic_role = "latex-centerline"
+            stroke.source_chars = expression
+            stroke.segment_types = (
+                ("latex-structural-line",)
+                if index >= len(strokes) - structural_lines
+                else ("latex-centerline",)
+            )
+        points_count = sum(len(stroke.points) for stroke in strokes)
+        draw_length = sum(
+            math.dist((left.x, left.y), (right.x, right.y))
+            for stroke in strokes
+            for left, right in pairwise(stroke.points)
+        )
+        gate = _evaluate_math_geometry(
+            strokes,
+            width_pt * PT_TO_MM,
+            height_pt * PT_TO_MM,
+            expected_glyphs=drawable_glyphs + lost_glyphs,
+            lost_glyphs=lost_glyphs,
+            expected_structural_lines=len(parsed.rects),
+            structural_lines=structural_lines,
+            max_components=self.max_components,
+            max_points=self.max_points,
+        )
+        quality: dict[str, object] = {
+            "render_path": "vector-first",
+            "glyphs_expected": drawable_glyphs + lost_glyphs,
+            "layout_glyphs": len(parsed.glyphs),
+            "glyphs_lost": lost_glyphs,
+            "structural_lines_expected": len(parsed.rects),
+            "structural_lines": structural_lines,
+            "strokes": len(strokes),
+            "points": points_count,
+            "components_before_pruning": len(strokes),
+            "components_after_pruning": len(strokes),
+            "graph_nodes": points_count,
+            "graph_edges": max(0, points_count - len(strokes)),
+            "junction_count": 0,
+            "draw_length_mm": draw_length,
+            "retraced_length_mm": 0.0,
+            "retrace_ratio": 0.0,
+            "centerline_coverage_ratio": 1.0,
+            **gate,
+        }
+        failures = tuple(str(item) for item in quality["quality_failures"])
+        if failures:
+            raise ValueError("Math quality gate failed: " + ", ".join(failures))
+        return RenderedMath(
+            expression,
+            tuple(strokes),
+            width_pt * PT_TO_MM,
+            height_pt * PT_TO_MM,
+            (height_pt - depth_pt) * PT_TO_MM,
+            "centerline",
+            self.source_kind,
+            quality,
+        )
+
+    def _render_structured_environment(
+        self,
+        expression: str,
+        environment: str,
+        rows: tuple[tuple[str, ...], ...],
+        size_mm: float,
+    ) -> RenderedMath:
+        column_count = max(len(row) for row in rows)
+        if environment == "cases" and column_count > 2:
+            raise ValueError("LaTeX cases supports at most two columns")
+        cell_size = size_mm * 0.88
+        rendered_rows: list[list[RenderedMath | None]] = []
+        for row in rows:
+            rendered_row: list[RenderedMath | None] = []
+            for column in range(column_count):
+                cell = row[column] if column < len(row) else ""
+                rendered_row.append(
+                    self._render_vector_centerline(cell, cell_size) if cell else None
+                )
+            rendered_rows.append(rendered_row)
+        column_gap = size_mm * (0.65 if environment == "cases" else 0.45)
+        row_gap = size_mm * 0.30
+        column_widths = [
+            max(
+                (row[column].width_mm for row in rendered_rows if row[column] is not None),
+                default=0.0,
+            )
+            for column in range(column_count)
+        ]
+        row_ascents = [
+            max((cell.ascent_mm for cell in row if cell is not None), default=cell_size * 0.7)
+            for row in rendered_rows
+        ]
+        row_descents = [
+            max((cell.descent_mm for cell in row if cell is not None), default=cell_size * 0.2)
+            for row in rendered_rows
+        ]
+        content_width = sum(column_widths) + column_gap * max(0, column_count - 1)
+        content_height = sum(
+            ascent + descent for ascent, descent in zip(row_ascents, row_descents, strict=True)
+        ) + row_gap * max(0, len(rows) - 1)
+        delimiter_gap = size_mm * 0.22
+        delimiter_width = size_mm * 0.42 if environment not in {"matrix", "aligned"} else 0.0
+        left_width = delimiter_width if environment not in {"matrix", "aligned"} else 0.0
+        right_width = delimiter_width if environment not in {"matrix", "aligned", "cases"} else 0.0
+        content_x = left_width + (delimiter_gap if left_width else 0.0)
+        width = content_x + content_width + (delimiter_gap + right_width if right_width else 0.0)
+        height = max(content_height, size_mm)
+        strokes: list[PlotterStroke] = []
+        glyphs_expected = 0
+        y = 0.0
+        for row_index, row in enumerate(rendered_rows):
+            baseline = y + row_ascents[row_index]
+            x = content_x
+            for column_index, cell in enumerate(row):
+                if cell is not None:
+                    glyphs_expected += int(cell.quality.get("glyphs_expected", 0))
+                    if environment == "aligned" and column_index == 0:
+                        cell_x = x + column_widths[column_index] - cell.width_mm
+                    else:
+                        cell_x = x + (column_widths[column_index] - cell.width_mm) / 2.0
+                    cell_y = baseline - cell.ascent_mm
+                    for stroke in cell.strokes:
+                        strokes.append(replace(
+                            stroke,
+                            id=len(strokes),
+                            points=[
+                                Point(point.x + cell_x, point.y + cell_y)
+                                for point in stroke.points
+                            ],
+                        ))
+                x += column_widths[column_index] + column_gap
+            y += row_ascents[row_index] + row_descents[row_index] + row_gap
+        delimiter_strokes = _environment_delimiters(
+            environment,
+            width,
+            height,
+            delimiter_width,
+            size_mm,
+        )
+        for points in delimiter_strokes:
+            strokes.append(PlotterStroke(len(strokes), points, False))
+        for index, stroke in enumerate(strokes):
+            stroke.id = index
+            stroke.element_type = "latex"
+            stroke.semantic_role = "latex-centerline"
+            stroke.source_chars = expression
+            if index >= len(strokes) - len(delimiter_strokes):
+                stroke.segment_types = ("latex-structural-delimiter",)
+        gate = _evaluate_math_geometry(
+            strokes,
+            width,
+            height,
+            expected_glyphs=glyphs_expected,
+            lost_glyphs=0,
+            expected_structural_lines=len(delimiter_strokes),
+            structural_lines=len(delimiter_strokes),
+            max_components=self.max_components,
+            max_points=self.max_points,
+        )
+        if gate["quality_failures"]:
+            raise ValueError(
+                "Math environment quality gate failed: "
+                + ", ".join(str(item) for item in gate["quality_failures"])
+            )
+        quality = {
+            "render_path": "vector-first",
+            "environment": environment,
+            "rows": len(rows),
+            "columns": column_count,
+            "glyphs_expected": glyphs_expected,
+            "glyphs_lost": 0,
+            "structural_lines_expected": len(delimiter_strokes),
+            "structural_lines": len(delimiter_strokes),
+            "strokes": len(strokes),
+            "points": sum(len(stroke.points) for stroke in strokes),
+            **gate,
+        }
+        return RenderedMath(
+            expression,
+            tuple(strokes),
+            width,
+            height,
+            height / 2.0 + size_mm * 0.12,
+            "centerline",
+            self.source_kind,
+            quality,
+        )
+
+    def _cached_glyph(self, font: object, codepoint: int, glyph_index: int) -> _CachedMathGlyph:
+        font_path = str(getattr(font, "fname", "unknown-math-font"))
+        key = (
+            _GLYPH_CACHE_VERSION,
+            font_path,
+            codepoint,
+            glyph_index,
+            round(self.render_ppmm, 6),
+            self.supersample,
+            self.threshold,
+            self.closing_radius_px,
+            round(self.min_component_length_mm, 6),
+            round(self.curve_tolerance_mm, 6),
+        )
+        if key in _GLYPH_CACHE:
+            self.glyph_cache_hits += 1
+            glyph = _GLYPH_CACHE.pop(key)
+            _GLYPH_CACHE[key] = glyph
+            return glyph
+        self.glyph_cache_misses += 1
+        glyph = self._compile_glyph(font, codepoint, glyph_index)
+        _GLYPH_CACHE[key] = glyph
+        if len(_GLYPH_CACHE) > _GLYPH_CACHE_LIMIT:
+            _GLYPH_CACHE.popitem(last=False)
+        return glyph
+
+    def _compile_glyph(self, font: object, codepoint: int, glyph_index: int) -> _CachedMathGlyph:
+        try:
+            font.set_size(_GLYPH_CANONICAL_SIZE_PT, 72.0)
+            font.load_glyph(glyph_index)
+            vertices, codes = font.get_path()
+        except (AttributeError, RuntimeError, ValueError) as error:
+            raise ValueError(f"Cannot extract MathText glyph U+{codepoint:04X}: {error}") from error
+        if len(vertices) == 0 or codes is None:
+            return _CachedMathGlyph((), (0.0, 0.0, 0.0, 0.0), {"empty": True})
+        min_x = float(vertices[:, 0].min())
+        max_x = float(vertices[:, 0].max())
+        min_y = float(vertices[:, 1].min())
+        max_y = float(vertices[:, 1].max())
+        pixels_per_pt = self.render_ppmm * self.supersample * PT_TO_MM
+        padding = max(2, self.closing_radius_px + 1)
+        width = max(1, math.ceil((max_x - min_x) * pixels_per_pt)) + padding * 2
+        height = max(1, math.ceil((max_y - min_y) * pixels_per_pt)) + padding * 2
+        if width * height > self.max_render_pixels:
+            raise ValueError(
+                f"Math glyph U+{codepoint:04X} mask has {width * height} pixels; "
+                f"limit is {self.max_render_pixels}"
+            )
+        xs = min_x + (np.arange(width) - padding + 0.5) / pixels_per_pt
+        ys = max_y - (np.arange(height) - padding + 0.5) / pixels_per_pt
+        grid_x, grid_y = np.meshgrid(xs, ys)
+        sample_points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
+        mask = _compound_path_mask(vertices, codes, sample_points, (height, width))
+        geometry = raster_to_centerline(
+            mask,
+            1.0 / (self.render_ppmm * self.supersample),
+            RasterCenterlineConfig(
+                threshold=self.threshold,
+                closing_radius_px=self.closing_radius_px,
+                min_component_length_mm=(
+                    self.min_component_length_mm
+                    * _GLYPH_CANONICAL_SIZE_PT
+                    / max(_GLYPH_CANONICAL_SIZE_PT, 1.0)
+                ),
+                simplify_tolerance_mm=self.curve_tolerance_mm,
+                max_render_pixels=self.max_render_pixels,
+                max_components=self.max_components,
+                max_points=self.max_points,
+                strict_quality=False,
+            ),
+        )
+        strokes_pt = tuple(
+            tuple(
+                (
+                    min_x + (point.x / PT_TO_MM) - padding / pixels_per_pt,
+                    max_y - (point.y / PT_TO_MM) + padding / pixels_per_pt,
+                )
+                for point in stroke.points
+            )
+            for stroke in geometry.strokes
+            if len(stroke.points) >= 2
+        )
+        return _CachedMathGlyph(strokes_pt, (min_x, min_y, max_x, max_y), geometry.quality)
+
+    def _render_raster_centerline(self, expression: str, size_mm: float) -> RenderedMath:
         normalized = " ".join(expression.split())
         pixels_per_mm = self.render_ppmm * self.supersample
         dpi = pixels_per_mm * 25.4
@@ -477,6 +864,23 @@ def _binary_debug_image(mask: np.ndarray) -> Image.Image:
     return Image.fromarray(pixels, mode="L")
 
 
+def _compound_path_mask(
+    vertices: np.ndarray,
+    codes: np.ndarray,
+    sample_points: np.ndarray,
+    shape: tuple[int, int],
+) -> np.ndarray:
+    """Rasterize a glyph with even-odd contour filling so counters stay hollow."""
+    starts = np.flatnonzero(codes == MatplotlibPath.MOVETO)
+    if not len(starts):
+        return np.zeros(shape, dtype=bool)
+    mask = np.zeros(len(sample_points), dtype=bool)
+    for start, end in zip(starts, (*starts[1:], len(codes)), strict=True):
+        contour = MatplotlibPath(vertices[start:end], codes[start:end])
+        mask ^= contour.contains_points(sample_points)
+    return mask.reshape(shape)
+
+
 def _overlay_svg(rendered: RenderedMath, mask_image: Image.Image) -> str:
     buffer = io.BytesIO()
     mask_image.save(buffer, format="PNG")
@@ -569,6 +973,158 @@ def _path_to_strokes(
             raise ValueError(f"Unsupported MathText path command: {code}")
     finish()
     return strokes
+
+
+def _evaluate_math_geometry(
+    strokes: list[PlotterStroke],
+    width_mm: float,
+    height_mm: float,
+    *,
+    expected_glyphs: int,
+    lost_glyphs: int,
+    expected_structural_lines: int,
+    structural_lines: int,
+    max_components: int,
+    max_points: int,
+) -> dict[str, object]:
+    failures: list[str] = []
+    points = [point for stroke in strokes for point in stroke.points]
+    if not strokes or not points:
+        failures.append("empty_geometry")
+    non_finite = int(sum(
+        not math.isfinite(point.x) or not math.isfinite(point.y) for point in points
+    ))
+    if non_finite:
+        failures.append("non_finite_geometry")
+    if len(strokes) > max_components:
+        failures.append("too_many_components")
+    if len(points) > max_points:
+        failures.append("too_many_points")
+    if lost_glyphs:
+        failures.append("lost_glyphs")
+    if structural_lines < expected_structural_lines:
+        failures.append("lost_structural_lines")
+
+    bbox: tuple[float, float, float, float] | None = None
+    outside = 0
+    bbox_too_large = False
+    if points and not non_finite:
+        bbox = (
+            float(min(point.x for point in points)),
+            float(min(point.y for point in points)),
+            float(max(point.x for point in points)),
+            float(max(point.y for point in points)),
+        )
+        tolerance = max(0.5, min(width_mm, height_mm) * 0.2)
+        outside = int(sum(
+            point.x < -tolerance
+            or point.y < -tolerance
+            or point.x > width_mm + tolerance
+            or point.y > height_mm + tolerance
+            for point in points
+        ))
+        bbox_too_large = (
+            bbox[2] - bbox[0] > width_mm * 1.25 + tolerance
+            or bbox[3] - bbox[1] > height_mm * 1.25 + tolerance
+        )
+        if outside > max(2, len(points) // 50):
+            failures.append("geometry_outside_formula_bbox")
+        if bbox_too_large:
+            failures.append("unexpected_formula_bbox")
+
+    seen_segments: set[tuple[tuple[float, float], tuple[float, float]]] = set()
+    draw_length = 0.0
+    retraced_length = 0.0
+    for stroke in strokes:
+        for left, right in pairwise(stroke.points):
+            segment_length = math.dist((left.x, left.y), (right.x, right.y))
+            draw_length += segment_length
+            endpoints = sorted(
+                ((round(left.x, 5), round(left.y, 5)), (round(right.x, 5), round(right.y, 5)))
+            )
+            segment = (endpoints[0], endpoints[1])
+            if segment in seen_segments:
+                retraced_length += segment_length
+            seen_segments.add(segment)
+    retrace_ratio = retraced_length / max(draw_length, 1e-9)
+    if retrace_ratio > 0.65:
+        failures.append("excessive_retrace")
+    pen_lift_limit = max(16, expected_glyphs * 4 + expected_structural_lines)
+    if len(strokes) > pen_lift_limit:
+        failures.append("too_many_pen_lifts")
+    return {
+        "empty_geometry": not strokes or not points,
+        "non_finite_points": non_finite,
+        "formula_bbox": bbox,
+        "expected_formula_bbox": (0.0, 0.0, width_mm, height_mm),
+        "outside_bbox_points": outside,
+        "bbox_too_large": bbox_too_large,
+        "pen_lifts": len(strokes),
+        "pen_lift_limit": pen_lift_limit,
+        "retraced_length_mm": round(retraced_length, 6),
+        "retrace_ratio": round(retrace_ratio, 6),
+        "quality_failures": tuple(dict.fromkeys(failures)),
+        "needs_review": bool(failures),
+    }
+
+
+def _environment_delimiters(
+    environment: str,
+    width: float,
+    height: float,
+    delimiter_width: float,
+    size_mm: float,
+) -> list[list[Point]]:
+    if environment in {"matrix", "aligned"}:
+        return []
+    inset = size_mm * 0.08
+    top, bottom = inset, height - inset
+    left_x = delimiter_width
+    right_x = width - delimiter_width
+    if environment in {"bmatrix", "Bmatrix"}:
+        return [
+            [Point(left_x, top), Point(0.0, top), Point(0.0, bottom), Point(left_x, bottom)],
+            [
+                Point(right_x, top), Point(width, top), Point(width, bottom),
+                Point(right_x, bottom),
+            ],
+        ]
+    if environment in {"vmatrix", "Vmatrix"}:
+        offset = delimiter_width * 0.30 if environment == "Vmatrix" else 0.0
+        lines = [
+            [Point(offset, top), Point(offset, bottom)],
+            [Point(width - offset, top), Point(width - offset, bottom)],
+        ]
+        if environment == "Vmatrix":
+            lines.extend([
+                [Point(delimiter_width * 0.70, top), Point(delimiter_width * 0.70, bottom)],
+                [
+                    Point(width - delimiter_width * 0.70, top),
+                    Point(width - delimiter_width * 0.70, bottom),
+                ],
+            ])
+        return lines
+    if environment == "cases":
+        middle = height / 2.0
+        return [[
+            Point(delimiter_width, top),
+            Point(delimiter_width * 0.35, top + height * 0.08),
+            Point(delimiter_width * 0.35, middle - height * 0.08),
+            Point(0.0, middle),
+            Point(delimiter_width * 0.35, middle + height * 0.08),
+            Point(delimiter_width * 0.35, bottom - height * 0.08),
+            Point(delimiter_width, bottom),
+        ]]
+    steps = 12
+    left = [
+        Point(
+            delimiter_width * (1.0 - math.sin(math.pi * index / steps)),
+            top + (bottom - top) * index / steps,
+        )
+        for index in range(steps + 1)
+    ]
+    right = [Point(width - point.x, point.y) for point in left]
+    return [left, right]
 
 
 def _flatten_quadratic(

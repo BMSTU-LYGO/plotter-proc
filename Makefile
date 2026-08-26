@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
-INPUT ?= examples/input.txt
-FONT ?= assets/handwriting.ttf
+INPUT ?= examples/benchmark_50_words.txt
+FONT ?= assets/1.ttf
 PAGE ?= A5
 SIZE ?= normal
 BUILD ?= build
@@ -8,10 +8,11 @@ CACHE_DIR ?= 1-font-cache
 FONT_CACHE_DIR ?= $(CACHE_DIR)
 FONT_CACHE_CORPUS ?= assets/font-cache-corpus.txt
 LAYOUT_CONFIG ?= configs/layout.yaml
+RUN_CONFIG ?= configs/run_conf.yaml
 
 PROFILE ?= safe
 
-.PHONY: install test lint run demo extract calibrate benchmark benchmark-pipeline smoke audit \
+.PHONY: install test lint run run-fast run-balanced run-quality demo extract calibrate benchmark benchmark-pipeline smoke audit \
 	audit-benchmark clean cache-clean font-cache-rebuild cache-rebuild font-cache-status
 
 install:
@@ -31,6 +32,18 @@ run:
 		--layout-config "$(LAYOUT_CONFIG)" \
 		--machine-config configs/machine.yaml \
 		--output-dir "$(BUILD)"
+
+run-fast:
+	$(PYTHON) tools/run_with_config.py super-fast --config "$(RUN_CONFIG)" \
+		--input "$(INPUT)" --font "$(FONT)" --build-root "$(BUILD)"
+
+run-balanced:
+	$(PYTHON) tools/run_with_config.py balanced --config "$(RUN_CONFIG)" \
+		--input "$(INPUT)" --font "$(FONT)" --build-root "$(BUILD)"
+
+run-quality:
+	$(PYTHON) tools/run_with_config.py quality --config "$(RUN_CONFIG)" \
+		--input "$(INPUT)" --font "$(FONT)" --build-root "$(BUILD)"
 
 demo: run
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +25,9 @@ from plotter_processor.document_models import (
     SourceTextElement,
     SourceTextRun,
     SourceTextStyle,
+    SourceVectorElement,
 )
+from plotter_processor.models import PlotterStroke, Point
 from plotter_processor.omml_parser import parse_omml
 
 EMU_PER_MM = 36000.0
@@ -203,6 +206,7 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             parsed.expression,
             parsed.display_mode,
             "omml",
+            model=parsed.model,
         ))
 
     def add_arrow(pict: object) -> bool:
@@ -244,6 +248,73 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
             ))
         return True
 
+    def add_vml_shapes(pict: object) -> bool:
+        emitted = False
+        shapes = pict.xpath(
+            ".//*[local-name()='rect' or local-name()='roundrect' or local-name()='oval']"
+        )
+        for shape in shapes:
+            bbox = _vml_shape_bbox(shape, warnings)
+            if bbox is None or bbox.width <= 0 or bbox.height <= 0:
+                continue
+            name = _local_name(shape.tag)
+            if name in {"rect", "roundrect"}:
+                points = (
+                    _rounded_rect_points(bbox)
+                    if name == "roundrect"
+                    else [
+                        Point(bbox.x0, bbox.y0),
+                        Point(bbox.x1, bbox.y0),
+                        Point(bbox.x1, bbox.y1),
+                        Point(bbox.x0, bbox.y1),
+                    ]
+                )
+                segment = "docx-rounded-rectangle" if name == "roundrect" else "docx-rectangle"
+            else:
+                points = [
+                    Point(
+                        (bbox.x0 + bbox.x1) / 2
+                        + bbox.width / 2 * math.cos(2 * math.pi * i / 64),
+                        (bbox.y0 + bbox.y1) / 2
+                        + bbox.height / 2 * math.sin(2 * math.pi * i / 64),
+                    )
+                    for i in range(64)
+                ]
+                segment = "docx-ellipse"
+            element_id = f"page-001-shape-{len(elements) + 1:03d}"
+            stroke = PlotterStroke(
+                0,
+                points,
+                True,
+                element_id=element_id,
+                element_type="docx-vector-shape",
+                semantic_role=segment,
+                segment_types=(segment,),
+            )
+            elements.append(SourceVectorElement(
+                element_id,
+                len(elements),
+                0,
+                (stroke,),
+                bbox,
+                "absolute",
+                "square",
+            ))
+            text = "".join(
+                str(value)
+                for value in shape.xpath(".//*[local-name()='textbox']//*[local-name()='t']/text()")
+            ).strip()
+            if text:
+                elements.append(SourceTextElement(
+                    f"{element_id}-text",
+                    len(elements),
+                    0,
+                    (text,),
+                    bbox,
+                ))
+            emitted = True
+        return emitted
+
     def walk_paragraph(paragraph: object, *, table: bool = False) -> None:
         runs: list[SourceTextRun] = []
         emitted = False
@@ -276,9 +347,12 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
                         runs.append(SourceTextRun(run_text, _run_style(child, warnings)))
                         run_text = ""
                     flush()
-                    if local == "pict" and add_arrow(part):
-                        emitted = True
-                        continue
+                    if local == "pict":
+                        handled = add_arrow(part)
+                        handled = add_vml_shapes(part) or handled
+                        if handled:
+                            emitted = True
+                            continue
                     add_image(part)
                     emitted = True
             if run_text:
@@ -602,6 +676,46 @@ def _vml_length(value: str) -> float:
     if value.endswith("mm"):
         return float(value[:-2])
     return float(value) * 25.4 / 72
+
+
+def _vml_shape_bbox(shape: object, warnings: list[str]) -> SourceBBox | None:
+    style = str(shape.get("style", ""))
+    values = {
+        key.strip().casefold(): value.strip()
+        for item in style.split(";")
+        if ":" in item
+        for key, value in (item.split(":", 1),)
+    }
+    required = ("left", "top", "width", "height")
+    if not all(key in values for key in required):
+        warnings.append("docx_vml_shape_missing_geometry")
+        return None
+    try:
+        left, top, width, height = (_vml_length(values[key]) for key in required)
+    except ValueError:
+        warnings.append("docx_vml_shape_invalid_geometry")
+        return None
+    return SourceBBox(left, top, left + width, top + height)
+
+
+def _rounded_rect_points(bbox: SourceBBox) -> list[Point]:
+    radius = min(bbox.width, bbox.height) * 0.18
+    centers = (
+        (bbox.x1 - radius, bbox.y0 + radius, -math.pi / 2),
+        (bbox.x1 - radius, bbox.y1 - radius, 0.0),
+        (bbox.x0 + radius, bbox.y1 - radius, math.pi / 2),
+        (bbox.x0 + radius, bbox.y0 + radius, math.pi),
+    )
+    return [
+        Point(cx + radius * math.cos(start + step * math.pi / 16),
+              cy + radius * math.sin(start + step * math.pi / 16))
+        for cx, cy, start in centers
+        for step in range(9)
+    ]
+
+
+def _local_name(tag: object) -> str:
+    return str(tag).rsplit("}", 1)[-1]
 
 
 def _parse_table(

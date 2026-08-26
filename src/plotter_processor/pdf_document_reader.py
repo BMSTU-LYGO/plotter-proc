@@ -26,6 +26,7 @@ from plotter_processor.document_models import (
     SourceTextStyle,
     SourceVectorElement,
 )
+from plotter_processor.math_expression import visual_math_expression
 from plotter_processor.models import PlotterStroke, Point
 from plotter_processor.pdf_math_detector import collect_pdf_spans, detect_pdf_math_regions
 
@@ -136,6 +137,7 @@ def read_pdf_document(
                     render_ppmm,
                     absorbed,
                     region.confidence,
+                    visual_math_expression(region.text),
                 ))
                 absorbed_blocks.update(region.block_indices)
                 absorbed_drawings.update(region.drawing_indices)

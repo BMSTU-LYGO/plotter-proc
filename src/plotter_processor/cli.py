@@ -323,7 +323,11 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--layout-engine", choices=("legacy", "harfbuzz"))
     parser.add_argument("--connections", choices=("off", "safe", "aggressive"))
     parser.add_argument("--connection-debug", action="store_true")
-    parser.add_argument("--images", choices=("auto", "outline", "centerline", "off"), default="auto")
+    parser.add_argument(
+        "--images",
+        choices=("auto", "outline", "centerline", "hatching", "off"),
+        default="auto",
+    )
     parser.add_argument("--image-debug", action="store_true")
     parser.add_argument("--pdf-layout", choices=("reflow", "preserve"))
     parser.add_argument("--document-layout", choices=("reflow", "hybrid", "preserve"))

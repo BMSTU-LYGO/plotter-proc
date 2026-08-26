@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from plotter_processor.svg_importer import import_svg
+from plotter_processor.svg_importer import import_svg, svg_intrinsic_size_mm
 
 
 def _svg(tmp_path: Path, body: str) -> Path:
@@ -22,6 +22,16 @@ def test_rejects_script_external_and_text(tmp_path: Path) -> None:
     for body in ('<script/>', '<image href="https://example.com/a.png"/>', '<text>x</text>'):
         with pytest.raises(ValueError, match="Unsafe|unsupported"):
             import_svg(_svg(tmp_path, body), x_mm=0, y_mm=0, width_mm=10, height_mm=10)
+
+
+def test_intrinsic_units_and_viewbox_fallback_are_normalized_to_mm(tmp_path: Path) -> None:
+    sized = tmp_path / "sized.svg"
+    sized.write_text('<svg width="10cm" height="2in" viewBox="0 0 100 20"/>')
+    viewbox = tmp_path / "viewbox.svg"
+    viewbox.write_text('<svg viewBox="0 0 96 192"/>')
+
+    assert svg_intrinsic_size_mm(sized) == pytest.approx((100.0, 50.8))
+    assert svg_intrinsic_size_mm(viewbox) == pytest.approx((25.4, 50.8))
 
 
 from plotter_processor.models import Point

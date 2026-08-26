@@ -30,6 +30,37 @@ def test_inline_formula_shares_line_and_increases_height(test_font: Path) -> Non
     assert tall[0].height_mm >= plain[0].height_mm
 
 
+@pytest.mark.parametrize(
+    "expression",
+    ["x", "x^2", "x_i", r"\frac{1}{2}", r"\sqrt{x}", r"\int_0^1 x\,dx"],
+)
+def test_inline_formula_uses_text_baseline(expression: str, test_font: Path) -> None:
+    config = _config()
+    renderer = MathTextRenderer()
+    with load_font(test_font) as font:
+        lines, _ = layout_latex_paragraph(
+            f"before ${expression}$ after",
+            font,
+            140,
+            config["sizes"]["normal"],
+            config["latex"],
+            renderer,
+            formula_index_start=0,
+            element_id="baseline",
+        )
+
+    assert len(lines) == 1
+    line = lines[0]
+    formula = renderer.render(expression, config["sizes"]["normal"]["em_size_mm"])
+    target = line.formula_infos[0].target_bbox
+    assert target is not None
+    text_baselines = {round(glyph.baseline_y_mm, 7) for glyph in line.glyphs}
+    assert len(text_baselines) == 1
+    assert target["y"] + formula.baseline_mm == pytest.approx(text_baselines.pop())
+    assert target["y"] >= -1e-9
+    assert target["y"] + target["height"] <= line.height_mm + 1e-9
+
+
 def test_inline_formula_wraps_whole_and_block_is_centered(test_font: Path) -> None:
     config = _config()
     with load_font(test_font) as font:
@@ -52,3 +83,4 @@ def test_inline_formula_wraps_whole_and_block_is_centered(test_font: Path) -> No
     assert bbox_center == pytest.approx(40.0, abs=0.2)
     assert block[0].spacing_before_mm == 2.0
     assert block[0].spacing_after_mm == 2.0
+    assert block[0].atomic_formula

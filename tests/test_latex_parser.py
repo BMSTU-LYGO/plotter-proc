@@ -15,7 +15,13 @@ from plotter_processor.latex_parser import MathRun, TextRun, parse_latex_runs
 def test_supported_delimiters(source: str, expression: str, display: bool) -> None:
     runs = parse_latex_runs(source)
 
-    assert runs == [MathRun(expression, display, runs[0].source_syntax, runs[0].delimiter, 0, len(source))]
+    assert len(runs) == 1
+    assert runs[0].expression == expression
+    assert runs[0].display_mode is display
+    assert runs[0].start == 0
+    assert runs[0].end == len(source)
+    assert runs[0].model is not None
+    assert runs[0].model.normalized == expression
 
 
 def test_text_formula_text_and_escaped_dollar() -> None:

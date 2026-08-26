@@ -395,7 +395,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         layout_config = load_yaml(options.layout_config_path)
         if options.font_mode not in {"outline", "centerline"}:
             raise ValueError(f"Unknown font mode: {options.font_mode}")
-        if options.images not in {"auto", "outline", "centerline", "off"}:
+        if options.images not in {"auto", "outline", "centerline", "hatching", "off"}:
             raise ValueError(f"Unknown image mode: {options.images}")
         if options.latex not in {"auto", "mathtext", "off"}:
             raise ValueError(f"Unknown LaTeX mode: {options.latex}")
@@ -1163,6 +1163,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 or str(latex_options.get("stroke_mode", "centerline")),
                 "pdf_math_mode": options.pdf_math,
             },
+            "math": _math_report(paginated.latex_statistics),
             "pagination": {
                 "enabled": pagination_enabled, "page_count": page_count,
                 "page_numbers": page_numbers_enabled,
@@ -1210,6 +1211,11 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 "latex": {
                     "hits": paginated.latex_statistics.get("cache_hits", 0),
                     "misses": paginated.latex_statistics.get("cache_misses", 0),
+                    "glyph_hits": paginated.latex_statistics.get("glyph_cache_hits", 0),
+                    "glyph_misses": paginated.latex_statistics.get("glyph_cache_misses", 0),
+                    "glyph_algorithm_version": paginated.latex_statistics.get(
+                        "glyph_cache_version"
+                    ),
                 },
                 "previews": preview_cache,
                 "stages": stage_cache.report(),
@@ -1335,6 +1341,50 @@ def _paragraph_formatting_report(document: SourceDocument) -> dict[str, int]:
             paragraph.alignment == "justify" for paragraph in paragraphs
         ),
         "custom_tab_stops": sum(bool(paragraph.tab_stops_mm) for paragraph in paragraphs),
+    }
+
+
+def _math_report(latex_statistics: dict[str, object]) -> dict[str, object]:
+    raw_formulas = latex_statistics.get("formulas", [])
+    formulas = [item for item in raw_formulas if isinstance(item, dict)]
+    latex_count = sum(
+        formula.get("source_syntax") not in {"omml", "pdf-visual"}
+        for formula in formulas
+    )
+    vector_rendered = sum(
+        isinstance(formula.get("quality"), dict)
+        and formula["quality"].get("render_path") == "vector-first"
+        for formula in formulas
+    )
+    raster_fallback = sum(
+        "latex_vector_raster_fallback" in formula.get("warnings", ())
+        for formula in formulas
+    )
+    quality_failures = sum(
+        bool(formula.get("quality", {}).get("quality_failures"))
+        for formula in formulas
+        if isinstance(formula.get("quality"), dict)
+    )
+    warnings = {
+        str(warning)
+        for formula in formulas
+        for warning in formula.get("warnings", ())
+    }
+    total = len(formulas)
+    return {
+        "formulas_total": total,
+        "latex": latex_count,
+        "omml": sum(formula.get("source_syntax") == "omml" for formula in formulas),
+        "pdf_visual": sum(
+            formula.get("source_syntax") == "pdf-visual" for formula in formulas
+        ),
+        "vector_rendered": vector_rendered,
+        "raster_fallback": raster_fallback,
+        "vector_first_ratio": round(vector_rendered / max(total, 1), 6),
+        "cache_hits": int(latex_statistics.get("cache_hits", 0))
+        + int(latex_statistics.get("glyph_cache_hits", 0)),
+        "warnings": len(warnings),
+        "quality_failures": quality_failures,
     }
 
 

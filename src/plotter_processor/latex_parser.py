@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from plotter_processor.math_expression import MathExpression, normalize_latex_expression
+
 
 @dataclass(frozen=True, slots=True)
 class TextRun:
@@ -18,6 +20,7 @@ class MathRun:
     delimiter: str
     start: int
     end: int
+    model: MathExpression | None = None
 
 
 LatexRun = TextRun | MathRun
@@ -77,7 +80,10 @@ def parse_latex_runs(
         if formula_count > max_elements:
             raise ValueError(f"Document exceeds latex.max_elements_per_document ({max_elements})")
         end = close_index + len(closer)
-        runs.append(MathRun(expression, display, syntax, opener, index, end))
+        runs.append(MathRun(
+            expression, display, syntax, opener, index, end,
+            normalize_latex_expression(expression, source_syntax=syntax),
+        ))
         index = end
         buffer_start = index
     flush_text(len(text))

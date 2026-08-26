@@ -47,5 +47,5 @@ def test_debug_artifacts_and_no_shell_backend(tmp_path: Path) -> None:
 
 
 def test_unsupported_command_has_clear_error() -> None:
-    with pytest.raises(ValueError, match="MathText cannot render"):
+    with pytest.raises(ValueError, match=r"Unsupported LaTeX command: \\definitelyunsupported"):
         MathTextRenderer().render(r"\definitelyunsupported{x}", 5.0)

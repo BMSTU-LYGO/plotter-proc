@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="80mm" viewBox="0 0 120 80">
+  <g transform="translate(5 5)" fill="none" stroke="black">
+    <path d="M 0 10 C 15 0 30 20 45 10"/>
+    <line x1="0" y1="25" x2="45" y2="25"/>
+    <polyline points="0,40 12,32 24,40"/>
+    <polygon points="32,32 44,32 38,44"/>
+    <rect x="52" y="5" width="24" height="18"/>
+    <circle cx="90" cy="14" r="10"/>
+    <ellipse cx="65" cy="42" rx="13" ry="8"/>
+    <path d="M 78 42 L 108 42 M 101 36 L 108 42 L 101 48"/>
+  </g>
+</svg>

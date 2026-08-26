@@ -1021,6 +1021,7 @@ def paginate_document(
                             source_page_index=element.source_page_index,
                             debug_dir=latex_debug_dir,
                             rendered_math=rendered_visual,
+                            expression_model=element.model,
                         )
                 except ValueError as error:
                     raise ValueError(
@@ -1435,6 +1436,11 @@ def paginate_document(
         "warnings": sorted({warning for formula in rendered_formulas for warning in formula.warnings}),
         "cache_hits": renderer.cache_hits if renderer is not None else 0,
         "cache_misses": renderer.cache_misses if renderer is not None else 0,
+        "glyph_cache_hits": renderer.glyph_cache_hits if renderer is not None else 0,
+        "glyph_cache_misses": renderer.glyph_cache_misses if renderer is not None else 0,
+        "glyph_cache_version": renderer.glyph_cache_version if renderer is not None else None,
+        "vector_rendered": renderer.vector_renders if renderer is not None else 0,
+        "raster_fallback": renderer.raster_fallbacks if renderer is not None else 0,
         "formulas": [asdict(formula) for formula in rendered_formulas],
         "unsupported": [
             "full LaTeX documents and packages",

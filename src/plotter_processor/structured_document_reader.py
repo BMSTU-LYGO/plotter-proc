@@ -11,7 +11,7 @@ from plotter_processor.document_models import (
     SourceTextRun,
 )
 
-SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".txt"}
+SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".svg", ".txt"}
 
 
 def read_structured_document(
@@ -44,6 +44,10 @@ def read_structured_document(
         from plotter_processor.docx_document_reader import read_docx_document
 
         return read_docx_document(path, asset_root)
+    if extension == ".svg":
+        from plotter_processor.svg_document_reader import read_svg_document
+
+        return read_svg_document(path)
     return _read_txt(path)
 
 
