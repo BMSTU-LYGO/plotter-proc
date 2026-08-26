@@ -15,6 +15,7 @@ from plotter_processor.centerline_font.anchors import entry_exit_anchors
 from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.path_optimizer import RetraceConfig, optimize_word_strokes
 from plotter_processor.performance import HotspotTimings
 from plotter_processor.routing_cost import RoutingCost, routing_cost
 
@@ -579,6 +580,7 @@ def route_words(
     *,
     collect_debug: bool = False,
     hotspots: HotspotTimings | None = None,
+    retrace_config: RetraceConfig | None = None,
 ) -> tuple[PathDocument, dict[str, object]]:
     before = len(document.strokes)
     if not config.enabled:
@@ -629,6 +631,7 @@ def route_words(
     per_word: list[dict[str, object]] = []
     debug_candidates: list[dict[str, object]] = []
     for word in words:
+        word_output: list[PlotterStroke] = []
         word_created = 0
         word_rejected: list[str] = []
         secondary: list[PlotterStroke] = []
@@ -677,7 +680,7 @@ def route_words(
                     reason = "missing_main_stroke"
                     counters.cheap_rejected_pairs += 1
                     if combined is not None:
-                        output.append(combined)
+                        word_output.append(combined)
                     combined = replace(right, points=list(right.points)) if right else None
                     rejected += 1
                     rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
@@ -730,7 +733,7 @@ def route_words(
                         )
                     )
                 if not candidate.accepted:
-                    output.append(combined)
+                    word_output.append(combined)
                     combined = replace(right, points=list(right.points))
                     rejected += 1
                     rejection_reasons[reason or "unknown"] = (
@@ -763,17 +766,33 @@ def route_words(
                 created += 1
                 word_created += 1
             if combined is not None:
-                output.append(combined)
-        output.extend(secondary)
+                word_output.append(combined)
+        word_output.extend(secondary)
+        word_route_report: dict[str, float | int | bool] = {
+            "continuous_passes": len(word_output),
+            "retrace_pen_lifts_saved": 0,
+            "retrace_distance_mm": 0.0,
+        }
+        if retrace_config is not None and retrace_config.mode == "superfast":
+            word_output, word_route_report = optimize_word_strokes(
+                word_output, retrace_config
+            )
+        output.extend(word_output)
         per_word.append(
             {
                 "text": "".join(glyph.char for glyph in word),
                 "line_index": word[0].line_index if word else 0,
                 "glyph_count": len(word),
                 "connections": word_created,
-                "remaining_internal_lifts": max(0, len(word) - 1 - word_created),
+                "remaining_internal_lifts": max(
+                    0, int(word_route_report["continuous_passes"]) - 1
+                ),
                 "secondary_strokes": len(secondary),
                 "rejected_pairs": word_rejected,
+                "continuous_passes": int(word_route_report["continuous_passes"]),
+                "word_retrace_distance_mm": float(
+                    word_route_report["retrace_distance_mm"]
+                ),
             }
         )
     output.extend(stroke for stroke in document.strokes if stroke.glyph_index is None)

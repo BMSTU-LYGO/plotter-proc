@@ -101,7 +101,10 @@ def layout_paragraph(
     tokens = _tokens(paragraph.text)
     for token_index, (kind, value) in enumerate(tokens):
         if kind == "space":
-            pending_space += len(value) * space_width
+            pending_space = min(
+                pending_space + len(value) * space_width,
+                space_width * _word_space_factor(paragraph_options),
+            )
             continue
         if kind == "tab":
             following = next(
@@ -420,3 +423,14 @@ def _advance(
             glyph_name = font.glyph_name_for_char(character)
             total += font.advance_for_glyph(glyph_name) * scale
     return total
+
+
+def _word_space_factor(values: Mapping[str, object]) -> float:
+    value = values.get("max_word_space_factor", 1.5)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 1.0 <= value <= 2.0
+    ):
+        raise ValueError("paragraphs.max_word_space_factor must be between 1.0 and 2.0")
+    return float(value)

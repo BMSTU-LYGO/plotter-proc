@@ -169,8 +169,25 @@ def optimize_paths(
     )
 
 
-def _apply_safe_retrace(
+def optimize_word_strokes(
     strokes: list[PlotterStroke], config: RetraceConfig
+) -> tuple[list[PlotterStroke], dict[str, float | int | bool]]:
+    """Route every drawable part of one word as one endpoint graph."""
+    remaining = [_copy_stroke(stroke) for stroke in strokes]
+    ordered: list[PlotterStroke] = []
+    previous: Point | None = None
+    while remaining:
+        selected_index, selected = _nearest_variant(remaining, previous)
+        remaining.pop(selected_index)
+        ordered.append(selected)
+        previous = selected.points[-1]
+    optimized, report = _apply_safe_retrace(ordered, config, scope="word")
+    report["continuous_passes"] = len(optimized)
+    return optimized, report
+
+
+def _apply_safe_retrace(
+    strokes: list[PlotterStroke], config: RetraceConfig, *, scope: str = "glyph"
 ) -> tuple[list[PlotterStroke], dict[str, float | int | bool]]:
     if not config.enabled or config.max_repeats == 0:
         return strokes, {
@@ -188,7 +205,9 @@ def _apply_safe_retrace(
             result.append(stroke)
             continue
         previous = result[-1]
-        merged = _merge_by_safe_retrace(previous, stroke, config, repeats)
+        merged = _merge_by_safe_retrace(
+            previous, stroke, config, repeats, scope=scope
+        )
         if merged is None:
             result.append(stroke)
             continue
@@ -208,18 +227,30 @@ def _merge_by_safe_retrace(
     previous: PlotterStroke,
     following: PlotterStroke,
     config: RetraceConfig,
-    repeats: dict[int, int],
+    repeats: dict[object, int],
+    *,
+    scope: str = "glyph",
 ) -> tuple[PlotterStroke, float] | None:
+    route_key: object = previous.glyph_index
+    same_route = previous.glyph_index == following.glyph_index
+    if scope == "word":
+        route_key = ("word", previous.word_index)
+        same_route = (
+            previous.word_index is not None
+            and previous.word_index >= 0
+            and previous.word_index == following.word_index
+        )
     if (
         previous.glyph_index is None
-        or previous.glyph_index != following.glyph_index
+        or following.glyph_index is None
+        or not same_route
         or previous.closed
         or following.closed
         or len(previous.points) < 2
         or len(following.points) < 2
         or not _segments_allow_retrace(previous, config)
         or not _segments_allow_retrace(following, config)
-        or repeats.get(previous.glyph_index, 0) >= config.max_repeats
+        or repeats.get(route_key, 0) >= config.max_repeats
     ):
         return None
     matches: list[tuple[float, int, bool]] = []
@@ -260,7 +291,7 @@ def _merge_by_safe_retrace(
     )
     retrace_points = list(reversed(previous.points[junction_index:]))
     points = [*previous.points, *retrace_points[1:], *following_points[1:]]
-    repeats[previous.glyph_index] = repeats.get(previous.glyph_index, 0) + 1
+    repeats[route_key] = repeats.get(route_key, 0) + 1
     return (
         replace(
             previous,

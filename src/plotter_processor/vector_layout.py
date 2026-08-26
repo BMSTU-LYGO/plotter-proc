@@ -60,7 +60,7 @@ def layout_text(
             raise ValueError(OVERFLOW_ERROR)
 
     for paragraph_index, raw_paragraph in enumerate(paragraphs):
-        paragraph = raw_paragraph.replace("\t", " " * tab_spaces)
+        paragraph = raw_paragraph
         x = left
         if paragraph:
             tokens = _tokens(paragraph)
@@ -82,9 +82,15 @@ def layout_text(
                 token_width = (
                     sum(glyph.x_advance_font_units for glyph in shaped.glyphs) * scale
                     if shaped is not None
-                    else _text_advance(token, font, scale)
+                    else _text_advance(
+                        " " * tab_spaces if token == "\t" else token, font, scale
+                    )
                 )
                 if breakable_space:
+                    if token != "\t":
+                        base_space = _text_advance(" ", font, scale)
+                        max_space = base_space * _word_space_factor(size_options)
+                        token_width = min(token_width, max_space)
                     if x > left and x + token_width <= left + usable_width:
                         x += token_width
                     continue
@@ -171,11 +177,14 @@ def _tokens(text: str) -> list[tuple[str, bool]]:
     tokens: list[tuple[str, bool]] = []
     current = ""
     for char in text:
-        if char == " ":
+        if char in {" ", "\t"}:
             if current:
                 tokens.append((current, False))
                 current = ""
-            if not tokens or not tokens[-1][1]:
+            if char == "\t":
+                tokens.append((char, True))
+                continue
+            if not tokens or not tokens[-1][1] or tokens[-1][0] == "\t":
                 tokens.append((" ", True))
             else:
                 tokens[-1] = (tokens[-1][0] + " ", True)
@@ -210,4 +219,15 @@ def _nonnegative(values: Mapping[str, object], key: str) -> float:
     value = values.get(key)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         raise ValueError(f"Missing or invalid non-negative field: {key}")
+    return float(value)
+
+
+def _word_space_factor(values: Mapping[str, object]) -> float:
+    value = values.get("max_word_space_factor", 1.5)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 1.0 <= value <= 2.0
+    ):
+        raise ValueError("max_word_space_factor must be between 1.0 and 2.0")
     return float(value)

@@ -82,6 +82,7 @@ def process_page_geometry(
                     request.joining_config,
                     collect_debug=request.connection_debug,
                     hotspots=metrics.hotspots,
+                    retrace_config=request.retrace_config,
                 )
             retrace = paths.metadata.get("safe_retrace")
             if isinstance(retrace, dict):

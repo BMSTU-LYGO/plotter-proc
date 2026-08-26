@@ -108,3 +108,16 @@ def test_target_page_break_keeps_paragraph_format(test_font: Path) -> None:
     assert min(glyph.x_mm for glyph in result.pages[0].layout.glyphs) == 10
     assert min(glyph.x_mm for glyph in result.pages[1].layout.glyphs) == 10
     assert result.element_details["paragraph"]["paragraphs"][0]["line_count"] > 1
+
+
+def test_structured_layout_clamps_accidental_multi_space_word_gap(test_font: Path) -> None:
+    normal = _layout(SourceParagraph((SourceTextRun("а б"),)), test_font)
+    noisy = _layout(SourceParagraph((SourceTextRun("а          б"),)), test_font)
+
+    normal_gap = normal.lines[0].glyphs[1].x_mm - (
+        normal.lines[0].glyphs[0].x_mm + normal.lines[0].glyphs[0].advance_mm
+    )
+    noisy_gap = noisy.lines[0].glyphs[1].x_mm - (
+        noisy.lines[0].glyphs[0].x_mm + noisy.lines[0].glyphs[0].advance_mm
+    )
+    assert noisy_gap <= normal_gap * 1.5 + 1e-9

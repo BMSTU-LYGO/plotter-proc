@@ -17,14 +17,17 @@ sizes:
     em_size_mm: 4.0
     line_height_multiplier: 1.25
     paragraph_spacing_mm: 2.0
+    max_word_space_factor: 1.5
   normal:
     em_size_mm: 5.0
     line_height_multiplier: 1.25
     paragraph_spacing_mm: 2.5
+    max_word_space_factor: 1.5
   large:
     em_size_mm: 6.5
     line_height_multiplier: 1.30
     paragraph_spacing_mm: 3.0
+    max_word_space_factor: 1.5
 
 vector:
   flatten_tolerance_mm: 0.08
@@ -166,6 +169,7 @@ paragraphs:
   min_font_scale: 0.80
   max_font_scale: 1.60
   max_extra_space_per_word_mm: 4.0
+  max_word_space_factor: 1.5
   max_space_before_mm: 12.0
   max_space_after_mm: 12.0
   semantic_scale:
@@ -299,6 +303,7 @@ handwriting:
       superfast:
         max_length_mm: 3.0
         max_repeats: 3
+        allowed_segment_types: [glyph, connector, snap, retrace]
         endpoint_tolerance_mm: 0.08
         max_retrace_ratio: 0.65
 

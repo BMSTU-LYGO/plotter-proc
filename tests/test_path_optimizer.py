@@ -4,6 +4,7 @@ from plotter_processor.path_optimizer import (
     RetraceConfig,
     load_retrace_config,
     optimize_paths,
+    optimize_word_strokes,
 )
 
 
@@ -218,3 +219,38 @@ def test_superfast_routes_each_cyrillic_glyph_as_endpoint_graph() -> None:
     assert optimized.strokes[0].char == "ж"
     assert optimized.strokes[0].points[-1] == Point(1, 1)
     assert optimized.metadata["safe_retrace"]["retrace_pen_lifts_saved"] == 1
+
+
+def test_superfast_routes_a_whole_word_and_reverses_secondary_strokes() -> None:
+    main = PlotterStroke(
+        0,
+        [Point(0, 0), Point(1, 0), Point(2, 0)],
+        False,
+        0,
+        char="мир",
+        segment_types=("glyph", "connector", "glyph"),
+        word_index=4,
+    )
+    secondary = PlotterStroke(
+        1,
+        [Point(1, 1), Point(1, 0)],
+        False,
+        1,
+        char="и",
+        segment_types=("glyph",),
+        word_index=4,
+    )
+    config = RetraceConfig(
+        max_length_mm=3.0,
+        max_repeats=3,
+        allowed_segment_types=frozenset({"glyph", "connector"}),
+        mode="superfast",
+        max_retrace_ratio=0.65,
+    )
+
+    optimized, report = optimize_word_strokes([main, secondary], config)
+
+    assert len(optimized) == 1
+    assert optimized[0].points[-1] == Point(1, 1)
+    assert report["continuous_passes"] == 1
+    assert report["retrace_pen_lifts_saved"] == 1
