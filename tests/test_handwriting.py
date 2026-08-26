@@ -478,6 +478,73 @@ def test_aggressive_accepts_bounded_gap_that_safe_rejects() -> None:
     assert aggressive_metrics["joins_created"] == 1
 
 
+def test_aggressive_can_join_terminal_anchors_with_backward_tangents() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 2), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(
+                0, [Point(0, 10), Point(1, 9), Point(0.2, 10)], False, 0, "а", 0
+            ),
+            PlotterStroke(
+                1, [Point(2, 10), Point(1.2, 11), Point(2.2, 10)], False, 1, "б", 0
+            ),
+        ],
+        [],
+    )
+    safe = _config()
+    aggressive = replace(safe, mode="aggressive")
+
+    safe_result, safe_metrics = route_words(document, glyphs, safe)
+    aggressive_result, aggressive_metrics = route_words(document, glyphs, aggressive)
+
+    assert len(safe_result.strokes) == 2
+    assert safe_metrics["rejections_by_reason"] == {"anchor_not_routeable": 1}
+    assert len(aggressive_result.strokes) == 1
+    assert aggressive_metrics["joins_created"] == 1
+
+
+def test_aggressive_ignores_only_connected_glyphs_in_collision_check() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 3), word_index=0),
+    ]
+    connected_geometry = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(3, 10), Point(2.5, 10), Point(5, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+    aggressive = replace(_config(), mode="aggressive")
+
+    result, metrics = route_words(connected_geometry, glyphs, aggressive)
+
+    assert len(result.strokes) == 1
+    assert metrics["joins_created"] == 1
+
+    foreign_obstacle = PlotterStroke(
+        2, [Point(2.25, 9), Point(2.25, 11)], False
+    )
+    blocked, blocked_metrics = route_words(
+        replace(
+            connected_geometry,
+            strokes=[*connected_geometry.strokes, foreign_obstacle],
+        ),
+        glyphs,
+        aggressive,
+    )
+
+    assert len(blocked.strokes) == 3
+    assert blocked_metrics["rejections_by_reason"] == {"collision": 1}
+
+
 def test_aggressive_keeps_collision_and_punctuation_guards() -> None:
     safe = _config()
     aggressive = replace(safe, max_join_gap_mm=3, mode="aggressive")
