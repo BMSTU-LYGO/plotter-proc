@@ -7,6 +7,7 @@ from plotter_processor.models import LayoutResult, PageSpec, PositionedGlyph
 from plotter_processor.text_shaper import shape_text_run
 
 OVERFLOW_ERROR = "Text does not fit on one page"
+_SEPARATE_PUNCTUATION = frozenset(".,:;!?")
 
 
 def layout_text(
@@ -123,6 +124,27 @@ def layout_text(
                         raise ValueError(OVERFLOW_ERROR)
                     for item, advance in zip(cluster, advances, strict=True):
                         char = item.source_characters if shaped is not None else item
+                        text_role = _text_role(char)
+                        punctuation_gap = (
+                            _punctuation_value(size_options, "punctuation_gap_mm", 0.25)
+                            if text_role == "punctuation"
+                            and glyphs
+                            and glyphs[-1].line_index == line_index
+                            and glyphs[-1].text_role == "letter"
+                            and not (
+                                char in {".", ","}
+                                and glyphs[-1].char[-1:].isdigit()
+                            )
+                            else 0.0
+                        )
+                        punctuation_y = (
+                            _punctuation_value(
+                                size_options, "punctuation_vertical_offset_mm", 0.0
+                            )
+                            if text_role == "punctuation"
+                            else 0.0
+                        )
+                        x += punctuation_gap
                         glyph_name = (
                             item.glyph_name
                             if shaped is not None
@@ -136,7 +158,8 @@ def layout_text(
                                 x_mm=x
                                 + (item.x_offset_font_units * scale if shaped is not None else 0),
                                 baseline_y_mm=baseline
-                                - (item.y_offset_font_units * scale if shaped is not None else 0),
+                                - (item.y_offset_font_units * scale if shaped is not None else 0)
+                                + punctuation_y,
                                 advance_mm=advance,
                                 scale_mm_per_font_unit=scale,
                                 line_index=line_index,
@@ -153,6 +176,7 @@ def layout_text(
                                 y_offset_font_units=(
                                     item.y_offset_font_units if shaped is not None else 0.0
                                 ),
+                                text_role=text_role,
                             )
                         )
                         glyph_index += 1
@@ -230,4 +254,17 @@ def _word_space_factor(values: Mapping[str, object]) -> float:
         or not 1.0 <= value <= 2.0
     ):
         raise ValueError("max_word_space_factor must be between 1.0 and 2.0")
+    return float(value)
+
+
+def _text_role(text: str) -> str:
+    return "punctuation" if text and all(char in _SEPARATE_PUNCTUATION for char in text) else "letter"
+
+
+def _punctuation_value(
+    values: Mapping[str, object], key: str, default: float
+) -> float:
+    value = values.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or abs(value) > 2:
+        raise ValueError(f"Invalid punctuation layout value: {key}")
     return float(value)

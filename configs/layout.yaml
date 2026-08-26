@@ -18,16 +18,22 @@ sizes:
     line_height_multiplier: 1.25
     paragraph_spacing_mm: 2.0
     max_word_space_factor: 1.5
+    punctuation_gap_mm: 0.25
+    punctuation_vertical_offset_mm: 0.0
   normal:
     em_size_mm: 5.0
     line_height_multiplier: 1.25
     paragraph_spacing_mm: 2.5
     max_word_space_factor: 1.5
+    punctuation_gap_mm: 0.25
+    punctuation_vertical_offset_mm: 0.0
   large:
     em_size_mm: 6.5
     line_height_multiplier: 1.30
     paragraph_spacing_mm: 3.0
     max_word_space_factor: 1.5
+    punctuation_gap_mm: 0.25
+    punctuation_vertical_offset_mm: 0.0
 
 vector:
   flatten_tolerance_mm: 0.08
@@ -170,6 +176,8 @@ paragraphs:
   max_font_scale: 1.60
   max_extra_space_per_word_mm: 4.0
   max_word_space_factor: 1.5
+  punctuation_gap_mm: 0.25
+  punctuation_vertical_offset_mm: 0.0
   max_space_before_mm: 12.0
   max_space_after_mm: 12.0
   semantic_scale:

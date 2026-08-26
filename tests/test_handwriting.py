@@ -510,10 +510,14 @@ def test_aggressive_keeps_collision_and_punctuation_guards() -> None:
         punctuation,
         [
             replace(_glyph("а", 0, 0), word_index=0),
-            replace(_glyph(".", 1, 2.5), word_index=0),
+            replace(
+                _glyph(".", 1, 2.5), word_index=0, text_role="punctuation"
+            ),
         ],
         aggressive,
     )
 
     assert collision_metrics["rejections_by_reason"] == {"collision": 1}
-    assert punctuation_metrics["rejections_by_reason"] == {"punctuation_rule": 1}
+    assert punctuation_metrics["words"] == 2
+    assert punctuation_metrics["pairs_total"] == 0
+    assert punctuation_metrics["rejections_by_reason"] == {}

@@ -1,3 +1,4 @@
+from plotter_processor import path_optimizer
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.path_builder import path_statistics
 from plotter_processor.path_optimizer import (
@@ -254,3 +255,30 @@ def test_superfast_routes_a_whole_word_and_reverses_secondary_strokes() -> None:
     assert optimized[0].points[-1] == Point(1, 1)
     assert report["continuous_passes"] == 1
     assert report["retrace_pen_lifts_saved"] == 1
+    assert report["fallback_used"] is False
+
+
+def test_superfast_falls_back_to_safe_word_route(monkeypatch) -> None:
+    strokes = [
+        PlotterStroke(
+            0, [Point(0, 0), Point(1, 0)], False, 0,
+            segment_types=("glyph",), word_index=0,
+        ),
+        PlotterStroke(
+            1, [Point(1, 0), Point(1, 1)], False, 1,
+            segment_types=("glyph",), word_index=0,
+        ),
+    ]
+    monkeypatch.setattr(
+        path_optimizer,
+        "_safe_superfast_candidate",
+        lambda *args, **kwargs: (False, "visual_guard"),
+    )
+
+    optimized, report = optimize_word_strokes(
+        strokes, RetraceConfig(mode="superfast", max_repeats=3)
+    )
+
+    assert [stroke.points for stroke in optimized] == [stroke.points for stroke in strokes]
+    assert report["fallback_used"] is True
+    assert report["fallback_reason"] == "visual_guard"

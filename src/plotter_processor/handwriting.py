@@ -768,7 +768,7 @@ def route_words(
             if combined is not None:
                 word_output.append(combined)
         word_output.extend(secondary)
-        word_route_report: dict[str, float | int | bool] = {
+        word_route_report: dict[str, object] = {
             "continuous_passes": len(word_output),
             "retrace_pen_lifts_saved": 0,
             "retrace_distance_mm": 0.0,
@@ -793,6 +793,8 @@ def route_words(
                 "word_retrace_distance_mm": float(
                     word_route_report["retrace_distance_mm"]
                 ),
+                "fallback_used": bool(word_route_report.get("fallback_used", False)),
+                "fallback_reason": str(word_route_report.get("fallback_reason", "")),
             }
         )
     output.extend(stroke for stroke in document.strokes if stroke.glyph_index is None)
@@ -810,6 +812,18 @@ def route_words(
         per_word,
     )
     metrics["mode"] = config.mode
+    word_passes = [int(item["continuous_passes"]) for item in per_word]
+    metrics.update(
+        {
+            "word_retrace_distance_mm": round(
+                sum(float(item["word_retrace_distance_mm"]) for item in per_word), 6
+            ),
+            "fallback_words": sum(bool(item["fallback_used"]) for item in per_word),
+            "words_one_pass": sum(value == 1 for value in word_passes),
+            "words_two_passes": sum(value == 2 for value in word_passes),
+            "words_over_two_passes": sum(value > 2 for value in word_passes),
+        }
+    )
     metrics.update(kerning)
     metrics.update(
         _required_metrics(
@@ -839,6 +853,8 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     for glyph in glyphs:
         boundary = previous is not None and (
             glyph.line_index != previous.line_index
+            or glyph.text_role == "punctuation"
+            or previous.text_role == "punctuation"
             or (
                 glyph.word_index >= 0
                 and previous.word_index >= 0

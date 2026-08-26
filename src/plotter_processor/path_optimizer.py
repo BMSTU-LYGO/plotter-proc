@@ -171,8 +171,9 @@ def optimize_paths(
 
 def optimize_word_strokes(
     strokes: list[PlotterStroke], config: RetraceConfig
-) -> tuple[list[PlotterStroke], dict[str, float | int | bool]]:
+) -> tuple[list[PlotterStroke], dict[str, object]]:
     """Route every drawable part of one word as one endpoint graph."""
+    safe = [_copy_stroke(stroke) for stroke in strokes]
     remaining = [_copy_stroke(stroke) for stroke in strokes]
     ordered: list[PlotterStroke] = []
     previous: Point | None = None
@@ -182,8 +183,90 @@ def optimize_word_strokes(
         ordered.append(selected)
         previous = selected.points[-1]
     optimized, report = _apply_safe_retrace(ordered, config, scope="word")
+    safe_route, fallback_reason = _safe_superfast_candidate(
+        safe,
+        optimized,
+        retrace_distance_mm=float(report["retrace_distance_mm"]),
+        config=config,
+    )
+    if not safe_route:
+        report.update(
+            {
+                "fallback_used": True,
+                "fallback_reason": fallback_reason,
+                "continuous_passes": len(safe),
+            }
+        )
+        return safe, report
+    report["fallback_used"] = False
+    report["fallback_reason"] = ""
     report["continuous_passes"] = len(optimized)
     return optimized, report
+
+
+def _safe_superfast_candidate(
+    safe: list[PlotterStroke],
+    candidate: list[PlotterStroke],
+    *,
+    retrace_distance_mm: float,
+    config: RetraceConfig,
+) -> tuple[bool, str]:
+    if retrace_distance_mm > config.max_length_mm * config.max_repeats + 1e-9:
+        return False, "excessive_retrace"
+    safe_bounds = _stroke_bounds(safe)
+    candidate_bounds = _stroke_bounds(candidate)
+    tolerance = config.endpoint_tolerance_mm + 1e-9
+    if any(
+        candidate_value < safe_value - tolerance
+        for candidate_value, safe_value in zip(
+            candidate_bounds[:2], safe_bounds[:2], strict=True
+        )
+    ) or any(
+        candidate_value > safe_value + tolerance
+        for candidate_value, safe_value in zip(
+            candidate_bounds[2:], safe_bounds[2:], strict=True
+        )
+    ):
+        return False, "outside_source_geometry"
+    safe_cost = _physical_route_cost(safe, 0.0, config.weights)
+    candidate_cost = _physical_route_cost(
+        candidate, retrace_distance_mm, config.weights
+    )
+    if candidate_cost > safe_cost + 1e-9:
+        return False, "worse_than_safe_route"
+    return True, ""
+
+
+def _physical_route_cost(
+    strokes: list[PlotterStroke],
+    retrace_distance_mm: float,
+    weights: RoutingCostWeights,
+) -> float:
+    travel = sum(
+        _distance(left.points[-1], right.points[0])
+        for left, right in pairwise(strokes)
+        if left.points and right.points
+    )
+    return routing_cost(
+        RoutingCost(
+            travel_distance_mm=travel,
+            pen_lifts=max(0, len(strokes) - 1),
+            retrace_distance_mm=retrace_distance_mm,
+        ),
+        weights,
+    )
+
+
+def _stroke_bounds(strokes: list[PlotterStroke]) -> tuple[float, float, float, float]:
+    points = [point for stroke in strokes for point in stroke.points]
+    if not points:
+        return 0.0, 0.0, 0.0, 0.0
+    return (
+        min(point.x for point in points),
+        min(point.y for point in points),
+        max(point.x for point in points),
+        max(point.y for point in points),
+    )
 
 
 def _apply_safe_retrace(

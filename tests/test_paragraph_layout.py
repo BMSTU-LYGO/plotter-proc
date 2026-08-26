@@ -121,3 +121,11 @@ def test_structured_layout_clamps_accidental_multi_space_word_gap(test_font: Pat
         noisy.lines[0].glyphs[0].x_mm + noisy.lines[0].glyphs[0].advance_mm
     )
     assert noisy_gap <= normal_gap * 1.5 + 1e-9
+
+
+def test_structured_layout_separates_terminal_punctuation(test_font: Path) -> None:
+    result = _layout(SourceParagraph((SourceTextRun("а,"),)), test_font)
+
+    letter, comma = result.lines[0].glyphs
+    assert [letter.text_role, comma.text_role] == ["letter", "punctuation"]
+    assert comma.x_mm - (letter.x_mm + letter.advance_mm) == 0.25

@@ -84,6 +84,7 @@ class PositionedGlyph:
     font_sha256: str | None = None
     x_offset_font_units: float = 0.0
     y_offset_font_units: float = 0.0
+    text_role: str = "letter"
 
 
 @dataclass(slots=True)
