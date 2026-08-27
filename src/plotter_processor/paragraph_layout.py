@@ -8,6 +8,8 @@ from plotter_processor.font_loader import LoadedFont
 from plotter_processor.models import PositionedGlyph
 from plotter_processor.text_shaper import shape_text_run
 
+_SEPARATE_PUNCTUATION = frozenset(".,:;!?")
+
 
 @dataclass(frozen=True, slots=True)
 class ParagraphLine:
@@ -101,7 +103,10 @@ def layout_paragraph(
     tokens = _tokens(paragraph.text)
     for token_index, (kind, value) in enumerate(tokens):
         if kind == "space":
-            pending_space += len(value) * space_width
+            pending_space = min(
+                pending_space + len(value) * space_width,
+                space_width * _word_space_factor(paragraph_options),
+            )
             continue
         if kind == "tab":
             following = next(
@@ -156,7 +161,8 @@ def layout_paragraph(
                 tail = tail if head != remaining[:1] or len(remaining) == 1 else remaining[1:]
                 line.cursor = proposed
                 _append_word(
-                    line, head, font, scale, engine, language, script, direction, features
+                    line, head, font, scale, engine, language, script, direction, features,
+                    paragraph_options,
                 )
                 remaining = tail
                 pending_space = 0.0
@@ -165,7 +171,8 @@ def layout_paragraph(
                 continue
             line.cursor = proposed
             _append_word(
-                line, remaining, font, scale, engine, language, script, direction, features
+                line, remaining, font, scale, engine, language, script, direction, features,
+                paragraph_options,
             )
             remaining = ""
             pending_space = 0.0
@@ -335,7 +342,9 @@ def _append_word(
     script: str,
     direction: str,
     features: tuple[str, ...],
+    paragraph_options: Mapping[str, object] | None = None,
 ) -> None:
+    options = paragraph_options or {}
     word_index = line.word_count
     if engine == "harfbuzz":
         shaped = shape_text_run(
@@ -348,40 +357,48 @@ def _append_word(
         )
         for item in shaped.glyphs:
             advance = item.x_advance_font_units * scale
+            text_role = _text_role(item.source_characters)
+            gap = _punctuation_gap(line, item.source_characters, text_role, options)
+            line.cursor += gap
             line.glyphs.append(PositionedGlyph(
-                item.source_characters,
-                ord(item.source_characters[0]),
-                item.glyph_name,
-                line.cursor + item.x_offset_font_units * scale,
-                0.0,
-                advance,
-                scale,
-                0,
-                len(line.glyphs),
-                word_index,
-                item.cluster_index,
-                item.font.id,
-                item.font.sha256,
-                item.x_offset_font_units,
-                item.y_offset_font_units,
+                char=item.source_characters,
+                codepoint=ord(item.source_characters[0]),
+                glyph_name=item.glyph_name,
+                x_mm=line.cursor + item.x_offset_font_units * scale,
+                baseline_y_mm=_punctuation_vertical_offset(text_role, options),
+                advance_mm=advance,
+                scale_mm_per_font_unit=scale,
+                line_index=0,
+                glyph_index=len(line.glyphs),
+                word_index=word_index,
+                cluster_index=item.cluster_index,
+                font_id=item.font.id,
+                font_sha256=item.font.sha256,
+                x_offset_font_units=item.x_offset_font_units,
+                y_offset_font_units=item.y_offset_font_units,
+                text_role=text_role,
             ))
             line.cursor += advance
     elif engine == "legacy":
         for character in text:
             glyph_name = font.glyph_name_for_char(character)
             advance = font.advance_for_glyph(glyph_name) * scale
+            text_role = _text_role(character)
+            gap = _punctuation_gap(line, character, text_role, options)
+            line.cursor += gap
             line.glyphs.append(PositionedGlyph(
-                character,
-                ord(character),
-                glyph_name,
-                line.cursor,
-                0.0,
-                advance,
-                scale,
-                0,
-                len(line.glyphs),
-                word_index,
-                len(line.glyphs),
+                char=character,
+                codepoint=ord(character),
+                glyph_name=glyph_name,
+                x_mm=line.cursor,
+                baseline_y_mm=_punctuation_vertical_offset(text_role, options),
+                advance_mm=advance,
+                scale_mm_per_font_unit=scale,
+                line_index=0,
+                glyph_index=len(line.glyphs),
+                word_index=word_index,
+                cluster_index=len(line.glyphs),
+                text_role=text_role,
             ))
             line.cursor += advance
     else:
@@ -420,3 +437,48 @@ def _advance(
             glyph_name = font.glyph_name_for_char(character)
             total += font.advance_for_glyph(glyph_name) * scale
     return total
+
+
+def _word_space_factor(values: Mapping[str, object]) -> float:
+    value = values.get("max_word_space_factor", 1.5)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 1.0 <= value <= 2.0
+    ):
+        raise ValueError("paragraphs.max_word_space_factor must be between 1.0 and 2.0")
+    return float(value)
+
+
+def _text_role(text: str) -> str:
+    return "punctuation" if text and all(char in _SEPARATE_PUNCTUATION for char in text) else "letter"
+
+
+def _punctuation_gap(
+    line: _MutableLine,
+    text: str,
+    text_role: str,
+    values: Mapping[str, object],
+) -> float:
+    if text_role != "punctuation" or not line.glyphs or line.glyphs[-1].text_role != "letter":
+        return 0.0
+    if text in {".", ","} and line.glyphs[-1].char[-1:].isdigit():
+        return 0.0
+    return _punctuation_value(values, "punctuation_gap_mm", 0.25)
+
+
+def _punctuation_vertical_offset(
+    text_role: str, values: Mapping[str, object]
+) -> float:
+    if text_role != "punctuation":
+        return 0.0
+    return _punctuation_value(values, "punctuation_vertical_offset_mm", 0.0)
+
+
+def _punctuation_value(
+    values: Mapping[str, object], key: str, default: float
+) -> float:
+    value = values.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or abs(value) > 2:
+        raise ValueError(f"Invalid punctuation layout value: {key}")
+    return float(value)

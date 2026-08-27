@@ -29,3 +29,59 @@ def test_layout_detects_overflow(test_font: Path) -> None:
             {"left": 2, "right": 2, "top": 2, "bottom": 2},
             {"em_size_mm": 6, "line_height_multiplier": 1.3, "paragraph_spacing_mm": 2},
         )
+
+
+def test_layout_clamps_accidental_multi_space_word_gap(test_font: Path) -> None:
+    options = {
+        "em_size_mm": 5,
+        "line_height_multiplier": 1.25,
+        "paragraph_spacing_mm": 2,
+        "max_word_space_factor": 1.5,
+    }
+    with load_font(test_font) as font:
+        normal = layout_text(
+            ["а б"], font, PageSpec("wide", 100, 50),
+            {"left": 5, "right": 5, "top": 5, "bottom": 5}, options,
+        )
+        noisy = layout_text(
+            ["а          б"], font, PageSpec("wide", 100, 50),
+            {"left": 5, "right": 5, "top": 5, "bottom": 5}, options,
+        )
+
+    normal_gap = normal.glyphs[1].x_mm - (
+        normal.glyphs[0].x_mm + normal.glyphs[0].advance_mm
+    )
+    noisy_gap = noisy.glyphs[1].x_mm - (
+        noisy.glyphs[0].x_mm + noisy.glyphs[0].advance_mm
+    )
+    assert noisy_gap <= normal_gap * 1.5 + 1e-9
+
+    with load_font(test_font) as font:
+        tabbed = layout_text(
+            ["а\tб"], font, PageSpec("wide", 100, 50),
+            {"left": 5, "right": 5, "top": 5, "bottom": 5}, options,
+        )
+    tab_gap = tabbed.glyphs[1].x_mm - (
+        tabbed.glyphs[0].x_mm + tabbed.glyphs[0].advance_mm
+    )
+    assert tab_gap > noisy_gap
+
+
+def test_layout_marks_and_offsets_terminal_punctuation(test_font: Path) -> None:
+    options = {
+        "em_size_mm": 5,
+        "line_height_multiplier": 1.25,
+        "paragraph_spacing_mm": 2,
+        "punctuation_gap_mm": 0.25,
+        "punctuation_vertical_offset_mm": 0.1,
+    }
+    with load_font(test_font) as font:
+        result = layout_text(
+            ["а,"], font, PageSpec("wide", 100, 50),
+            {"left": 5, "right": 5, "top": 5, "bottom": 5}, options,
+        )
+
+    letter, comma = result.glyphs
+    assert [letter.text_role, comma.text_role] == ["letter", "punctuation"]
+    assert comma.x_mm - (letter.x_mm + letter.advance_mm) == 0.25
+    assert comma.baseline_y_mm - letter.baseline_y_mm == pytest.approx(0.1)

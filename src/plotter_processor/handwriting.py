@@ -15,6 +15,7 @@ from plotter_processor.centerline_font.anchors import entry_exit_anchors
 from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.path_optimizer import RetraceConfig, optimize_word_strokes
 from plotter_processor.performance import HotspotTimings
 from plotter_processor.routing_cost import RoutingCost, routing_cost
 
@@ -579,6 +580,7 @@ def route_words(
     *,
     collect_debug: bool = False,
     hotspots: HotspotTimings | None = None,
+    retrace_config: RetraceConfig | None = None,
 ) -> tuple[PathDocument, dict[str, object]]:
     before = len(document.strokes)
     if not config.enabled:
@@ -629,6 +631,7 @@ def route_words(
     per_word: list[dict[str, object]] = []
     debug_candidates: list[dict[str, object]] = []
     for word in words:
+        word_output: list[PlotterStroke] = []
         word_created = 0
         word_rejected: list[str] = []
         secondary: list[PlotterStroke] = []
@@ -677,7 +680,7 @@ def route_words(
                     reason = "missing_main_stroke"
                     counters.cheap_rejected_pairs += 1
                     if combined is not None:
-                        output.append(combined)
+                        word_output.append(combined)
                     combined = replace(right, points=list(right.points)) if right else None
                     rejected += 1
                     rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
@@ -730,7 +733,7 @@ def route_words(
                         )
                     )
                 if not candidate.accepted:
-                    output.append(combined)
+                    word_output.append(combined)
                     combined = replace(right, points=list(right.points))
                     rejected += 1
                     rejection_reasons[reason or "unknown"] = (
@@ -763,17 +766,35 @@ def route_words(
                 created += 1
                 word_created += 1
             if combined is not None:
-                output.append(combined)
-        output.extend(secondary)
+                word_output.append(combined)
+        word_output.extend(secondary)
+        word_route_report: dict[str, object] = {
+            "continuous_passes": len(word_output),
+            "retrace_pen_lifts_saved": 0,
+            "retrace_distance_mm": 0.0,
+        }
+        if retrace_config is not None and retrace_config.mode == "superfast":
+            word_output, word_route_report = optimize_word_strokes(
+                word_output, retrace_config
+            )
+        output.extend(word_output)
         per_word.append(
             {
                 "text": "".join(glyph.char for glyph in word),
                 "line_index": word[0].line_index if word else 0,
                 "glyph_count": len(word),
                 "connections": word_created,
-                "remaining_internal_lifts": max(0, len(word) - 1 - word_created),
+                "remaining_internal_lifts": max(
+                    0, int(word_route_report["continuous_passes"]) - 1
+                ),
                 "secondary_strokes": len(secondary),
                 "rejected_pairs": word_rejected,
+                "continuous_passes": int(word_route_report["continuous_passes"]),
+                "word_retrace_distance_mm": float(
+                    word_route_report["retrace_distance_mm"]
+                ),
+                "fallback_used": bool(word_route_report.get("fallback_used", False)),
+                "fallback_reason": str(word_route_report.get("fallback_reason", "")),
             }
         )
     output.extend(stroke for stroke in document.strokes if stroke.glyph_index is None)
@@ -791,6 +812,18 @@ def route_words(
         per_word,
     )
     metrics["mode"] = config.mode
+    word_passes = [int(item["continuous_passes"]) for item in per_word]
+    metrics.update(
+        {
+            "word_retrace_distance_mm": round(
+                sum(float(item["word_retrace_distance_mm"]) for item in per_word), 6
+            ),
+            "fallback_words": sum(bool(item["fallback_used"]) for item in per_word),
+            "words_one_pass": sum(value == 1 for value in word_passes),
+            "words_two_passes": sum(value == 2 for value in word_passes),
+            "words_over_two_passes": sum(value > 2 for value in word_passes),
+        }
+    )
     metrics.update(kerning)
     metrics.update(
         _required_metrics(
@@ -820,6 +853,8 @@ def _words(glyphs: list[PositionedGlyph]) -> list[list[PositionedGlyph]]:
     for glyph in glyphs:
         boundary = previous is not None and (
             glyph.line_index != previous.line_index
+            or glyph.text_role == "punctuation"
+            or previous.text_role == "punctuation"
             or (
                 glyph.word_index >= 0
                 and previous.word_index >= 0
@@ -947,23 +982,20 @@ def _connection_candidate(
     assert left.main is not None and right.main is not None
     assert left.exit is not None and right.entry is not None
     start, end = left.exit.point, right.entry.point
+    left_tangent = _connector_tangent(left.exit.tangent, config)
+    right_tangent = _connector_tangent(right.entry.tangent, config)
     pair_rule = connection_pair_rule(left.glyph.char, right.glyph.char, config)
     if pair_rule is not None:
         counters.pair_rules_applied += 1
     gap = _distance(start, end)
     vertical = abs(end.y - start.y)
-    left_angle = math.atan2(left.exit.tangent.y, left.exit.tangent.x)
-    right_angle = math.atan2(right.entry.tangent.y, right.entry.tangent.x)
+    left_angle = math.atan2(left_tangent.y, left_tangent.x)
+    right_angle = math.atan2(right_tangent.y, right_tangent.x)
     target = math.atan2(end.y - start.y, end.x - start.x)
     tangent_mismatch = math.degrees(
         max(_angle_diff(left_angle, target), _angle_diff(target, right_angle))
     )
-    routeable_anchors = (
-        left.exit.connectable
-        and right.entry.connectable
-        and _distance(start, left.main.points[-1]) <= 1e-6
-        and _distance(end, right.main.points[0]) <= 1e-6
-    )
+    routeable_anchors = _anchors_routeable(left, right, config)
     reason: str | None = None
     if left.glyph.line_index != right.glyph.line_index:
         reason = "different_line"
@@ -985,8 +1017,8 @@ def _connection_candidate(
     c1, c2 = _connector_controls(
         start,
         end,
-        left.exit.tangent,
-        right.entry.tangent,
+        left_tangent,
+        right_tangent,
         handle_scale=pair_rule.handle_scale if pair_rule else 1.0,
         vertical_bias_mm=pair_rule.vertical_bias_mm if pair_rule else 0.0,
     )
@@ -1047,8 +1079,8 @@ def _connection_candidate(
         option_c1, option_c2 = _connector_controls(
             start,
             end,
-            left.exit.tangent,
-            right.entry.tangent,
+            left_tangent,
+            right_tangent,
             handle_scale=base_handle_scale * handle_variant,
             vertical_bias_mm=vertical_bias,
         )
@@ -1076,6 +1108,7 @@ def _connection_candidate(
             end,
             config.collision_clearance_mm,
             counters,
+            ignore_connected_strokes=config.mode == "aggressive",
         )
         if option_reason is None and collision_points:
             option_reason = "collision"
@@ -1126,12 +1159,7 @@ def _cheap_connection_rejection(
         left.glyph.char.isalpha() and right.glyph.char.isalpha()
     ):
         reason = "not_letters"
-    elif (
-        not left.exit.connectable
-        or not right.entry.connectable
-        or _distance(start, left.main.points[-1]) > 1e-6
-        or _distance(end, right.main.points[0]) > 1e-6
-    ):
+    elif not _anchors_routeable(left, right, config):
         reason = "anchor_not_routeable"
     gap = _distance(start, end)
     vertical = abs(end.y - start.y)
@@ -1143,8 +1171,10 @@ def _cheap_connection_rejection(
         reason = "backward_motion"
     if reason is None or _terminal_contact_possible(left, right, config.contact_epsilon_mm):
         return None
-    left_angle = math.atan2(left.exit.tangent.y, left.exit.tangent.x)
-    right_angle = math.atan2(right.entry.tangent.y, right.entry.tangent.x)
+    left_tangent = _connector_tangent(left.exit.tangent, config)
+    right_tangent = _connector_tangent(right.entry.tangent, config)
+    left_angle = math.atan2(left_tangent.y, left_tangent.x)
+    right_angle = math.atan2(right_tangent.y, right_tangent.x)
     target = math.atan2(end.y - start.y, end.x - start.x)
     tangent_mismatch = math.degrees(
         max(_angle_diff(left_angle, target), _angle_diff(target, right_angle))
@@ -1160,6 +1190,29 @@ def _cheap_connection_rejection(
         False,
         reason,
     )
+
+
+def _anchors_routeable(
+    left: _GlyphRoute, right: _GlyphRoute, config: JoiningConfig
+) -> bool:
+    assert left.main is not None and right.main is not None
+    assert left.exit is not None and right.entry is not None
+    terminals_match = (
+        _distance(left.exit.point, left.main.points[-1]) <= 1e-6
+        and _distance(right.entry.point, right.main.points[0]) <= 1e-6
+    )
+    return terminals_match and (
+        config.mode == "aggressive"
+        or (left.exit.connectable and right.entry.connectable)
+    )
+
+
+def _connector_tangent(tangent: Point, config: JoiningConfig) -> Point:
+    if config.mode != "aggressive" or tangent.x >= -0.15:
+        return tangent
+    softened_y = tangent.y * 0.35
+    length = math.hypot(1.0, softened_y)
+    return Point(1.0 / length, softened_y / length)
 
 
 def _terminal_contact_possible(
@@ -1296,6 +1349,8 @@ def _collision_points(
     end: Point,
     clearance: float,
     counters: _ConnectionCounters,
+    *,
+    ignore_connected_strokes: bool = False,
 ) -> list[Point]:
     counters.collision_queries += 1
     collisions: list[Point] = []
@@ -1310,6 +1365,8 @@ def _collision_points(
         for segment in obstacles.query(point_bounds):
             counters.segments_tested += 1
             stroke, first, second = segment.stroke, segment.first, segment.second
+            if ignore_connected_strokes and stroke.id in {left.id, right.id}:
+                continue
             if not (
                 segment.bounds[0] - clearance
                 <= point.x

@@ -26,3 +26,18 @@ def test_quality_preset_and_explicit_overrides() -> None:
     assert explicit.connections == "off"
     assert explicit.workers == 2
     assert explicit.artifact_level == "minimal"
+
+
+def test_superfast_preset_enables_explicit_aggressive_path_mode() -> None:
+    preset = resolve_preset(
+        "superfast",
+        font_mode=None,
+        connections=None,
+        workers=None,
+        artifact_level=None,
+        strict_centerline_quality=False,
+    )
+
+    assert preset.font_mode == "centerline"
+    assert preset.connections == "aggressive"
+    assert preset.path_mode == "superfast"

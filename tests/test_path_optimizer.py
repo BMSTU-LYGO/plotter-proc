@@ -1,6 +1,12 @@
+from plotter_processor import path_optimizer
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.path_builder import path_statistics
-from plotter_processor.path_optimizer import RetraceConfig, optimize_paths
+from plotter_processor.path_optimizer import (
+    RetraceConfig,
+    load_retrace_config,
+    optimize_paths,
+    optimize_word_strokes,
+)
 
 
 def test_optimizer_preserves_draw_distance_and_reduces_travel() -> None:
@@ -144,3 +150,135 @@ def test_retrace_rejects_long_or_non_glyph_repetition() -> None:
 
     assert len(optimized.strokes) == 3
     assert optimized.metadata["safe_retrace"]["retrace_merges"] == 0
+
+
+def test_superfast_costs_make_short_retrace_cheaper_than_pen_lift() -> None:
+    config = load_retrace_config(
+        {
+            "enabled": True,
+            "max_length_mm": 1.2,
+            "max_repeats": 1,
+            "allowed_segment_types": ["glyph"],
+            "profiles": {
+                "superfast": {"max_length_mm": 3.0, "max_repeats": 3}
+            },
+        },
+        mode="superfast",
+        routing_values={
+            "cost": {},
+            "cost_profiles": {
+                "superfast": {"pen_lift": 24.0, "retrace": 0.65}
+            },
+        },
+    )
+
+    assert config.mode == "superfast"
+    assert config.max_length_mm == 3.0
+    assert config.weights.pen_lift > config.weights.retrace * config.max_length_mm
+
+
+def test_superfast_routes_each_cyrillic_glyph_as_endpoint_graph() -> None:
+    zhe_trunk = PlotterStroke(
+        0,
+        [Point(0, 0), Point(1, 0), Point(2, 0)],
+        False,
+        0,
+        char="ж",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    zhe_branch = PlotterStroke(
+        1,
+        [Point(1, 0), Point(1, 1)],
+        False,
+        0,
+        char="ж",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    em = PlotterStroke(
+        2,
+        [Point(10, 0), Point(11, 0)],
+        False,
+        1,
+        char="м",
+        segment_types=("glyph",),
+        element_id="text:0",
+    )
+    config = RetraceConfig(
+        max_length_mm=3.0,
+        max_repeats=3,
+        mode="superfast",
+        max_retrace_ratio=0.65,
+    )
+
+    optimized = optimize_paths(
+        PathDocument(100, 100, [zhe_trunk, zhe_branch, em], []), config
+    )
+
+    assert len(optimized.strokes) == 2
+    assert optimized.strokes[0].char == "ж"
+    assert optimized.strokes[0].points[-1] == Point(1, 1)
+    assert optimized.metadata["safe_retrace"]["retrace_pen_lifts_saved"] == 1
+
+
+def test_superfast_routes_a_whole_word_and_reverses_secondary_strokes() -> None:
+    main = PlotterStroke(
+        0,
+        [Point(0, 0), Point(1, 0), Point(2, 0)],
+        False,
+        0,
+        char="мир",
+        segment_types=("glyph", "connector", "glyph"),
+        word_index=4,
+    )
+    secondary = PlotterStroke(
+        1,
+        [Point(1, 1), Point(1, 0)],
+        False,
+        1,
+        char="и",
+        segment_types=("glyph",),
+        word_index=4,
+    )
+    config = RetraceConfig(
+        max_length_mm=3.0,
+        max_repeats=3,
+        allowed_segment_types=frozenset({"glyph", "connector"}),
+        mode="superfast",
+        max_retrace_ratio=0.65,
+    )
+
+    optimized, report = optimize_word_strokes([main, secondary], config)
+
+    assert len(optimized) == 1
+    assert optimized[0].points[-1] == Point(1, 1)
+    assert report["continuous_passes"] == 1
+    assert report["retrace_pen_lifts_saved"] == 1
+    assert report["fallback_used"] is False
+
+
+def test_superfast_falls_back_to_safe_word_route(monkeypatch) -> None:
+    strokes = [
+        PlotterStroke(
+            0, [Point(0, 0), Point(1, 0)], False, 0,
+            segment_types=("glyph",), word_index=0,
+        ),
+        PlotterStroke(
+            1, [Point(1, 0), Point(1, 1)], False, 1,
+            segment_types=("glyph",), word_index=0,
+        ),
+    ]
+    monkeypatch.setattr(
+        path_optimizer,
+        "_safe_superfast_candidate",
+        lambda *args, **kwargs: (False, "visual_guard"),
+    )
+
+    optimized, report = optimize_word_strokes(
+        strokes, RetraceConfig(mode="superfast", max_repeats=3)
+    )
+
+    assert [stroke.points for stroke in optimized] == [stroke.points for stroke in strokes]
+    assert report["fallback_used"] is True
+    assert report["fallback_reason"] == "visual_guard"

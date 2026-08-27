@@ -6,7 +6,12 @@ from dataclasses import dataclass, replace
 from itertools import groupby, pairwise
 
 from plotter_processor.models import PathDocument, PlotterStroke, Point
-from plotter_processor.routing_cost import RoutingCost, routing_cost
+from plotter_processor.routing_cost import (
+    DEFAULT_ROUTING_COST_WEIGHTS,
+    RoutingCost,
+    RoutingCostWeights,
+    routing_cost,
+)
 
 _NEXT_GLYPH_MAX_TRAVEL_PENALTY_MM = 0.35
 
@@ -17,9 +22,27 @@ class RetraceConfig:
     max_length_mm: float = 1.2
     max_repeats: int = 1
     allowed_segment_types: frozenset[str] = frozenset({"glyph"})
+    mode: str = "normal"
+    endpoint_tolerance_mm: float = 1e-6
+    max_retrace_ratio: float = 1.0
+    weights: RoutingCostWeights = DEFAULT_ROUTING_COST_WEIGHTS
 
 
-def load_retrace_config(values: Mapping[str, object]) -> RetraceConfig:
+def load_retrace_config(
+    values: Mapping[str, object],
+    *,
+    mode: str = "normal",
+    routing_values: Mapping[str, object] | None = None,
+) -> RetraceConfig:
+    if mode not in {"normal", "superfast"}:
+        raise ValueError(f"Unknown path mode: {mode}")
+    profiles = values.get("profiles", {})
+    if not isinstance(profiles, Mapping):
+        raise TypeError("handwriting.retrace.profiles must be a mapping")
+    profile = profiles.get(mode, {})
+    if not isinstance(profile, Mapping):
+        raise TypeError(f"handwriting.retrace.profiles.{mode} must be a mapping")
+    values = {**values, **profile}
     enabled = values.get("enabled", True)
     max_length = values.get("max_length_mm", 1.2)
     max_repeats = values.get("max_repeats", 1)
@@ -30,16 +53,67 @@ def load_retrace_config(values: Mapping[str, object]) -> RetraceConfig:
         raise TypeError("handwriting.retrace.max_length_mm must be numeric")
     if isinstance(max_repeats, bool) or not isinstance(max_repeats, int):
         raise TypeError("handwriting.retrace.max_repeats must be an integer")
-    if float(max_length) < 0 or not 0 <= max_repeats <= 2:
+    endpoint_tolerance = values.get("endpoint_tolerance_mm", 1e-6)
+    max_retrace_ratio = values.get("max_retrace_ratio", 1.0)
+    if (
+        isinstance(endpoint_tolerance, bool)
+        or not isinstance(endpoint_tolerance, (int, float))
+        or isinstance(max_retrace_ratio, bool)
+        or not isinstance(max_retrace_ratio, (int, float))
+    ):
+        raise TypeError("handwriting.retrace distance limits must be numeric")
+    if (
+        float(max_length) < 0
+        or not 0 <= max_repeats <= 4
+        or not 0 <= float(endpoint_tolerance) <= 0.15
+        or not 0 <= float(max_retrace_ratio) <= 1
+    ):
         raise ValueError("Invalid handwriting retrace limits")
     if not isinstance(allowed, list) or not all(isinstance(item, str) for item in allowed):
         raise TypeError("handwriting.retrace.allowed_segment_types must be a list")
+    cost_values: Mapping[str, object] = {}
+    if routing_values is not None:
+        raw_cost = routing_values.get("cost", {})
+        if not isinstance(raw_cost, Mapping):
+            raise TypeError("handwriting.routing.cost must be a mapping")
+        cost_profiles = routing_values.get("cost_profiles", {})
+        if not isinstance(cost_profiles, Mapping):
+            raise TypeError("handwriting.routing.cost_profiles must be a mapping")
+        mode_cost = cost_profiles.get(mode, {})
+        if not isinstance(mode_cost, Mapping):
+            raise TypeError(f"handwriting.routing.cost_profiles.{mode} must be a mapping")
+        cost_values = {**raw_cost, **mode_cost}
+    defaults = DEFAULT_ROUTING_COST_WEIGHTS
+    weights = RoutingCostWeights(
+        **{
+            field: _numeric_cost(cost_values, field, getattr(defaults, field))
+            for field in (
+                "travel",
+                "pen_lift",
+                "retrace",
+                "direction_change",
+                "connection_quality",
+                "collision_risk",
+            )
+        }
+    )
     return RetraceConfig(
         enabled,
-        min(1.2, float(max_length)),
-        min(1, max_repeats),
+        float(max_length),
+        max_repeats,
         frozenset(allowed),
+        mode,
+        float(endpoint_tolerance),
+        float(max_retrace_ratio),
+        weights,
     )
+
+
+def _numeric_cost(values: Mapping[str, object], key: str, default: float) -> float:
+    value = values.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"Invalid handwriting routing cost: {key}")
+    return float(value)
 
 
 def optimize_paths(
@@ -48,10 +122,15 @@ def optimize_paths(
     source = [stroke for stroke in document.strokes if isinstance(stroke, PlotterStroke)]
     optimized: list[PlotterStroke] = []
     previous: Point | None = None
+    group_key = (
+        (lambda stroke: (stroke.element_id, stroke.glyph_index))
+        if (retrace_config or RetraceConfig()).mode == "superfast"
+        else (lambda stroke: stroke.element_id or f"glyph:{stroke.glyph_index}")
+    )
     groups = [
         [_copy_stroke(stroke) for stroke in group]
         for _, group in groupby(
-            source, key=lambda stroke: stroke.element_id or f"glyph:{stroke.glyph_index}"
+            source, key=group_key
         )
     ]
     for group_index, group in enumerate(groups):
@@ -90,8 +169,108 @@ def optimize_paths(
     )
 
 
-def _apply_safe_retrace(
+def optimize_word_strokes(
     strokes: list[PlotterStroke], config: RetraceConfig
+) -> tuple[list[PlotterStroke], dict[str, object]]:
+    """Route every drawable part of one word as one endpoint graph."""
+    safe = [_copy_stroke(stroke) for stroke in strokes]
+    remaining = [_copy_stroke(stroke) for stroke in strokes]
+    ordered: list[PlotterStroke] = []
+    previous: Point | None = None
+    while remaining:
+        selected_index, selected = _nearest_variant(remaining, previous)
+        remaining.pop(selected_index)
+        ordered.append(selected)
+        previous = selected.points[-1]
+    optimized, report = _apply_safe_retrace(ordered, config, scope="word")
+    safe_route, fallback_reason = _safe_superfast_candidate(
+        safe,
+        optimized,
+        retrace_distance_mm=float(report["retrace_distance_mm"]),
+        config=config,
+    )
+    if not safe_route:
+        report.update(
+            {
+                "fallback_used": True,
+                "fallback_reason": fallback_reason,
+                "continuous_passes": len(safe),
+            }
+        )
+        return safe, report
+    report["fallback_used"] = False
+    report["fallback_reason"] = ""
+    report["continuous_passes"] = len(optimized)
+    return optimized, report
+
+
+def _safe_superfast_candidate(
+    safe: list[PlotterStroke],
+    candidate: list[PlotterStroke],
+    *,
+    retrace_distance_mm: float,
+    config: RetraceConfig,
+) -> tuple[bool, str]:
+    if retrace_distance_mm > config.max_length_mm * config.max_repeats + 1e-9:
+        return False, "excessive_retrace"
+    safe_bounds = _stroke_bounds(safe)
+    candidate_bounds = _stroke_bounds(candidate)
+    tolerance = config.endpoint_tolerance_mm + 1e-9
+    if any(
+        candidate_value < safe_value - tolerance
+        for candidate_value, safe_value in zip(
+            candidate_bounds[:2], safe_bounds[:2], strict=True
+        )
+    ) or any(
+        candidate_value > safe_value + tolerance
+        for candidate_value, safe_value in zip(
+            candidate_bounds[2:], safe_bounds[2:], strict=True
+        )
+    ):
+        return False, "outside_source_geometry"
+    safe_cost = _physical_route_cost(safe, 0.0, config.weights)
+    candidate_cost = _physical_route_cost(
+        candidate, retrace_distance_mm, config.weights
+    )
+    if candidate_cost > safe_cost + 1e-9:
+        return False, "worse_than_safe_route"
+    return True, ""
+
+
+def _physical_route_cost(
+    strokes: list[PlotterStroke],
+    retrace_distance_mm: float,
+    weights: RoutingCostWeights,
+) -> float:
+    travel = sum(
+        _distance(left.points[-1], right.points[0])
+        for left, right in pairwise(strokes)
+        if left.points and right.points
+    )
+    return routing_cost(
+        RoutingCost(
+            travel_distance_mm=travel,
+            pen_lifts=max(0, len(strokes) - 1),
+            retrace_distance_mm=retrace_distance_mm,
+        ),
+        weights,
+    )
+
+
+def _stroke_bounds(strokes: list[PlotterStroke]) -> tuple[float, float, float, float]:
+    points = [point for stroke in strokes for point in stroke.points]
+    if not points:
+        return 0.0, 0.0, 0.0, 0.0
+    return (
+        min(point.x for point in points),
+        min(point.y for point in points),
+        max(point.x for point in points),
+        max(point.y for point in points),
+    )
+
+
+def _apply_safe_retrace(
+    strokes: list[PlotterStroke], config: RetraceConfig, *, scope: str = "glyph"
 ) -> tuple[list[PlotterStroke], dict[str, float | int | bool]]:
     if not config.enabled or config.max_repeats == 0:
         return strokes, {
@@ -109,7 +288,9 @@ def _apply_safe_retrace(
             result.append(stroke)
             continue
         previous = result[-1]
-        merged = _merge_by_safe_retrace(previous, stroke, config, repeats)
+        merged = _merge_by_safe_retrace(
+            previous, stroke, config, repeats, scope=scope
+        )
         if merged is None:
             result.append(stroke)
             continue
@@ -129,18 +310,30 @@ def _merge_by_safe_retrace(
     previous: PlotterStroke,
     following: PlotterStroke,
     config: RetraceConfig,
-    repeats: dict[int, int],
+    repeats: dict[object, int],
+    *,
+    scope: str = "glyph",
 ) -> tuple[PlotterStroke, float] | None:
+    route_key: object = previous.glyph_index
+    same_route = previous.glyph_index == following.glyph_index
+    if scope == "word":
+        route_key = ("word", previous.word_index)
+        same_route = (
+            previous.word_index is not None
+            and previous.word_index >= 0
+            and previous.word_index == following.word_index
+        )
     if (
         previous.glyph_index is None
-        or previous.glyph_index != following.glyph_index
+        or following.glyph_index is None
+        or not same_route
         or previous.closed
         or following.closed
         or len(previous.points) < 2
         or len(following.points) < 2
         or not _segments_allow_retrace(previous, config)
         or not _segments_allow_retrace(following, config)
-        or repeats.get(previous.glyph_index, 0) >= config.max_repeats
+        or repeats.get(route_key, 0) >= config.max_repeats
     ):
         return None
     matches: list[tuple[float, int, bool]] = []
@@ -148,13 +341,32 @@ def _merge_by_safe_retrace(
         distance = _polyline_length(previous.points[index:])
         if distance > config.max_length_mm + 1e-9:
             continue
-        if _distance(point, following.points[0]) <= 1e-6:
+        if _distance(point, following.points[0]) <= config.endpoint_tolerance_mm:
             matches.append((distance, index, False))
-        if not following.preserve_order and _distance(point, following.points[-1]) <= 1e-6:
+        if not following.preserve_order and _distance(point, following.points[-1]) <= config.endpoint_tolerance_mm:
             matches.append((distance, index, True))
     if not matches:
         return None
     distance, junction_index, reverse_following = min(matches)
+    following_start = (
+        following.points[-1] if reverse_following else following.points[0]
+    )
+    lifted_cost = routing_cost(
+        RoutingCost(
+            travel_distance_mm=_distance(previous.points[-1], following_start),
+            pen_lifts=1,
+        ),
+        config.weights,
+    )
+    retrace_cost = routing_cost(
+        RoutingCost(retrace_distance_mm=distance), config.weights
+    )
+    original_length = _polyline_length(previous.points) + _polyline_length(following.points)
+    if (
+        retrace_cost >= lifted_cost
+        or distance / max(original_length, 1e-9) > config.max_retrace_ratio
+    ):
+        return None
     following_points = (
         list(reversed(following.points))
         if reverse_following
@@ -162,7 +374,7 @@ def _merge_by_safe_retrace(
     )
     retrace_points = list(reversed(previous.points[junction_index:]))
     points = [*previous.points, *retrace_points[1:], *following_points[1:]]
-    repeats[previous.glyph_index] = repeats.get(previous.glyph_index, 0) + 1
+    repeats[route_key] = repeats.get(route_key, 0) + 1
     return (
         replace(
             previous,
