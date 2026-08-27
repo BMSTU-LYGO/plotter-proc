@@ -2,15 +2,29 @@ pages:
   A4:
     width_mm: 210.0
     height_mm: 297.0
+    hole_clearance_mm: 1.0
+    holes: []
   A5:
     width_mm: 148.0
     height_mm: 210.0
+    hole_clearance_mm: 1.0
+    holes:
+      - {x_mm: 6.0, y_mm: 80.0, radius_mm: 3.0}
+      - {x_mm: 6.0, y_mm: 130.0, radius_mm: 3.0}
 
 margins_mm:
   left: 10.0
   right: 10.0
   top: 10.0
   bottom: 10.0
+
+grid:
+  enabled: false
+  cell_width_mm: 5.0
+  cell_height_mm: 5.0
+  origin_x_mm: 0.0
+  origin_y_mm: 0.0
+  baseline_offset_mm: 0.0
 
 sizes:
   small:
@@ -276,6 +290,19 @@ handwriting:
     rotation_deg: 1.0
     scale_percent: 2.0
     spacing_jitter_mm: 0.15
+    letter:
+      slant: 0.035
+      height_percent: 4.0
+      width_percent: 4.0
+      y_offset_mm: 0.18
+    word:
+      width_percent: 3.0
+    line:
+      drift_mm: 0.16
+    stroke_thickness:
+      enabled: true
+      probability: 0.12
+      offset_mm: 0.025
   spacing:
     max_kerning_adjustment_mm: 0.15
     shape_aware: true

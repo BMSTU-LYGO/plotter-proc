@@ -6,6 +6,14 @@ page_origin_mm:
   x: 10.0
   y: 10.0
 
+page_position_profiles:
+  A5:
+    origin_x_mm: 10.0
+    origin_y_mm: 10.0
+  A4:
+    origin_x_mm: 5.0
+    origin_y_mm: 5.0
+
 axes:
   invert_x: false
   invert_y: true

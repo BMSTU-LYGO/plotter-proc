@@ -60,6 +60,34 @@ def test_impossible_a4_fails_before_document_read(
     assert "compatible machine config" in result.error
 
 
+def test_selected_page_position_profile_is_checked_before_document_read(
+    tmp_path: Path, test_font: Path, monkeypatch
+) -> None:
+    machine = yaml.safe_load(Path("configs/machine.yaml").read_text(encoding="utf-8"))
+    machine["page_position_profiles"]["A5"] = {
+        "origin_x_mm": 100.0,
+        "origin_y_mm": 20.0,
+    }
+    machine_path = tmp_path / "profile-outside-workspace.yaml"
+    machine_path.write_text(yaml.safe_dump(machine), encoding="utf-8")
+    options = _options(tmp_path, test_font, machine_path, output_name="profile")
+    options.page = "A5"
+    called = False
+
+    def unexpected_read(*args, **kwargs):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(pipeline, "read_structured_document", unexpected_read)
+
+    result = run_pipeline(options)
+
+    assert result.status == "error"
+    assert not called
+    assert result.error is not None
+    assert "origin (100,20) mm" in result.error
+
+
 def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) -> None:
     machine = _machine_config(tmp_path, max_y=320.0)
 
@@ -80,6 +108,30 @@ def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) ->
     assert "font_preview" not in report["outputs"]
     assert "extracted" not in report["outputs"]
     assert "document_structure" not in report["outputs"]
+
+
+def test_a5_hole_expands_layout_bounds(tmp_path: Path, test_font: Path) -> None:
+    machine = _machine_config(tmp_path, max_y=220.0)
+    options = _options(tmp_path, test_font, machine, output_name="a5-hole")
+    options.page = "A5"
+    layout = yaml.safe_load(Path("configs/layout.yaml").read_text(encoding="utf-8"))
+    layout["pages"]["A5"]["holes"] = [
+        {"x_mm": 12.0, "y_mm": 80.0, "radius_mm": 4.0}
+    ]
+    layout["pages"]["A5"]["hole_clearance_mm"] = 2.0
+    layout_path = tmp_path / "layout-with-hole.yaml"
+    layout_path.write_text(yaml.safe_dump(layout, allow_unicode=True), encoding="utf-8")
+    options.layout_config_path = layout_path
+
+    result = run_pipeline(options)
+
+    assert result.status == "ok"
+    paths = json.loads((options.output_dir / "paths.json").read_text(encoding="utf-8"))
+    assert min(
+        point[0]
+        for stroke in paths["strokes"]
+        for point in stroke["points"]
+    ) >= 18.0
 
 
 def test_debug_artifact_level_adds_font_and_subsystem_debug(

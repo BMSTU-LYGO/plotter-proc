@@ -9,8 +9,11 @@ from pathlib import Path
 from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
+    apply_stroke_thickness_variation,
     apply_variation,
+    apply_word_width_variation,
     export_handwriting_debug,
+    finalize_handwriting_transforms,
     route_words,
 )
 from plotter_processor.models import PathDocument, PositionedGlyph
@@ -38,6 +41,7 @@ class PageGeometryRequest:
     retrace_config: RetraceConfig
     connection_debug: bool
     simplification_template_cache: SimplificationTemplateCache
+    keep_out_zones: object = None
 
 
 @dataclass(slots=True)
@@ -67,6 +71,7 @@ def process_page_geometry(
     complexity_before_route = path_complexity(paths)
     if request.font_mode == "centerline" and request.body_glyphs:
         with _measure_stage("handwriting", stage_ms, stage_progress):
+            handwriting_reference = paths
             with metrics.measure("variation_ms"):
                 paths = apply_variation(
                     paths,
@@ -84,6 +89,21 @@ def process_page_geometry(
                     hotspots=metrics.hotspots,
                     retrace_config=request.retrace_config,
                 )
+                paths = apply_word_width_variation(
+                    paths, request.body_glyphs, request.variation_config
+                )
+                paths = apply_stroke_thickness_variation(
+                    paths,
+                    request.variation_config,
+                    path_mode=request.retrace_config.mode,
+                )
+                if request.variation_config.enabled:
+                    paths = finalize_handwriting_transforms(
+                        paths,
+                        request.body_glyphs,
+                        reference=handwriting_reference,
+                        keep_out_zones=request.keep_out_zones,
+                    )
             retrace = paths.metadata.get("safe_retrace")
             if isinstance(retrace, dict):
                 handwriting.update(retrace)

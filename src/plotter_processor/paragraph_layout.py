@@ -68,17 +68,33 @@ def layout_paragraph(
         * scale
         * multiplier
     )
-    left_indent = max(0.0, paragraph.left_indent_mm or 0.0)
+    grid_width = _optional_positive(paragraph_options, "grid_cell_width_mm")
+    configured_indent = _cells(paragraph_options, "indent_cells", grid_width)
+    configured_first_indent = _cells(
+        paragraph_options, "first_line_indent_cells", grid_width
+    )
+    left_indent = max(
+        0.0,
+        paragraph.left_indent_mm
+        if paragraph.left_indent_mm is not None
+        else configured_indent,
+    )
     right_indent = max(0.0, paragraph.right_indent_mm or 0.0)
     paragraph_left = content_left_mm + left_indent
     paragraph_right = content_right_mm - right_indent
-    first_left = paragraph_left + (paragraph.first_line_indent_mm or 0.0)
+    first_left = paragraph_left + (
+        paragraph.first_line_indent_mm
+        if paragraph.first_line_indent_mm is not None
+        else configured_first_indent
+    )
     first_left -= paragraph.hanging_indent_mm or 0.0
     first_left = max(content_left_mm, first_left)
     if paragraph_right <= max(paragraph_left, first_left):
         raise ValueError("Paragraph indents leave no usable line width")
 
-    interval = float(paragraph_options.get("default_tab_interval_mm", 12.5))
+    interval = _cells(paragraph_options, "tab_interval_cells", grid_width) or float(
+        paragraph_options.get("default_tab_interval_mm", 12.5)
+    )
     if interval <= 0:
         raise ValueError("paragraphs.default_tab_interval_mm must be positive")
     source_stops = paragraph.tab_stops or tuple(
@@ -246,6 +262,28 @@ def _font_scale(
         float(options.get("max_font_scale", 1.60)),
         max(float(options.get("min_font_scale", 0.80)), semantic_scale),
     )
+
+
+def _optional_positive(values: Mapping[str, object], key: str) -> float | None:
+    value = values.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"paragraphs.{key} must be positive")
+    return float(value)
+
+
+def _cells(
+    values: Mapping[str, object], key: str, cell_width_mm: float | None
+) -> float:
+    value = values.get(key)
+    if value is None:
+        return 0.0
+    if cell_width_mm is None:
+        raise ValueError(f"paragraphs.{key} requires an enabled page grid")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"paragraphs.{key} must be non-negative")
+    return float(value) * cell_width_mm
 
 
 def _tokens(text: str) -> list[tuple[str, str]]:

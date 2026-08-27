@@ -116,6 +116,17 @@ def test_rejects_workspace_violation(
         generate_gcode(path_document, machine_config)
 
 
+def test_rejects_draw_path_through_page_hole(
+    path_document: PathDocument, machine_config: dict[str, object]
+) -> None:
+    machine_config["page_keep_out_zones"] = [
+        {"x_mm": 20.0, "y_mm": 30.0, "radius_mm": 2.0, "clearance_mm": 1.0}
+    ]
+
+    with pytest.raises(ValueError, match="Page 3, element 'stroke 0'"):
+        generate_gcode(path_document, machine_config, page_number=3)
+
+
 def test_rejects_non_finite_point(machine_config: dict[str, object]) -> None:
     document = PathDocument(
         page_width_mm=100,
