@@ -60,6 +60,34 @@ def test_impossible_a4_fails_before_document_read(
     assert "compatible machine config" in result.error
 
 
+def test_selected_page_position_profile_is_checked_before_document_read(
+    tmp_path: Path, test_font: Path, monkeypatch
+) -> None:
+    machine = yaml.safe_load(Path("configs/machine.yaml").read_text(encoding="utf-8"))
+    machine["page_position_profiles"]["A5"] = {
+        "origin_x_mm": 100.0,
+        "origin_y_mm": 20.0,
+    }
+    machine_path = tmp_path / "profile-outside-workspace.yaml"
+    machine_path.write_text(yaml.safe_dump(machine), encoding="utf-8")
+    options = _options(tmp_path, test_font, machine_path, output_name="profile")
+    options.page = "A5"
+    called = False
+
+    def unexpected_read(*args, **kwargs):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(pipeline, "read_structured_document", unexpected_read)
+
+    result = run_pipeline(options)
+
+    assert result.status == "error"
+    assert not called
+    assert result.error is not None
+    assert "origin (100,20) mm" in result.error
+
+
 def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) -> None:
     machine = _machine_config(tmp_path, max_y=320.0)
 

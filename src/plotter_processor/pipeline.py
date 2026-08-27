@@ -439,6 +439,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
         config_profiles = resolve_config_profiles(
             layout_config, machine_config, page=options.page, size=options.size
         )
+        machine_config = config_profiles.machine.raw
         page = PageSpec(
             options.page,
             config_profiles.paper.width_mm,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -77,15 +78,16 @@ def resolve_config_profiles(
     connections_value = layout.get("connections", handwriting.get("joining", {}))
     if not isinstance(connections_value, Mapping):
         raise TypeError("connections must be a mapping")
+    resolved_machine = _resolve_page_position(machine, page)
     return PipelineConfigProfiles(
         MachineConfigProfile(
-            dict(machine),
-            _mapping(machine, "feedrate_mm_min"),
-            _mapping(machine, "workspace_mm"),
-            _mapping(machine, "gcode"),
-            _mapping(machine, "page_change"),
-            _mapping(machine, "motion_analysis"),
-            _mapping(machine, "path_simplification"),
+            resolved_machine,
+            _mapping(resolved_machine, "feedrate_mm_min"),
+            _mapping(resolved_machine, "workspace_mm"),
+            _mapping(resolved_machine, "gcode"),
+            _mapping(resolved_machine, "page_change"),
+            _mapping(resolved_machine, "motion_analysis"),
+            _mapping(resolved_machine, "path_simplification"),
         ),
         PaperConfigProfile(
             page,
@@ -119,6 +121,29 @@ def resolve_config_profiles(
     )
 
 
+def _resolve_page_position(
+    machine: Mapping[str, object], page: str
+) -> dict[str, object]:
+    resolved = dict(machine)
+    profiles = machine.get("page_position_profiles")
+    if profiles is None:
+        _mapping(machine, "page_origin_mm")
+        return resolved
+    if not isinstance(profiles, Mapping):
+        raise TypeError("page_position_profiles must be a mapping")
+    profile = profiles.get(page)
+    if profile is None:
+        _mapping(machine, "page_origin_mm")
+        return resolved
+    if not isinstance(profile, Mapping):
+        raise TypeError(f"page_position_profiles.{page} must be a mapping")
+    resolved["page_origin_mm"] = {
+        "x": _number(profile, "origin_x_mm"),
+        "y": _number(profile, "origin_y_mm"),
+    }
+    return resolved
+
+
 def _mapping(values: Mapping[str, object], key: str) -> dict[str, object]:
     value = values.get(key)
     if not isinstance(value, Mapping):
@@ -131,3 +156,13 @@ def _positive(values: Mapping[str, object], key: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise ValueError(f"Missing or invalid positive field: {key}")
     return float(value)
+
+
+def _number(values: Mapping[str, object], key: str) -> float:
+    value = values.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"Missing or invalid numeric field: {key}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{key} must be finite")
+    return number
