@@ -275,6 +275,7 @@ def process_page(
                 request.retrace_config,
                 request.connection_debug,
                 request.simplification_template_cache,
+                request.machine_config.get("page_keep_out_zones"),
             ),
             stage_progress,
         )

@@ -15,6 +15,7 @@ from plotter_processor.centerline_font.anchors import entry_exit_anchors
 from plotter_processor.centerline_font.stroke_roles import classify_strokes
 from plotter_processor.connection_models import GlyphConnectionCandidate, StrokeAnchor
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
+from plotter_processor.page_keep_out import validate_path_keep_outs
 from plotter_processor.path_optimizer import RetraceConfig, optimize_word_strokes
 from plotter_processor.performance import HotspotTimings
 from plotter_processor.routing_cost import RoutingCost, routing_cost
@@ -61,6 +62,13 @@ class JoiningConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class StrokeThicknessConfig:
+    enabled: bool = False
+    probability: float = 0.0
+    offset_mm: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
 class VariationConfig:
     enabled: bool
     seed: int
@@ -74,6 +82,7 @@ class VariationConfig:
     letter_y_offset_mm: float | None = None
     word_width_percent: float | None = None
     line_drift_mm: float | None = None
+    stroke_thickness: StrokeThicknessConfig = StrokeThicknessConfig()
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +139,8 @@ _MAX_LETTER_SLANT = 0.08
 _MAX_LETTER_SCALE_PERCENT = 6.0
 _MAX_WORD_WIDTH_PERCENT = 5.0
 _MAX_LINE_DRIFT_MM = 0.35
+_MAX_THICKNESS_PROBABILITY = 0.35
+_MAX_THICKNESS_OFFSET_MM = 0.04
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +301,7 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
     letter = _mapping(values, "letter")
     word = _mapping(values, "word")
     line = _mapping(values, "line")
+    thickness = _mapping(values, "stroke_thickness")
     seed = values.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise TypeError("handwriting.variation.seed must be an integer")
@@ -306,6 +318,17 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
         min(_nonnegative(letter, "y_offset_mm"), _MAX_BASELINE_OFFSET_MM),
         min(_nonnegative(word, "width_percent"), _MAX_WORD_WIDTH_PERCENT),
         min(_nonnegative(line, "drift_mm"), _MAX_LINE_DRIFT_MM),
+        StrokeThicknessConfig(
+            _boolean(thickness, "enabled"),
+            min(
+                _ratio(thickness, "probability", 0.0),
+                _MAX_THICKNESS_PROBABILITY,
+            ),
+            min(
+                _nonnegative(thickness, "offset_mm"),
+                _MAX_THICKNESS_OFFSET_MM,
+            ),
+        ),
     )
 
 
@@ -590,6 +613,196 @@ def apply_word_width_variation(
     )
     result.metadata["word_width_factors"] = factors
     return result
+
+
+def apply_stroke_thickness_variation(
+    document: PathDocument,
+    config: VariationConfig,
+    *,
+    path_mode: str = "normal",
+) -> PathDocument:
+    """Add a tiny deterministic offset retrace to a limited set of glyph strokes."""
+    thickness = config.stroke_thickness
+    if (
+        not config.enabled
+        or not thickness.enabled
+        or thickness.probability <= 0
+        or thickness.offset_mm <= 0
+        or path_mode == "superfast"
+    ):
+        return document
+    generator = _VariationGenerator(config.seed)
+    changed: list[PlotterStroke] = []
+    retraced = 0
+    added_points = 0
+    for stroke in document.strokes:
+        eligible = (
+            stroke.glyph_index is not None
+            and len(stroke.points) >= 2
+            and not stroke.closed
+            and len(stroke.char or "") == 1
+            and "connector" not in stroke.segment_types
+            and "snap" not in stroke.segment_types
+        )
+        rng = generator.for_identity(
+            f"thickness:{stroke.glyph_index}:{stroke.contour_index}:{stroke.id}"
+        )
+        if not eligible or rng.random() >= thickness.probability:
+            changed.append(stroke)
+            continue
+        angle = rng.uniform(0.0, math.tau)
+        dx = math.cos(angle) * thickness.offset_mm
+        dy = math.sin(angle) * thickness.offset_mm
+        retrace = [Point(point.x + dx, point.y + dy) for point in reversed(stroke.points)]
+        changed.append(
+            replace(
+                stroke,
+                points=[*stroke.points, *retrace],
+                segment_types=stroke.segment_types + ("thickness_retrace",),
+            )
+        )
+        retraced += 1
+        added_points += len(retrace)
+    result = replace(document, strokes=changed, metadata=dict(document.metadata))
+    result.metadata["stroke_thickness_variation"] = {
+        "enabled": True,
+        "retraced_strokes": retraced,
+        "added_points": added_points,
+    }
+    return result
+
+
+def finalize_handwriting_transforms(
+    document: PathDocument,
+    glyphs: list[PositionedGlyph],
+    *,
+    reference: PathDocument | None = None,
+    keep_out_zones: object = None,
+) -> PathDocument:
+    """Clamp combined handwriting effects and validate final protected geometry."""
+    glyph_word = {glyph.glyph_index: _word_key(glyph) for glyph in glyphs}
+    glyph_line = {glyph.glyph_index: glyph.line_index for glyph in glyphs}
+    reference_groups = _stroke_groups(reference or document, glyph_word)
+    current_groups = _stroke_groups(document, glyph_word)
+    replacements: dict[int, PlotterStroke] = {}
+    clamped_words = 0
+    for word_key, strokes in current_groups.items():
+        reference_strokes = reference_groups.get(word_key, ())
+        current_bounds = _strokes_bounds(strokes)
+        reference_bounds = _strokes_bounds(reference_strokes)
+        if current_bounds is None:
+            continue
+        scale_x = scale_y = 1.0
+        if reference_bounds is not None:
+            current_width = current_bounds[2] - current_bounds[0]
+            current_height = current_bounds[3] - current_bounds[1]
+            reference_width = reference_bounds[2] - reference_bounds[0]
+            reference_height = reference_bounds[3] - reference_bounds[1]
+            if reference_width > 1e-9 and current_width > reference_width * 1.08:
+                scale_x = reference_width * 1.08 / current_width
+            if reference_height > 1e-9 and current_height > reference_height * 1.10:
+                scale_y = reference_height * 1.10 / current_height
+        center_x = (current_bounds[0] + current_bounds[2]) / 2
+        center_y = (current_bounds[1] + current_bounds[3]) / 2
+        scaled_bounds = (
+            center_x + (current_bounds[0] - center_x) * scale_x,
+            center_y + (current_bounds[1] - center_y) * scale_y,
+            center_x + (current_bounds[2] - center_x) * scale_x,
+            center_y + (current_bounds[3] - center_y) * scale_y,
+        )
+        dx = _bounds_translation(scaled_bounds[0], scaled_bounds[2], document.page_width_mm)
+        dy = _bounds_translation(scaled_bounds[1], scaled_bounds[3], document.page_height_mm)
+        if scale_x != 1.0 or scale_y != 1.0 or dx or dy:
+            clamped_words += 1
+        for stroke in strokes:
+            replacements[id(stroke)] = replace(
+                stroke,
+                points=[
+                    Point(
+                        center_x + (point.x - center_x) * scale_x + dx,
+                        center_y + (point.y - center_y) * scale_y + dy,
+                    )
+                    for point in stroke.points
+                ],
+            )
+    strokes = [replacements.get(id(stroke), stroke) for stroke in document.strokes]
+    line_groups: dict[int, list[PlotterStroke]] = {}
+    for stroke in strokes:
+        if stroke.glyph_index is not None and stroke.glyph_index in glyph_line:
+            line_groups.setdefault(glyph_line[stroke.glyph_index], []).append(stroke)
+    line_offsets: dict[int, tuple[float, float]] = {}
+    for line_index, line_strokes in line_groups.items():
+        bounds = _strokes_bounds(line_strokes)
+        if bounds is not None:
+            line_offsets[line_index] = (
+                _bounds_translation(bounds[0], bounds[2], document.page_width_mm),
+                _bounds_translation(bounds[1], bounds[3], document.page_height_mm),
+            )
+    finalized: list[PlotterStroke] = []
+    for stroke in strokes:
+        line_index = glyph_line.get(stroke.glyph_index) if stroke.glyph_index is not None else None
+        dx, dy = line_offsets.get(line_index, (0.0, 0.0))
+        if dx or dy:
+            stroke = replace(
+                stroke,
+                points=[Point(point.x + dx, point.y + dy) for point in stroke.points],
+            )
+        finalized.append(stroke)
+    result = replace(document, strokes=finalized, metadata=dict(document.metadata))
+    connector_strokes = sum(
+        "connector" in stroke.segment_types or len(stroke.source_glyph_indices) > 1
+        for stroke in result.strokes
+    )
+    if any(
+        not math.isfinite(point.x) or not math.isfinite(point.y)
+        for stroke in result.strokes
+        for point in stroke.points
+    ):
+        raise ValueError("Handwriting transforms produced non-finite glyph geometry")
+    validate_path_keep_outs(result, keep_out_zones)
+    result.metadata["handwriting_validation"] = {
+        "clamped_words": clamped_words,
+        "shifted_lines": sum(bool(dx or dy) for dx, dy in line_offsets.values()),
+        "connectors_checked": connector_strokes,
+        "page_bounds_checked": True,
+        "keep_out_zones_checked": keep_out_zones is not None,
+    }
+    return result
+
+
+def _stroke_groups(
+    document: PathDocument,
+    glyph_word: Mapping[int, tuple[int, int]],
+) -> dict[tuple[int, int], list[PlotterStroke]]:
+    groups: dict[tuple[int, int], list[PlotterStroke]] = {}
+    for stroke in document.strokes:
+        if stroke.glyph_index is not None and stroke.glyph_index in glyph_word:
+            groups.setdefault(glyph_word[stroke.glyph_index], []).append(stroke)
+    return groups
+
+
+def _strokes_bounds(
+    strokes: list[PlotterStroke] | tuple[PlotterStroke, ...],
+) -> tuple[float, float, float, float] | None:
+    points = [point for stroke in strokes for point in stroke.points]
+    if not points:
+        return None
+    return (
+        min(point.x for point in points),
+        min(point.y for point in points),
+        max(point.x for point in points),
+        max(point.y for point in points),
+    )
+
+
+def _bounds_translation(minimum: float, maximum: float, limit: float) -> float:
+    if maximum - minimum > limit:
+        return -minimum
+    if minimum < 0:
+        return -minimum
+    if maximum > limit:
+        return limit - maximum
+    return 0.0
 
 
 def export_handwriting_debug(document: PathDocument, output: Path) -> None:

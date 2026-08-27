@@ -299,6 +299,10 @@ handwriting:
       width_percent: 3.0
     line:
       drift_mm: 0.16
+    stroke_thickness:
+      enabled: true
+      probability: 0.12
+      offset_mm: 0.025
   spacing:
     max_kerning_adjustment_mm: 0.15
     shape_aware: true

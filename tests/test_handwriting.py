@@ -6,16 +6,19 @@ from plotter_processor import handwriting
 from plotter_processor.handwriting import (
     JoiningConfig,
     PairConnectionRule,
+    StrokeThicknessConfig,
     VariationConfig,
     _collision_points,
     _ConnectionCounters,
     _SegmentObstacleIndex,
     apply_handwriting_kerning,
+    apply_stroke_thickness_variation,
     apply_variation,
     apply_word_width_variation,
     build_variation_context,
     connection_pair_rule,
     export_handwriting_debug,
+    finalize_handwriting_transforms,
     load_variation_config,
     route_words,
 )
@@ -131,6 +134,11 @@ def test_handwriting_variation_config_loads_bounded_nested_ranges() -> None:
                     },
                     "word": {"width_percent": 99.0},
                     "line": {"drift_mm": 99.0},
+                    "stroke_thickness": {
+                        "enabled": True,
+                        "probability": 0.9,
+                        "offset_mm": 1.0,
+                    },
                 }
             }
         }
@@ -143,6 +151,8 @@ def test_handwriting_variation_config_loads_bounded_nested_ranges() -> None:
     assert config.letter_y_offset_mm == 0.25
     assert config.word_width_percent == 5.0
     assert config.line_drift_mm == 0.35
+    assert config.stroke_thickness.probability == 0.35
+    assert config.stroke_thickness.offset_mm == 0.04
 
 
 def test_repeated_glyphs_receive_readable_local_variants() -> None:
@@ -339,6 +349,138 @@ def test_word_width_scales_completed_word_and_connector_only_on_x() -> None:
     assert [point.y for point in after] == [point.y for point in before]
     assert after[1].x != before[1].x
     assert result.metadata["word_width_factors"]["0:0"] != 1.0
+
+
+def test_visual_thickness_is_light_deterministic_and_disabled_in_superfast() -> None:
+    document = PathDocument(
+        30,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [Point(index * 2.0, 10), Point(index * 2.0 + 1, 9)],
+                False,
+                index,
+                "а",
+                0,
+            )
+            for index in range(10)
+        ],
+        [],
+    )
+    config = VariationConfig(
+        True,
+        61,
+        0,
+        0,
+        0,
+        0,
+        stroke_thickness=StrokeThicknessConfig(True, 0.3, 0.025),
+    )
+
+    first = apply_stroke_thickness_variation(document, config)
+    repeated = apply_stroke_thickness_variation(document, config)
+    superfast = apply_stroke_thickness_variation(document, config, path_mode="superfast")
+
+    retraced = first.metadata["stroke_thickness_variation"]["retraced_strokes"]
+    assert 0 < retraced < len(document.strokes)
+    assert first.strokes == repeated.strokes
+    assert all(len(stroke.points) <= 4 for stroke in first.strokes)
+    assert superfast is document
+
+
+def test_final_handwriting_validation_clamps_word_and_page_bounds() -> None:
+    glyphs = [replace(_glyph("а", 0, 0), word_index=0)]
+    reference = PathDocument(
+        10,
+        10,
+        [PlotterStroke(0, [Point(0.2, 4), Point(1.2, 6)], False, 0, "а", 0)],
+        [],
+    )
+    transformed = PathDocument(
+        10,
+        10,
+        [PlotterStroke(0, [Point(-1, 3), Point(3, 7)], False, 0, "а", 0)],
+        [],
+    )
+
+    result = finalize_handwriting_transforms(
+        transformed, glyphs, reference=reference, keep_out_zones=[]
+    )
+    points = result.strokes[0].points
+
+    assert all(0 <= point.x <= 10 and 0 <= point.y <= 10 for point in points)
+    assert max(point.x for point in points) - min(point.x for point in points) <= 1.08
+    assert result.metadata["handwriting_validation"]["clamped_words"] == 1
+
+
+def test_small_russian_fixture_is_reproducible_and_changes_across_seeds() -> None:
+    text = "приветпривет"
+    glyphs = [
+        replace(
+            _glyph(char, index, 5.0 + index * 2.0),
+            word_index=0 if index < 6 else 1,
+        )
+        for index, char in enumerate(text)
+    ]
+    reference = PathDocument(
+        40,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [Point(glyph.x_mm, 10), Point(glyph.x_mm + 1.5, 9)],
+                False,
+                index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+
+    def render(seed: int) -> PathDocument:
+        config = VariationConfig(
+            True,
+            seed,
+            0.12,
+            1.0,
+            2.0,
+            0,
+            letter_slant=0.035,
+            letter_height_percent=4,
+            letter_width_percent=4,
+            letter_y_offset_mm=0.15,
+            word_width_percent=3,
+            line_drift_mm=0.12,
+        )
+        varied = apply_variation(reference, glyphs, config)
+        varied = apply_word_width_variation(varied, glyphs, config)
+        return finalize_handwriting_transforms(
+            varied,
+            glyphs,
+            reference=reference,
+            keep_out_zones=[
+                {"x_mm": 1.0, "y_mm": 1.0, "radius_mm": 0.2, "clearance_mm": 0.1}
+            ],
+        )
+
+    first = render(71)
+    repeated = render(71)
+    changed = render(72)
+
+    assert [stroke.points for stroke in first.strokes] == [
+        stroke.points for stroke in repeated.strokes
+    ]
+    assert [stroke.points for stroke in first.strokes] != [
+        stroke.points for stroke in changed.strokes
+    ]
+    assert all(
+        0 <= point.x <= first.page_width_mm and 0 <= point.y <= first.page_height_mm
+        for stroke in first.strokes
+        for point in stroke.points
+    )
 
 
 def test_line_variation_is_correlated_bounded_and_does_not_reflow() -> None:
