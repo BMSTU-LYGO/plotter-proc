@@ -59,6 +59,8 @@ class JoiningConfig:
     contact_epsilon_mm: float = 0.08
     collision_clearance_mm: float = 0.10
     pair_rules: tuple[PairConnectionRule, ...] = _DEFAULT_PAIR_RULES
+    variation_seed: int = 1
+    connector_shape_variation: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -618,6 +620,7 @@ def apply_variation(
             config,
             glyph_bounds[index],
         )
+        warped = _stroke_detail_warp(warped, glyph, config)
         cache_hits += int(cache_hit)
         cache_misses += int(not cache_hit)
         points = []
@@ -733,6 +736,33 @@ def _local_shape_warp(
         Point(glyph.x_mm + point.x, glyph.baseline_y_mm + point.y)
         for point in warped_local
     ], False
+
+
+def _stroke_detail_warp(
+    points: list[Point], glyph: PositionedGlyph, config: VariationConfig
+) -> list[Point]:
+    """Add a small correlated per-occurrence change without pointwise noise."""
+    if len(points) < 3:
+        return points
+    strength = _VARIATION_LIMITS.get(
+        config.realism, _VARIATION_LIMITS["normal"]
+    )["shape_warp"]
+    rng = _VariationGenerator(config.seed).for_identity(
+        f"stroke-detail:{glyph.glyph_index}:{glyph.char}:{glyph.word_index}"
+    )
+    amplitude_x = glyph.advance_mm * strength * 0.16 * rng.uniform(-1.0, 1.0)
+    amplitude_y = glyph.advance_mm * strength * 0.13 * rng.uniform(-1.0, 1.0)
+    last = len(points) - 1
+    return [
+        Point(
+            point.x + amplitude_x * math.sin(math.pi * index / last) ** 2,
+            point.y
+            + amplitude_y
+            * math.sin(math.pi * index / last) ** 2
+            * math.sin(2 * math.pi * index / last),
+        )
+        for index, point in enumerate(points)
+    ]
 
 
 def apply_word_width_variation(
@@ -1042,6 +1072,23 @@ def load_joining_config(
         distance *= 1.5
         angle = max(angle, 85.0)
         vertical *= 1.5
+    handwriting_values = root.get("handwriting", {})
+    if not isinstance(handwriting_values, Mapping):
+        handwriting_values = {}
+    variation_values = handwriting_values.get("variation", {})
+    if not isinstance(variation_values, Mapping):
+        variation_values = {}
+    variation_seed = variation_values.get("seed", 1)
+    if isinstance(variation_seed, bool) or not isinstance(variation_seed, int):
+        raise TypeError("handwriting.variation.seed must be an integer")
+    realism = variation_values.get("realism", "normal")
+    connector_shape_variation = (
+        1.0
+        if bool(variation_values.get("enabled", False)) and realism == "strong"
+        else 0.35
+        if bool(variation_values.get("enabled", False)) and realism == "normal"
+        else 0.0
+    )
     return JoiningConfig(
         (configured if enabled is None else enabled) and selected_mode != "off",
         distance,
@@ -1059,6 +1106,8 @@ def load_joining_config(
         _positive_default(values, "contact_epsilon_mm", 0.08),
         _positive_default(values, "collision_clearance_mm", 0.10),
         _load_pair_rules(values),
+        variation_seed,
+        connector_shape_variation,
     )
 
 
@@ -1503,6 +1552,15 @@ def _connection_candidate(
     start, end = left.exit.point, right.entry.point
     left_tangent = _connector_tangent(left.exit.tangent, config)
     right_tangent = _connector_tangent(right.entry.tangent, config)
+    connector_rng = _VariationGenerator(config.variation_seed).for_identity(
+        f"connector:{left.glyph.glyph_index}:{left.glyph.char}:"
+        f"{right.glyph.glyph_index}:{right.glyph.char}"
+    )
+    tangent_delta = connector_rng.uniform(-3.0, 3.0) * config.connector_shape_variation
+    left_tangent = _rotate_vector(left_tangent, tangent_delta)
+    right_tangent = _rotate_vector(right_tangent, -tangent_delta * 0.7)
+    seeded_handle_scale = 1.0 + connector_rng.uniform(-0.09, 0.09) * config.connector_shape_variation
+    seeded_vertical_bias = connector_rng.uniform(-0.07, 0.07) * config.connector_shape_variation
     pair_rule = connection_pair_rule(left.glyph.char, right.glyph.char, config)
     if pair_rule is not None:
         counters.pair_rules_applied += 1
@@ -1538,8 +1596,9 @@ def _connection_candidate(
         end,
         left_tangent,
         right_tangent,
-        handle_scale=pair_rule.handle_scale if pair_rule else 1.0,
-        vertical_bias_mm=pair_rule.vertical_bias_mm if pair_rule else 0.0,
+        handle_scale=(pair_rule.handle_scale if pair_rule else 1.0) * seeded_handle_scale,
+        vertical_bias_mm=(pair_rule.vertical_bias_mm if pair_rule else 0.0)
+        + seeded_vertical_bias,
     )
     controls_are_forward = start.x <= c1.x <= c2.x <= end.x
     if (
@@ -1588,8 +1647,12 @@ def _connection_candidate(
             )
 
     count = max(2, math.ceil(gap / config.connector_step_mm))
-    base_handle_scale = pair_rule.handle_scale if pair_rule else 1.0
-    vertical_bias = pair_rule.vertical_bias_mm if pair_rule else 0.0
+    base_handle_scale = (
+        pair_rule.handle_scale if pair_rule else 1.0
+    ) * seeded_handle_scale
+    vertical_bias = (
+        pair_rule.vertical_bias_mm if pair_rule else 0.0
+    ) + seeded_vertical_bias
     handle_variants = (1.0,) if reason is not None else (0.85, 1.0, 1.15)
     evaluated: list[
         tuple[GlyphConnectionCandidate, list[Point], list[Point], int]
@@ -2013,6 +2076,15 @@ def _connector_controls(
         first = Point(middle, first.y)
         second = Point(middle, second.y)
     return first, second
+
+
+def _rotate_vector(vector: Point, angle_deg: float) -> Point:
+    angle = math.radians(angle_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    return Point(
+        vector.x * cosine - vector.y * sine,
+        vector.x * sine + vector.y * cosine,
+    )
 
 
 def _bezier(a: Point, b: Point, c: Point, d: Point, t: float) -> Point:

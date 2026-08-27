@@ -295,6 +295,119 @@ def test_procedural_glyph_variants_are_cached_by_character_variant_and_style() -
     assert first.strokes == repeated.strokes
 
 
+def test_strong_repeated_glyph_fixture_has_natural_normalized_geometry() -> None:
+    text = Path("tests/fixtures/handwriting/repeated_glyphs.txt").read_text(
+        encoding="utf-8"
+    )
+    characters = [char for char in text if char.isalpha()]
+    glyphs = [
+        replace(_glyph(char, index, 3.0 + index * 2.2), word_index=index // 5)
+        for index, char in enumerate(characters)
+    ]
+    strokes = [
+        PlotterStroke(
+            index,
+            [
+                Point(glyph.x_mm, 10.0),
+                Point(glyph.x_mm + 0.25, 9.15),
+                Point(glyph.x_mm + 0.9, 8.75),
+                Point(glyph.x_mm + 1.55, 9.20),
+                Point(glyph.x_mm + 1.8, 10.0),
+            ],
+            False,
+            index,
+            glyph.char,
+            0,
+        )
+        for index, glyph in enumerate(glyphs)
+    ]
+    document = PathDocument(len(glyphs) * 2.2 + 8, 20, strokes, [])
+    config = VariationConfig(
+        True,
+        121,
+        0.12,
+        3.0,
+        7.0,
+        0.08,
+        letter_slant=0.10,
+        letter_height_percent=9.0,
+        letter_width_percent=10.0,
+        letter_y_offset_mm=0.22,
+        word_width_percent=8.0,
+        line_drift_mm=0.16,
+        realism="strong",
+    )
+
+    first = apply_variation(document, glyphs, config)
+    repeated = apply_variation(document, glyphs, config)
+    changed = apply_variation(document, glyphs, replace(config, seed=122))
+
+    def normalized(stroke: PlotterStroke) -> tuple[tuple[float, float], ...]:
+        min_x, min_y, max_x, max_y = handwriting._stroke_bounds(stroke)
+        width = max(max_x - min_x, 1e-9)
+        height = max(max_y - min_y, 1e-9)
+        return tuple(
+            (round((point.x - min_x) / width, 4), round((point.y - min_y) / height, 4))
+            for point in stroke.points
+        )
+
+    shapes_by_char = {
+        char: {
+            normalized(stroke)
+            for stroke in first.strokes
+            if stroke.char == char
+        }
+        for char in set(characters)
+    }
+    repeated_chars = {char for char in set(characters) if characters.count(char) >= 4}
+
+    assert all(len(shapes_by_char[char]) >= 3 for char in repeated_chars)
+    assert len(set(first.metadata["glyph_variants"].values())) >= 6
+    assert first.strokes == repeated.strokes
+    assert first.strokes != changed.strokes
+    assert len(first.strokes) == len(document.strokes)
+    assert all(
+        0 <= point.x <= first.page_width_mm and 0 <= point.y <= first.page_height_mm
+        for stroke in first.strokes
+        for point in stroke.points
+    )
+
+
+def test_connector_shape_variation_is_seeded_bounded_and_keeps_one_pass() -> None:
+    glyphs = [
+        replace(_glyph("м", 0, 0), word_index=0),
+        replace(_glyph("а", 1, 2.5), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "м", 0),
+            PlotterStroke(1, [Point(2.5, 10), Point(4.5, 10)], False, 1, "а", 0),
+        ],
+        [],
+    )
+    config = replace(
+        _config(), variation_seed=211, connector_shape_variation=1.0
+    )
+
+    first, first_metrics = route_words(document, glyphs, config)
+    repeated, repeated_metrics = route_words(document, glyphs, config)
+    changed, changed_metrics = route_words(
+        document, glyphs, replace(config, variation_seed=212)
+    )
+
+    assert first.strokes == repeated.strokes
+    assert first.strokes != changed.strokes
+    assert first_metrics["joins_created"] == repeated_metrics["joins_created"] == 1
+    assert changed_metrics["joins_created"] == 1
+    assert len(first.strokes) == len(changed.strokes) == 1
+    assert all(
+        right.x >= left.x - 0.15
+        for left, right in pairwise(first.strokes[0].points)
+    )
+
+
 def test_glyph_scale_variation_is_independent_small_and_post_layout() -> None:
     glyphs = [_glyph("а", index, float(index * 3)) for index in range(8)]
     original_positions = [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs]
