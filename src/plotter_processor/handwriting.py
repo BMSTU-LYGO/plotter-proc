@@ -68,6 +68,12 @@ class VariationConfig:
     rotation_deg: float
     scale_percent: float
     spacing_jitter_mm: float
+    letter_slant: float | None = None
+    letter_height_percent: float | None = None
+    letter_width_percent: float | None = None
+    letter_y_offset_mm: float | None = None
+    word_width_percent: float | None = None
+    line_drift_mm: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +125,20 @@ class HandwritingVariationContext:
 _MAX_GLYPH_SCALE_PERCENT = 3.0
 _MAX_GLYPH_ROTATION_DEG = 2.0
 _MAX_BASELINE_OFFSET_MM = 0.25
+_MAX_LETTER_SLANT = 0.08
+_MAX_LETTER_SCALE_PERCENT = 6.0
+_MAX_WORD_WIDTH_PERCENT = 5.0
+_MAX_LINE_DRIFT_MM = 0.35
+
+
+@dataclass(frozen=True, slots=True)
+class _VariationGenerator:
+    """The sole deterministic source of handwriting variation samples."""
+
+    seed: int
+
+    def for_identity(self, identity: str) -> random.Random:
+        return random.Random(_variation_seed(self.seed, identity))
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +286,9 @@ class _ConnectionCounters:
 
 def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
     values = _mapping(_mapping(root, "handwriting"), "variation")
+    letter = _mapping(values, "letter")
+    word = _mapping(values, "word")
+    line = _mapping(values, "line")
     seed = values.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise TypeError("handwriting.variation.seed must be an integer")
@@ -276,6 +299,12 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
         _nonnegative(values, "rotation_deg"),
         _nonnegative(values, "scale_percent"),
         _nonnegative(values, "spacing_jitter_mm"),
+        min(_nonnegative(letter, "slant"), _MAX_LETTER_SLANT),
+        min(_nonnegative(letter, "height_percent"), _MAX_LETTER_SCALE_PERCENT),
+        min(_nonnegative(letter, "width_percent"), _MAX_LETTER_SCALE_PERCENT),
+        min(_nonnegative(letter, "y_offset_mm"), _MAX_BASELINE_OFFSET_MM),
+        min(_nonnegative(word, "width_percent"), _MAX_WORD_WIDTH_PERCENT),
+        min(_nonnegative(line, "drift_mm"), _MAX_LINE_DRIFT_MM),
     )
 
 
@@ -283,6 +312,7 @@ def build_variation_context(
     glyphs: list[PositionedGlyph], config: VariationConfig
 ) -> HandwritingVariationContext:
     occurrences: dict[str, int] = {}
+    generator = _VariationGenerator(config.seed)
     variations: dict[int, GlyphVariation] = {}
     words: dict[tuple[int, int], WordVariation] = {}
     line_bounds: dict[int, tuple[float, float]] = {}
@@ -302,9 +332,29 @@ def build_variation_context(
             glyph_baseline_limit,
         )
     rotation_limit = min(config.rotation_deg, _MAX_GLYPH_ROTATION_DEG)
+    width_limit = min(
+        config.scale_percent
+        if config.letter_width_percent is None
+        else config.letter_width_percent,
+        _MAX_GLYPH_SCALE_PERCENT
+        if config.letter_width_percent is None
+        else _MAX_LETTER_SCALE_PERCENT,
+    ) / 100
+    height_limit = min(
+        config.scale_percent
+        if config.letter_height_percent is None
+        else config.letter_height_percent,
+        _MAX_GLYPH_SCALE_PERCENT
+        if config.letter_height_percent is None
+        else _MAX_LETTER_SCALE_PERCENT,
+    ) / 100
+    slant_limit = min(
+        0.012 if config.letter_slant is None else config.letter_slant,
+        _MAX_LETTER_SLANT,
+    )
     lines = {
         line_index: _line_variation(
-            config.seed,
+            generator,
             line_index,
             bounds,
             rotation_limit,
@@ -315,10 +365,14 @@ def build_variation_context(
     for glyph in glyphs:
         occurrence = occurrences.get(glyph.char, 0)
         occurrences[glyph.char] = occurrence + 1
-        rng = random.Random(_variation_seed(config.seed, glyph))
-        scale_limit = min(config.scale_percent, _MAX_GLYPH_SCALE_PERCENT) / 100
+        rng = generator.for_identity(
+            f"glyph:{glyph.glyph_index}:{glyph.char}:{glyph.line_index}:{glyph.word_index}"
+        )
+        legacy_scale_limit = min(config.scale_percent, _MAX_GLYPH_SCALE_PERCENT) / 100
         baseline_limit = min(
-            config.baseline_jitter_mm,
+            config.baseline_jitter_mm
+            if config.letter_y_offset_mm is None
+            else config.letter_y_offset_mm,
             _MAX_BASELINE_OFFSET_MM,
             max(0.05, glyph.advance_mm * 0.06),
         )
@@ -326,12 +380,12 @@ def build_variation_context(
         word_key = _word_key(glyph)
         word = words.get(word_key)
         if word is None:
-            word_rng = random.Random(
-                _variation_seed(config.seed, f"word:{word_key[0]}:{word_key[1]}")
-            )
+            word_rng = generator.for_identity(f"word:{word_key[0]}:{word_key[1]}")
             word = WordVariation(
-                scale_x_delta=word_rng.uniform(-scale_limit, scale_limit) * 0.4,
-                scale_y_delta=word_rng.uniform(-scale_limit, scale_limit) * 0.4,
+                scale_x_delta=word_rng.uniform(-legacy_scale_limit, legacy_scale_limit)
+                * 0.4,
+                scale_y_delta=word_rng.uniform(-legacy_scale_limit, legacy_scale_limit)
+                * 0.4,
                 rotation_deg=word_rng.uniform(-rotation_limit, rotation_limit)
                 * 0.35,
                 baseline_offset_mm=word_rng.uniform(-baseline_limit, baseline_limit)
@@ -348,10 +402,10 @@ def build_variation_context(
             glyph_variant=variant,
             scale_x=1
             + word.scale_x_delta
-            + rng.uniform(-scale_limit, scale_limit) * 0.6,
+            + rng.uniform(-width_limit, width_limit) * 0.6,
             scale_y=1
             + word.scale_y_delta
-            + rng.uniform(-scale_limit, scale_limit) * 0.6,
+            + rng.uniform(-height_limit, height_limit) * 0.6,
             rotation_deg=angle,
             baseline_offset_mm=line.baseline_at(glyph.x_mm)
             + word.baseline_offset_mm
@@ -359,7 +413,11 @@ def build_variation_context(
             spacing_adjustment_mm=rng.uniform(
                 -config.spacing_jitter_mm, config.spacing_jitter_mm
             ),
-            variant_slant=(-0.012, 0.0, 0.012)[variant],
+            variant_slant=(
+                (-slant_limit, 0.0, slant_limit)[variant]
+                if config.letter_slant is None
+                else rng.uniform(-slant_limit, slant_limit)
+            ),
             cosine=math.cos(math.radians(angle)),
             sine=math.sin(math.radians(angle)),
         )
@@ -367,13 +425,13 @@ def build_variation_context(
 
 
 def _line_variation(
-    seed: int,
+    generator: _VariationGenerator,
     line_index: int,
     bounds: tuple[float, float],
     rotation_limit: float,
     baseline_limit: float,
 ) -> LineVariation:
-    rng = random.Random(_variation_seed(seed, f"line:{line_index}"))
+    rng = generator.for_identity(f"line:{line_index}")
     return LineVariation(
         rotation_deg=rng.uniform(-rotation_limit, rotation_limit) * 0.2,
         baseline_offset_mm=rng.uniform(-baseline_limit, baseline_limit) * 0.15,

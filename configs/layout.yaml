@@ -290,6 +290,15 @@ handwriting:
     rotation_deg: 1.0
     scale_percent: 2.0
     spacing_jitter_mm: 0.15
+    letter:
+      slant: 0.035
+      height_percent: 4.0
+      width_percent: 4.0
+      y_offset_mm: 0.18
+    word:
+      width_percent: 3.0
+    line:
+      drift_mm: 0.16
   spacing:
     max_kerning_adjustment_mm: 0.15
     shape_aware: true

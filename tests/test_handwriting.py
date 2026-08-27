@@ -14,6 +14,7 @@ from plotter_processor.handwriting import (
     build_variation_context,
     connection_pair_rule,
     export_handwriting_debug,
+    load_variation_config,
     route_words,
 )
 from plotter_processor.models import PathDocument, PlotterStroke, Point, PositionedGlyph
@@ -109,6 +110,39 @@ def test_variation_context_is_deterministic_and_seeded() -> None:
     assert variants[0] == variants[3]
 
 
+def test_handwriting_variation_config_loads_bounded_nested_ranges() -> None:
+    config = load_variation_config(
+        {
+            "handwriting": {
+                "variation": {
+                    "enabled": True,
+                    "seed": 123,
+                    "baseline_jitter_mm": 0.1,
+                    "rotation_deg": 1.0,
+                    "scale_percent": 2.0,
+                    "spacing_jitter_mm": 0.1,
+                    "letter": {
+                        "slant": 99.0,
+                        "height_percent": 99.0,
+                        "width_percent": 99.0,
+                        "y_offset_mm": 99.0,
+                    },
+                    "word": {"width_percent": 99.0},
+                    "line": {"drift_mm": 99.0},
+                }
+            }
+        }
+    )
+
+    assert config.seed == 123
+    assert config.letter_slant == 0.08
+    assert config.letter_height_percent == 6.0
+    assert config.letter_width_percent == 6.0
+    assert config.letter_y_offset_mm == 0.25
+    assert config.word_width_percent == 5.0
+    assert config.line_drift_mm == 0.35
+
+
 def test_repeated_glyphs_receive_readable_local_variants() -> None:
     glyphs = [_glyph("а", index, float(index * 2)) for index in range(4)]
     document = PathDocument(
@@ -154,6 +188,64 @@ def test_glyph_scale_variation_is_independent_small_and_post_layout() -> None:
     assert all(0.97 <= item.scale_y <= 1.03 for item in scales)
     assert any(item.scale_x != item.scale_y for item in scales)
     assert [(glyph.x_mm, glyph.baseline_y_mm) for glyph in glyphs] == original_positions
+
+
+def test_glyph_geometry_gets_width_height_slant_and_y_offset() -> None:
+    glyph = _glyph("и", 0, 5)
+    document = PathDocument(
+        20,
+        20,
+        [PlotterStroke(0, [Point(5, 8), Point(6, 10)], False, 0, "и", 0)],
+        [],
+    )
+    config = VariationConfig(
+        True,
+        19,
+        0,
+        0,
+        0,
+        0,
+        letter_slant=0.05,
+        letter_height_percent=6,
+        letter_width_percent=6,
+        letter_y_offset_mm=0.2,
+    )
+
+    context = build_variation_context([glyph], config)
+    result = apply_variation(document, [glyph], config)
+    transform = context.for_glyph(0)
+
+    assert transform.scale_x != 1.0
+    assert transform.scale_y != 1.0
+    assert transform.variant_slant != 0.0
+    assert transform.baseline_offset_mm != 0.0
+    assert result.strokes[0].points != document.strokes[0].points
+
+
+def test_transformed_glyphs_remain_connectable() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 0), word_index=0),
+        replace(_glyph("б", 1, 2.2), word_index=0),
+    ]
+    document = PathDocument(
+        20,
+        20,
+        [
+            PlotterStroke(0, [Point(0, 10), Point(2, 10)], False, 0, "а", 0),
+            PlotterStroke(1, [Point(2.2, 10), Point(4, 10)], False, 1, "б", 0),
+        ],
+        [],
+    )
+    varied = apply_variation(
+        document,
+        glyphs,
+        VariationConfig(True, 23, 0.05, 0.5, 2, 0),
+    )
+
+    connected, metrics = route_words(varied, glyphs, _config())
+
+    assert metrics["joins_created"] == 1
+    assert len(connected.strokes) == 1
 
 
 def test_rotation_and_baseline_variation_stay_inside_safe_limits() -> None:
