@@ -155,6 +155,76 @@ def test_handwriting_variation_config_loads_bounded_nested_ranges() -> None:
     assert config.stroke_thickness.offset_mm == 0.04
 
 
+def test_strong_variation_profile_is_enabled_and_uses_wider_safe_ranges() -> None:
+    config = load_variation_config(
+        {
+            "handwriting": {
+                "variation": {
+                    "enabled": True,
+                    "realism": "strong",
+                    "seed": 123,
+                    "baseline_jitter_mm": 0.3,
+                    "rotation_deg": 4.0,
+                    "scale_percent": 8.0,
+                    "spacing_jitter_mm": 0.1,
+                    "letter": {
+                        "slant": 0.14,
+                        "height_percent": 10.0,
+                        "width_percent": 12.0,
+                        "y_offset_mm": 0.3,
+                    },
+                    "word": {"width_percent": 10.0},
+                    "line": {"drift_mm": 0.45},
+                    "stroke_thickness": {
+                        "enabled": False,
+                        "probability": 0.0,
+                        "offset_mm": 0.0,
+                    },
+                }
+            }
+        }
+    )
+
+    assert config.enabled is True
+    assert config.realism == "strong"
+    assert config.letter_width_percent == 12.0
+    assert config.letter_height_percent == 10.0
+    assert config.rotation_deg == 4.0
+    assert config.word_width_percent == 10.0
+
+
+def test_local_shape_warp_is_smooth_deterministic_and_preserves_endpoints() -> None:
+    glyph = _glyph("о", 0, 2)
+    stroke = PlotterStroke(
+        0,
+        [
+            Point(2.0, 10.0),
+            Point(2.2, 9.2),
+            Point(3.0, 8.8),
+            Point(3.8, 9.2),
+            Point(4.0, 10.0),
+        ],
+        False,
+        0,
+        "о",
+        0,
+    )
+    document = PathDocument(20, 20, [stroke], [])
+    config = VariationConfig(True, 17, 0, 0, 0, 0, realism="strong")
+
+    first = apply_variation(document, [glyph], config)
+    repeated = apply_variation(document, [glyph], config)
+    normal = apply_variation(
+        document, [glyph], replace(config, realism="normal")
+    )
+
+    assert first.strokes[0].points == repeated.strokes[0].points
+    assert first.strokes[0].points[0] == stroke.points[0]
+    assert first.strokes[0].points[-1] == stroke.points[-1]
+    assert first.strokes[0].points[1:-1] != stroke.points[1:-1]
+    assert first.strokes[0].points[1:-1] != normal.strokes[0].points[1:-1]
+
+
 def test_repeated_glyphs_receive_readable_local_variants() -> None:
     glyphs = [_glyph("а", index, float(index * 2)) for index in range(4)]
     document = PathDocument(

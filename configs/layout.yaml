@@ -284,19 +284,20 @@ centerline:
 
 handwriting:
   variation:
-    enabled: false
+    enabled: true
+    realism: strong
     seed: 1
     baseline_jitter_mm: 0.15
-    rotation_deg: 1.0
-    scale_percent: 2.0
+    rotation_deg: 3.0
+    scale_percent: 7.0
     spacing_jitter_mm: 0.15
     letter:
-      slant: 0.035
-      height_percent: 4.0
-      width_percent: 4.0
-      y_offset_mm: 0.18
+      slant: 0.10
+      height_percent: 9.0
+      width_percent: 10.0
+      y_offset_mm: 0.22
     word:
-      width_percent: 3.0
+      width_percent: 8.0
     line:
       drift_mm: 0.16
     stroke_thickness:

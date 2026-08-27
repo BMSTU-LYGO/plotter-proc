@@ -83,6 +83,7 @@ class VariationConfig:
     word_width_percent: float | None = None
     line_drift_mm: float | None = None
     stroke_thickness: StrokeThicknessConfig = StrokeThicknessConfig()
+    realism: str = "normal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +142,29 @@ _MAX_WORD_WIDTH_PERCENT = 5.0
 _MAX_LINE_DRIFT_MM = 0.35
 _MAX_THICKNESS_PROBABILITY = 0.35
 _MAX_THICKNESS_OFFSET_MM = 0.04
+
+_VARIATION_LIMITS = {
+    "normal": {
+        "glyph_scale": 3.0,
+        "rotation": 2.0,
+        "baseline": 0.25,
+        "slant": 0.08,
+        "letter_scale": 6.0,
+        "word_width": 5.0,
+        "line_drift": 0.35,
+        "shape_warp": 0.018,
+    },
+    "strong": {
+        "glyph_scale": 8.0,
+        "rotation": 4.0,
+        "baseline": 0.30,
+        "slant": 0.14,
+        "letter_scale": 12.0,
+        "word_width": 10.0,
+        "line_drift": 0.45,
+        "shape_warp": 0.055,
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -305,19 +329,23 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
     seed = values.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise TypeError("handwriting.variation.seed must be an integer")
+    realism = values.get("realism", "normal")
+    if not isinstance(realism, str) or realism not in {"off", "normal", "strong"}:
+        raise ValueError("handwriting.variation.realism must be off, normal, or strong")
+    limits = _VARIATION_LIMITS["normal" if realism == "off" else realism]
     return VariationConfig(
-        _boolean(values, "enabled"),
+        _boolean(values, "enabled") and realism != "off",
         seed,
         _nonnegative(values, "baseline_jitter_mm"),
         _nonnegative(values, "rotation_deg"),
         _nonnegative(values, "scale_percent"),
         _nonnegative(values, "spacing_jitter_mm"),
-        min(_nonnegative(letter, "slant"), _MAX_LETTER_SLANT),
-        min(_nonnegative(letter, "height_percent"), _MAX_LETTER_SCALE_PERCENT),
-        min(_nonnegative(letter, "width_percent"), _MAX_LETTER_SCALE_PERCENT),
-        min(_nonnegative(letter, "y_offset_mm"), _MAX_BASELINE_OFFSET_MM),
-        min(_nonnegative(word, "width_percent"), _MAX_WORD_WIDTH_PERCENT),
-        min(_nonnegative(line, "drift_mm"), _MAX_LINE_DRIFT_MM),
+        min(_nonnegative(letter, "slant"), limits["slant"]),
+        min(_nonnegative(letter, "height_percent"), limits["letter_scale"]),
+        min(_nonnegative(letter, "width_percent"), limits["letter_scale"]),
+        min(_nonnegative(letter, "y_offset_mm"), limits["baseline"]),
+        min(_nonnegative(word, "width_percent"), limits["word_width"]),
+        min(_nonnegative(line, "drift_mm"), limits["line_drift"]),
         StrokeThicknessConfig(
             _boolean(thickness, "enabled"),
             min(
@@ -329,6 +357,7 @@ def load_variation_config(root: Mapping[str, object]) -> VariationConfig:
                 _MAX_THICKNESS_OFFSET_MM,
             ),
         ),
+        realism,
     )
 
 
@@ -336,6 +365,7 @@ def build_variation_context(
     glyphs: list[PositionedGlyph], config: VariationConfig
 ) -> HandwritingVariationContext:
     occurrences: dict[str, int] = {}
+    limits = _VARIATION_LIMITS.get(config.realism, _VARIATION_LIMITS["normal"])
     generator = _VariationGenerator(config.seed)
     base_rng = generator.for_identity("document:base-style")
     variations: dict[int, GlyphVariation] = {}
@@ -349,33 +379,33 @@ def build_variation_context(
         )
         glyph_baseline_limit = min(
             config.baseline_jitter_mm,
-            _MAX_BASELINE_OFFSET_MM,
+            limits["baseline"],
             max(0.05, glyph.advance_mm * 0.06),
         )
         line_baseline_limits[glyph.line_index] = min(
             line_baseline_limits.get(glyph.line_index, glyph_baseline_limit),
             glyph_baseline_limit,
         )
-    rotation_limit = min(config.rotation_deg, _MAX_GLYPH_ROTATION_DEG)
+    rotation_limit = min(config.rotation_deg, limits["rotation"])
     width_limit = min(
         config.scale_percent
         if config.letter_width_percent is None
         else config.letter_width_percent,
-        _MAX_GLYPH_SCALE_PERCENT
+        limits["glyph_scale"]
         if config.letter_width_percent is None
-        else _MAX_LETTER_SCALE_PERCENT,
+        else limits["letter_scale"],
     ) / 100
     height_limit = min(
         config.scale_percent
         if config.letter_height_percent is None
         else config.letter_height_percent,
-        _MAX_GLYPH_SCALE_PERCENT
+        limits["glyph_scale"]
         if config.letter_height_percent is None
-        else _MAX_LETTER_SCALE_PERCENT,
+        else limits["letter_scale"],
     ) / 100
     slant_limit = min(
         0.012 if config.letter_slant is None else config.letter_slant,
-        _MAX_LETTER_SLANT,
+        limits["slant"],
     )
     base_width_delta = base_rng.uniform(-width_limit, width_limit) * 0.20
     base_height_delta = base_rng.uniform(-height_limit, height_limit) * 0.20
@@ -383,7 +413,7 @@ def build_variation_context(
     line_drift_limit = (
         None
         if config.line_drift_mm is None
-        else min(config.line_drift_mm, _MAX_LINE_DRIFT_MM)
+        else min(config.line_drift_mm, limits["line_drift"])
     )
     lines = {
         line_index: _line_variation(
@@ -403,12 +433,12 @@ def build_variation_context(
         rng = generator.for_identity(
             f"glyph:{glyph.glyph_index}:{glyph.char}:{glyph.line_index}:{glyph.word_index}"
         )
-        legacy_scale_limit = min(config.scale_percent, _MAX_GLYPH_SCALE_PERCENT) / 100
+        legacy_scale_limit = min(config.scale_percent, limits["glyph_scale"]) / 100
         baseline_limit = min(
             config.baseline_jitter_mm
             if config.letter_y_offset_mm is None
             else config.letter_y_offset_mm,
-            _MAX_BASELINE_OFFSET_MM,
+            limits["baseline"],
             max(0.05, glyph.advance_mm * 0.06),
         )
         line = lines[glyph.line_index]
@@ -427,8 +457,8 @@ def build_variation_context(
                 * 0.35,
                 width_factor=1
                 + word_rng.uniform(
-                    -min(config.word_width_percent or 0.0, _MAX_WORD_WIDTH_PERCENT),
-                    min(config.word_width_percent or 0.0, _MAX_WORD_WIDTH_PERCENT),
+                    -min(config.word_width_percent or 0.0, limits["word_width"]),
+                    min(config.word_width_percent or 0.0, limits["word_width"]),
                 )
                 / 100,
             )
@@ -533,6 +563,18 @@ def apply_variation(
     started = time.perf_counter() if hotspots and hotspots.enabled else None
     positions = {glyph.glyph_index: glyph for glyph in glyphs}
     context = build_variation_context(glyphs, config)
+    glyph_bounds: dict[int, tuple[float, float, float, float]] = {}
+    for stroke in document.strokes:
+        if stroke.glyph_index is None or not stroke.points:
+            continue
+        bounds = _stroke_bounds(stroke)
+        previous = glyph_bounds.get(stroke.glyph_index)
+        glyph_bounds[stroke.glyph_index] = bounds if previous is None else (
+            min(previous[0], bounds[0]),
+            min(previous[1], bounds[1]),
+            max(previous[2], bounds[2]),
+            max(previous[3], bounds[3]),
+        )
     varied: list[PlotterStroke] = []
     for stroke in document.strokes:
         index = stroke.glyph_index
@@ -541,8 +583,15 @@ def apply_variation(
             varied.append(stroke)
             continue
         transform = context.for_glyph(index)
+        warped = _local_shape_warp(
+            stroke.points,
+            glyph,
+            transform.glyph_variant,
+            config,
+            glyph_bounds[index],
+        )
         points = []
-        for point in stroke.points:
+        for point in warped:
             x, y = point.x - glyph.x_mm, point.y - glyph.baseline_y_mm
             variant_x = x + transform.variant_slant * y
             points.append(
@@ -570,6 +619,45 @@ def apply_variation(
             (time.perf_counter() - started) * 1000.0,
         )
     return result
+
+
+def _local_shape_warp(
+    points: list[Point],
+    glyph: PositionedGlyph,
+    variant: int,
+    config: VariationConfig,
+    bounds: tuple[float, float, float, float],
+) -> list[Point]:
+    """Smoothly bend a glyph while keeping connectable stroke ends fixed."""
+    if len(points) < 3:
+        return points
+    min_x, min_y, max_x, max_y = bounds
+    width = max(max_x - min_x, glyph.advance_mm * 0.5, 1e-6)
+    height = max(max_y - min_y, glyph.advance_mm * 0.5, 1e-6)
+    strength = _VARIATION_LIMITS.get(
+        config.realism, _VARIATION_LIMITS["normal"]
+    )["shape_warp"]
+    rng = _VariationGenerator(config.seed).for_identity(
+        f"shape:{glyph.char}:{variant}:{config.realism}"
+    )
+    anchors = tuple(rng.uniform(-1.0, 1.0) for _ in range(5))
+    warped: list[Point] = []
+    last = len(points) - 1
+    for index, point in enumerate(points):
+        nx = _clamp((point.x - min_x) / width, 0.0, 1.0)
+        ny = _clamp((point.y - min_y) / height, 0.0, 1.0)
+        endpoint_envelope = math.sin(math.pi * index / last) ** 2
+        dx = width * strength * endpoint_envelope * (
+            anchors[0] * math.sin(math.pi * ny)
+            + 0.55 * anchors[1] * math.sin(2 * math.pi * ny)
+            + 0.35 * anchors[2] * math.sin(math.pi * nx)
+        )
+        dy = height * strength * endpoint_envelope * (
+            anchors[3] * math.sin(math.pi * nx)
+            + 0.45 * anchors[4] * math.sin(2 * math.pi * nx)
+        )
+        warped.append(Point(point.x + dx, point.y + dy))
+    return warped
 
 
 def apply_word_width_variation(
