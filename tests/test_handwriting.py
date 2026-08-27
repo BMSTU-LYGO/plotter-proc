@@ -1,4 +1,5 @@
 from dataclasses import replace
+from itertools import pairwise
 from pathlib import Path
 
 from plotter_processor import handwriting
@@ -11,6 +12,7 @@ from plotter_processor.handwriting import (
     _SegmentObstacleIndex,
     apply_handwriting_kerning,
     apply_variation,
+    apply_word_width_variation,
     build_variation_context,
     connection_pair_rule,
     export_handwriting_debug,
@@ -312,6 +314,33 @@ def test_word_variation_is_shared_and_glyph_variation_is_weaker() -> None:
     assert abs(first_word.baseline_offset_mm) <= 0.06
 
 
+def test_word_width_scales_completed_word_and_connector_only_on_x() -> None:
+    glyphs = [
+        replace(_glyph("а", 0, 1), word_index=0),
+        replace(_glyph("б", 1, 3), word_index=0),
+    ]
+    connector = PlotterStroke(
+        0,
+        [Point(1, 9), Point(2, 10), Point(4, 11)],
+        False,
+        0,
+        "аб",
+        0,
+        source_glyph_indices=(0, 1),
+        segment_types=("glyph", "connector", "glyph"),
+    )
+    document = PathDocument(20, 20, [connector], [])
+    config = VariationConfig(True, 37, 0, 0, 0, 0, word_width_percent=5)
+
+    result = apply_word_width_variation(document, glyphs, config)
+
+    before = connector.points
+    after = result.strokes[0].points
+    assert [point.y for point in after] == [point.y for point in before]
+    assert after[1].x != before[1].x
+    assert result.metadata["word_width_factors"]["0:0"] != 1.0
+
+
 def test_line_variation_is_correlated_bounded_and_does_not_reflow() -> None:
     glyphs = [
         replace(
@@ -371,6 +400,43 @@ def test_line_variation_is_correlated_bounded_and_does_not_reflow() -> None:
     ]
     assert max(line_ranges[0]) < min(line_ranges[1])
     assert max(line_ranges[1]) < min(line_ranges[2])
+
+
+def test_letter_variation_changes_smoothly_within_a_line() -> None:
+    glyphs = [
+        replace(_glyph(chr(ord("а") + index), index, index * 2.0), word_index=index // 3)
+        for index in range(12)
+    ]
+    config = VariationConfig(
+        True,
+        53,
+        0,
+        0,
+        0,
+        0,
+        letter_slant=0.06,
+        letter_height_percent=6,
+        letter_width_percent=6,
+        letter_y_offset_mm=0.2,
+        word_width_percent=4,
+        line_drift_mm=0.1,
+    )
+
+    context = build_variation_context(glyphs, config)
+    ordered = [context.for_glyph(index) for index in range(len(glyphs))]
+
+    assert all(
+        abs(right.scale_x - left.scale_x) < 0.045
+        for left, right in pairwise(ordered)
+    )
+    assert all(
+        abs(right.scale_y - left.scale_y) < 0.045
+        for left, right in pairwise(ordered)
+    )
+    assert all(
+        abs(right.variant_slant - left.variant_slant) < 0.05
+        for left, right in pairwise(ordered)
+    )
 
 
 def test_variation_reuses_one_transform_for_all_glyph_strokes(monkeypatch) -> None:

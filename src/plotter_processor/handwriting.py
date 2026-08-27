@@ -95,6 +95,7 @@ class WordVariation:
     scale_y_delta: float
     rotation_deg: float
     baseline_offset_mm: float
+    width_factor: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,6 +314,7 @@ def build_variation_context(
 ) -> HandwritingVariationContext:
     occurrences: dict[str, int] = {}
     generator = _VariationGenerator(config.seed)
+    base_rng = generator.for_identity("document:base-style")
     variations: dict[int, GlyphVariation] = {}
     words: dict[tuple[int, int], WordVariation] = {}
     line_bounds: dict[int, tuple[float, float]] = {}
@@ -352,6 +354,14 @@ def build_variation_context(
         0.012 if config.letter_slant is None else config.letter_slant,
         _MAX_LETTER_SLANT,
     )
+    base_width_delta = base_rng.uniform(-width_limit, width_limit) * 0.20
+    base_height_delta = base_rng.uniform(-height_limit, height_limit) * 0.20
+    base_slant = base_rng.uniform(-slant_limit, slant_limit) * 0.25
+    line_drift_limit = (
+        None
+        if config.line_drift_mm is None
+        else min(config.line_drift_mm, _MAX_LINE_DRIFT_MM)
+    )
     lines = {
         line_index: _line_variation(
             generator,
@@ -359,9 +369,11 @@ def build_variation_context(
             bounds,
             rotation_limit,
             line_baseline_limits[line_index],
+            line_drift_limit,
         )
         for line_index, bounds in line_bounds.items()
     }
+    letter_states: dict[int, tuple[float, float, float, float]] = {}
     for glyph in glyphs:
         occurrence = occurrences.get(glyph.char, 0)
         occurrences[glyph.char] = occurrence + 1
@@ -390,8 +402,26 @@ def build_variation_context(
                 * 0.35,
                 baseline_offset_mm=word_rng.uniform(-baseline_limit, baseline_limit)
                 * 0.35,
+                width_factor=1
+                + word_rng.uniform(
+                    -min(config.word_width_percent or 0.0, _MAX_WORD_WIDTH_PERCENT),
+                    min(config.word_width_percent or 0.0, _MAX_WORD_WIDTH_PERCENT),
+                )
+                / 100,
             )
             words[word_key] = word
+        target = (
+            rng.uniform(-width_limit, width_limit),
+            rng.uniform(-height_limit, height_limit),
+            rng.uniform(-slant_limit, slant_limit),
+            rng.uniform(-baseline_limit, baseline_limit),
+        )
+        previous = letter_states.get(glyph.line_index, target)
+        letter_state = tuple(
+            previous_value * 0.72 + target_value * 0.28
+            for previous_value, target_value in zip(previous, target, strict=True)
+        )
+        letter_states[glyph.line_index] = letter_state
         angle = (
             line.rotation_deg
             + word.rotation_deg
@@ -400,23 +430,31 @@ def build_variation_context(
         variant = (_variation_seed(config.seed, glyph.char) + occurrence) % 3
         variations[glyph.glyph_index] = GlyphVariation(
             glyph_variant=variant,
-            scale_x=1
-            + word.scale_x_delta
-            + rng.uniform(-width_limit, width_limit) * 0.6,
-            scale_y=1
-            + word.scale_y_delta
-            + rng.uniform(-height_limit, height_limit) * 0.6,
+            scale_x=_clamp(
+                1 + base_width_delta + word.scale_x_delta + letter_state[0] * 0.45,
+                1 - width_limit,
+                1 + width_limit,
+            ),
+            scale_y=_clamp(
+                1 + base_height_delta + word.scale_y_delta + letter_state[1] * 0.45,
+                1 - height_limit,
+                1 + height_limit,
+            ),
             rotation_deg=angle,
             baseline_offset_mm=line.baseline_at(glyph.x_mm)
             + word.baseline_offset_mm
-            + rng.uniform(-baseline_limit, baseline_limit) * 0.45,
+            + letter_state[3] * 0.35,
             spacing_adjustment_mm=rng.uniform(
                 -config.spacing_jitter_mm, config.spacing_jitter_mm
             ),
             variant_slant=(
                 (-slant_limit, 0.0, slant_limit)[variant]
                 if config.letter_slant is None
-                else rng.uniform(-slant_limit, slant_limit)
+                else _clamp(
+                    base_slant + letter_state[2] * 0.55,
+                    -slant_limit,
+                    slant_limit,
+                )
             ),
             cosine=math.cos(math.radians(angle)),
             sine=math.sin(math.radians(angle)),
@@ -430,12 +468,16 @@ def _line_variation(
     bounds: tuple[float, float],
     rotation_limit: float,
     baseline_limit: float,
+    configured_drift_limit: float | None,
 ) -> LineVariation:
     rng = generator.for_identity(f"line:{line_index}")
     return LineVariation(
         rotation_deg=rng.uniform(-rotation_limit, rotation_limit) * 0.2,
         baseline_offset_mm=rng.uniform(-baseline_limit, baseline_limit) * 0.15,
-        baseline_drift_mm=rng.uniform(-baseline_limit, baseline_limit) * 0.2,
+        baseline_drift_mm=rng.uniform(
+            -(baseline_limit * 0.2 if configured_drift_limit is None else configured_drift_limit),
+            baseline_limit * 0.2 if configured_drift_limit is None else configured_drift_limit,
+        ),
         min_x_mm=bounds[0],
         max_x_mm=bounds[1],
     )
@@ -504,6 +546,49 @@ def apply_variation(
             "handwriting.variation_transform",
             (time.perf_counter() - started) * 1000.0,
         )
+    return result
+
+
+def apply_word_width_variation(
+    document: PathDocument,
+    glyphs: list[PositionedGlyph],
+    config: VariationConfig,
+) -> PathDocument:
+    """Scale completed word geometry, including its connectors, only on X."""
+    if not config.enabled or not config.word_width_percent:
+        return document
+    context = build_variation_context(glyphs, config)
+    glyph_word = {glyph.glyph_index: _word_key(glyph) for glyph in glyphs}
+    grouped: dict[tuple[int, int], list[PlotterStroke]] = {}
+    for stroke in document.strokes:
+        if stroke.glyph_index is None:
+            continue
+        word_key = glyph_word.get(stroke.glyph_index)
+        if word_key is not None:
+            grouped.setdefault(word_key, []).append(stroke)
+    replacements: dict[int, PlotterStroke] = {}
+    factors: dict[str, float] = {}
+    for word_key, strokes in grouped.items():
+        factor = context.words[word_key].width_factor
+        points = [point for stroke in strokes for point in stroke.points]
+        if not points:
+            continue
+        center_x = (min(point.x for point in points) + max(point.x for point in points)) / 2
+        for stroke in strokes:
+            replacements[id(stroke)] = replace(
+                stroke,
+                points=[
+                    Point(center_x + (point.x - center_x) * factor, point.y)
+                    for point in stroke.points
+                ],
+            )
+        factors[f"{word_key[0]}:{word_key[1]}"] = factor
+    result = replace(
+        document,
+        strokes=[replacements.get(id(stroke), stroke) for stroke in document.strokes],
+        metadata=dict(document.metadata),
+    )
+    result.metadata["word_width_factors"] = factors
     return result
 
 
@@ -1657,6 +1742,10 @@ def _distance(a: Point, b: Point) -> float:
 
 def _angle_diff(a: float, b: float) -> float:
     return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
+
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(value, maximum))
 
 
 def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:

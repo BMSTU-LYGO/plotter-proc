@@ -10,6 +10,7 @@ from plotter_processor.handwriting import (
     JoiningConfig,
     VariationConfig,
     apply_variation,
+    apply_word_width_variation,
     export_handwriting_debug,
     route_words,
 )
@@ -83,6 +84,9 @@ def process_page_geometry(
                     collect_debug=request.connection_debug,
                     hotspots=metrics.hotspots,
                     retrace_config=request.retrace_config,
+                )
+                paths = apply_word_width_variation(
+                    paths, request.body_glyphs, request.variation_config
                 )
             retrace = paths.metadata.get("safe_retrace")
             if isinstance(retrace, dict):
