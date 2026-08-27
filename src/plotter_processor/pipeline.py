@@ -540,6 +540,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             settings={
                 "page": [page.name, page.width_mm, page.height_mm],
                 "margins": margins,
+                "grid": config_profiles.paper.grid,
                 "size": size_options,
                 "images": image_options,
                 "pagination": pagination_options,
@@ -646,6 +647,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     document_layout_mode=document_layout_mode,
                     document_layout_options=document_layout_options,
                     paragraph_options=paragraph_options,
+                    grid_options=config_profiles.paper.grid,
                     table_options=table_options,
                     layout_debug_dir=(
                         output_dir / "layout-debug" if layout_debug_enabled else None

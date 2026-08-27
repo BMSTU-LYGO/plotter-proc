@@ -12,6 +12,14 @@ margins_mm:
   top: 10.0
   bottom: 10.0
 
+grid:
+  enabled: false
+  cell_width_mm: 5.0
+  cell_height_mm: 5.0
+  origin_x_mm: 0.0
+  origin_y_mm: 0.0
+  baseline_offset_mm: 0.0
+
 sizes:
   small:
     em_size_mm: 4.0

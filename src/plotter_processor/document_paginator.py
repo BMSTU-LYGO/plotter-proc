@@ -41,6 +41,7 @@ from plotter_processor.layout_models import (
 )
 from plotter_processor.layout_reporting import build_layout_statistics as _layout_statistics
 from plotter_processor.models import LayoutResult, PageSpec, Point
+from plotter_processor.page_grid import resolve_page_grid
 from plotter_processor.page_layout_model import (
     AnchoredPlacement,
     LayoutModel,
@@ -98,6 +99,7 @@ def paginate_document(
     document_layout_mode: str = "reflow",
     document_layout_options: Mapping[str, object] | None = None,
     paragraph_options: Mapping[str, object] | None = None,
+    grid_options: Mapping[str, object] | None = None,
     table_options: Mapping[str, object] | None = None,
     layout_debug_dir: Path | None = None,
     preserve_source_page_breaks: bool = True,
@@ -149,6 +151,12 @@ def paginate_document(
     page_transform_records: list[dict[str, object]] = []
     layout_config = dict(document_layout_options or {})
     paragraph_config = dict(paragraph_options or {})
+    grid = resolve_page_grid(grid_options)
+    if grid.enabled:
+        paragraph_config["grid_cell_width_mm"] = grid.cell_width_mm
+        for key in ("indent_cells", "first_line_indent_cells", "tab_interval_cells"):
+            if key in (grid_options or {}):
+                paragraph_config[key] = (grid_options or {})[key]
     table_config = dict(table_options or {})
     preserve_config = dict(_optional_mapping(layout_config, "preserve"))
     hybrid_config = dict(_optional_mapping(layout_config, "hybrid"))
@@ -666,9 +674,13 @@ def paginate_document(
                     first_page_index = len(pages)
                     first_line_left = flowed.lines[0].left_mm
                     for source_line in flowed.lines:
-                        ensure_height(source_line.advance_mm)
                         line_scale = scale * flowed.font_scale
-                        baseline = state.cursor_y + font.metrics.ascent * line_scale
+                        ascent = font.metrics.ascent * line_scale
+                        baseline = grid.baseline_at_or_after(state.cursor_y + ascent)
+                        line_top = baseline - ascent
+                        ensure_height(line_top - state.cursor_y + source_line.advance_mm)
+                        baseline = grid.baseline_at_or_after(state.cursor_y + ascent)
+                        line_top = baseline - ascent
                         global_line = state.line_count
                         for glyph in source_line.glyphs:
                             state.glyphs.append(replace(
@@ -677,12 +689,12 @@ def paginate_document(
                                 line_index=global_line,
                                 glyph_index=len(state.glyphs),
                             ))
-                        state.cursor_y += source_line.advance_mm
+                        state.cursor_y = line_top + source_line.advance_mm
                         state.line_count += 1
                         if source_line.glyphs:
                             state.line_boxes.append(RectMM(
                                 source_line.used_left_mm,
-                                state.cursor_y - source_line.advance_mm,
+                                line_top,
                                 source_line.used_right_mm - source_line.used_left_mm,
                                 source_line.advance_mm,
                             ))

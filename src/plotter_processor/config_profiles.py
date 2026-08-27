@@ -23,6 +23,7 @@ class PaperConfigProfile:
     height_mm: float
     margins: dict[str, object]
     pagination: dict[str, object]
+    grid: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,7 @@ def resolve_config_profiles(
             _positive(page_values, "height_mm"),
             _mapping(layout, "margins_mm"),
             _mapping(layout, "pagination"),
+            _mapping(layout, "grid"),
         ),
         PenConfigProfile(_mapping(machine, "pen")),
         HandwritingConfigProfile(
