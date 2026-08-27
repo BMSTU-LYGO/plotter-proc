@@ -97,7 +97,7 @@ def test_variation_seed_is_deterministic_and_debug_has_layers(tmp_path: Path) ->
 
 
 def test_variation_context_is_deterministic_and_seeded() -> None:
-    glyphs = [_glyph("а", index, float(index)) for index in range(4)]
+    glyphs = [_glyph("а", index, float(index)) for index in range(12)]
     first = build_variation_context(
         glyphs, VariationConfig(True, 7, 0.1, 1, 2, 0.1)
     )
@@ -110,9 +110,13 @@ def test_variation_context_is_deterministic_and_seeded() -> None:
 
     assert first == repeated
     assert first != changed
-    variants = [first.for_glyph(index).glyph_variant for index in range(4)]
-    assert len(set(variants)) == 3
-    assert variants[0] == variants[3]
+    variants = [first.for_glyph(index).glyph_variant for index in range(12)]
+    assert len(set(variants)) >= 5
+    assert all(left != right for left, right in pairwise(variants))
+    assert all(
+        variant not in variants[max(0, index - 3) : index]
+        for index, variant in enumerate(variants)
+    )
 
 
 def test_handwriting_variation_config_loads_bounded_nested_ranges() -> None:
@@ -226,7 +230,7 @@ def test_local_shape_warp_is_smooth_deterministic_and_preserves_endpoints() -> N
 
 
 def test_repeated_glyphs_receive_readable_local_variants() -> None:
-    glyphs = [_glyph("а", index, float(index * 2)) for index in range(4)]
+    glyphs = [_glyph("а", index, float(index * 2)) for index in range(8)]
     document = PathDocument(
         20,
         20,
@@ -251,10 +255,44 @@ def test_repeated_glyphs_receive_readable_local_variants() -> None:
         for glyph, stroke in zip(glyphs, result.strokes, strict=True)
     }
 
-    assert len(relative_shapes) == 3
+    assert len(relative_shapes) >= 5
     variants = result.metadata["glyph_variants"]
-    assert len(set(variants.values())) == 3
-    assert variants["0"] == variants["3"]
+    assert len(set(variants.values())) >= 5
+
+
+def test_procedural_glyph_variants_are_cached_by_character_variant_and_style() -> None:
+    handwriting._GLYPH_VARIANT_CACHE.clear()
+    glyphs = [_glyph("а", index, float(index * 2)) for index in range(40)]
+    document = PathDocument(
+        100,
+        20,
+        [
+            PlotterStroke(
+                index,
+                [
+                    Point(glyph.x_mm, 10),
+                    Point(glyph.x_mm + 0.3, 9),
+                    Point(glyph.x_mm + 1.0, 8.7),
+                    Point(glyph.x_mm + 1.7, 9),
+                    Point(glyph.x_mm + 2.0, 10),
+                ],
+                False,
+                index,
+                glyph.char,
+                0,
+            )
+            for index, glyph in enumerate(glyphs)
+        ],
+        [],
+    )
+    config = VariationConfig(True, 91, 0, 0, 0, 0, realism="strong")
+
+    first = apply_variation(document, glyphs, config)
+    repeated = apply_variation(document, glyphs, config)
+
+    assert first.metadata["glyph_variant_cache"]["hits"] > 0
+    assert repeated.metadata["glyph_variant_cache"]["hits"] == len(glyphs)
+    assert first.strokes == repeated.strokes
 
 
 def test_glyph_scale_variation_is_independent_small_and_post_layout() -> None:

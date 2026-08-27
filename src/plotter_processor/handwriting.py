@@ -166,6 +166,21 @@ _VARIATION_LIMITS = {
     },
 }
 
+_GLYPH_VARIANT_COUNT = 8
+_GLYPH_VARIANT_CACHE_LIMIT = 4096
+_GLYPH_VARIANT_CACHE: dict[tuple[object, ...], tuple[Point, ...]] = {}
+_SHAPE_VARIANT_ANCHORS = (
+    (0.08, -0.05, 0.02, 0.04, -0.03),  # almost original
+    (0.85, -0.30, -0.35, 0.15, 0.20),  # narrow top
+    (-0.70, 0.55, 0.40, -0.15, 0.30),  # broad lower half
+    (0.30, 0.85, -0.20, 0.65, -0.15),  # rounder bowl
+    (-0.25, -0.65, 0.80, -0.35, 0.15),  # taller/narrower body
+    (0.60, 0.15, -0.75, 0.40, 0.70),  # right-side asymmetry
+    (-0.55, 0.25, 0.65, 0.70, -0.55),  # left-side asymmetry
+    (0.25, -0.85, 0.25, -0.65, 0.55),  # flatter, wider body
+)
+_VARIANT_SLANT_FACTORS = (-0.20, -0.85, 0.15, 0.70, -0.50, 0.95, -1.0, 0.45)
+
 
 @dataclass(frozen=True, slots=True)
 class _VariationGenerator:
@@ -365,6 +380,7 @@ def build_variation_context(
     glyphs: list[PositionedGlyph], config: VariationConfig
 ) -> HandwritingVariationContext:
     occurrences: dict[str, int] = {}
+    recent_variants: dict[str, list[int]] = {}
     limits = _VARIATION_LIMITS.get(config.realism, _VARIATION_LIMITS["normal"])
     generator = _VariationGenerator(config.seed)
     base_rng = generator.for_identity("document:base-style")
@@ -480,7 +496,17 @@ def build_variation_context(
             + word.rotation_deg
             + rng.uniform(-rotation_limit, rotation_limit) * 0.45
         )
-        variant = (_variation_seed(config.seed, glyph.char) + occurrence) % 3
+        variant_rng = generator.for_identity(
+            f"variant:{glyph.char}:{occurrence}:{glyph.line_index}:{glyph.word_index}"
+        )
+        recent = recent_variants.setdefault(glyph.char, [])
+        available = [
+            candidate
+            for candidate in range(_GLYPH_VARIANT_COUNT)
+            if candidate not in recent[-3:]
+        ]
+        variant = available[variant_rng.randrange(len(available))]
+        recent.append(variant)
         variations[glyph.glyph_index] = GlyphVariation(
             glyph_variant=variant,
             scale_x=_clamp(
@@ -501,7 +527,7 @@ def build_variation_context(
                 -config.spacing_jitter_mm, config.spacing_jitter_mm
             ),
             variant_slant=(
-                (-slant_limit, 0.0, slant_limit)[variant]
+                slant_limit * _VARIANT_SLANT_FACTORS[variant]
                 if config.letter_slant is None
                 else _clamp(
                     base_slant + letter_state[2] * 0.55,
@@ -563,6 +589,8 @@ def apply_variation(
     started = time.perf_counter() if hotspots and hotspots.enabled else None
     positions = {glyph.glyph_index: glyph for glyph in glyphs}
     context = build_variation_context(glyphs, config)
+    cache_hits = 0
+    cache_misses = 0
     glyph_bounds: dict[int, tuple[float, float, float, float]] = {}
     for stroke in document.strokes:
         if stroke.glyph_index is None or not stroke.points:
@@ -583,13 +611,15 @@ def apply_variation(
             varied.append(stroke)
             continue
         transform = context.for_glyph(index)
-        warped = _local_shape_warp(
+        warped, cache_hit = _local_shape_warp(
             stroke.points,
             glyph,
             transform.glyph_variant,
             config,
             glyph_bounds[index],
         )
+        cache_hits += int(cache_hit)
+        cache_misses += int(not cache_hit)
         points = []
         for point in warped:
             x, y = point.x - glyph.x_mm, point.y - glyph.baseline_y_mm
@@ -613,6 +643,11 @@ def apply_variation(
         str(index): variation.glyph_variant
         for index, variation in sorted(context.glyphs.items())
     }
+    result.metadata["glyph_variant_cache"] = {
+        "hits": cache_hits,
+        "misses": cache_misses,
+        "size": len(_GLYPH_VARIANT_CACHE),
+    }
     if started is not None:
         hotspots.record(
             "handwriting.variation_transform",
@@ -627,21 +662,50 @@ def _local_shape_warp(
     variant: int,
     config: VariationConfig,
     bounds: tuple[float, float, float, float],
-) -> list[Point]:
+) -> tuple[list[Point], bool]:
     """Smoothly bend a glyph while keeping connectable stroke ends fixed."""
     if len(points) < 3:
-        return points
+        return points, False
     min_x, min_y, max_x, max_y = bounds
     width = max(max_x - min_x, glyph.advance_mm * 0.5, 1e-6)
     height = max(max_y - min_y, glyph.advance_mm * 0.5, 1e-6)
     strength = _VARIATION_LIMITS.get(
         config.realism, _VARIATION_LIMITS["normal"]
     )["shape_warp"]
-    rng = _VariationGenerator(config.seed).for_identity(
-        f"shape:{glyph.char}:{variant}:{config.realism}"
+    style = glyph.font_sha256 or glyph.font_id or glyph.glyph_name
+    local_signature = tuple(
+        (round(point.x - glyph.x_mm, 8), round(point.y - glyph.baseline_y_mm, 8))
+        for point in points
     )
-    anchors = tuple(rng.uniform(-1.0, 1.0) for _ in range(5))
-    warped: list[Point] = []
+    cache_key = (
+        glyph.char,
+        variant,
+        style,
+        config.realism,
+        config.seed,
+        local_signature,
+        (
+            round(min_x - glyph.x_mm, 8),
+            round(min_y - glyph.baseline_y_mm, 8),
+            round(max_x - glyph.x_mm, 8),
+            round(max_y - glyph.baseline_y_mm, 8),
+        ),
+    )
+    cached = _GLYPH_VARIANT_CACHE.get(cache_key)
+    if cached is not None:
+        return [
+            Point(glyph.x_mm + point.x, glyph.baseline_y_mm + point.y)
+            for point in cached
+        ], True
+    base_anchors = _SHAPE_VARIANT_ANCHORS[variant]
+    rng = _VariationGenerator(config.seed).for_identity(
+        f"shape-style:{glyph.char}:{config.realism}"
+    )
+    anchors = tuple(
+        _clamp(base + rng.uniform(-0.12, 0.12), -1.0, 1.0)
+        for base in base_anchors
+    )
+    warped_local: list[Point] = []
     last = len(points) - 1
     for index, point in enumerate(points):
         nx = _clamp((point.x - min_x) / width, 0.0, 1.0)
@@ -656,8 +720,19 @@ def _local_shape_warp(
             anchors[3] * math.sin(math.pi * nx)
             + 0.45 * anchors[4] * math.sin(2 * math.pi * nx)
         )
-        warped.append(Point(point.x + dx, point.y + dy))
-    return warped
+        warped_local.append(
+            Point(
+                point.x + dx - glyph.x_mm,
+                point.y + dy - glyph.baseline_y_mm,
+            )
+        )
+    if len(_GLYPH_VARIANT_CACHE) >= _GLYPH_VARIANT_CACHE_LIMIT:
+        _GLYPH_VARIANT_CACHE.clear()
+    _GLYPH_VARIANT_CACHE[cache_key] = tuple(warped_local)
+    return [
+        Point(glyph.x_mm + point.x, glyph.baseline_y_mm + point.y)
+        for point in warped_local
+    ], False
 
 
 def apply_word_width_variation(
