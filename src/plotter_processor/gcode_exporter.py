@@ -6,6 +6,7 @@ from typing import Any
 
 from plotter_processor.models import PathDocument, PlotterStroke, Point
 from plotter_processor.motion_config import ResolvedMotionProfile
+from plotter_processor.page_keep_out import validate_path_keep_outs
 
 PAGE_SIZES_MM = {"A4": (210.0, 297.0), "A5": (148.0, 210.0)}
 
@@ -34,7 +35,13 @@ def generate_gcode(
     max_commands: int = DEFAULT_MAX_GCODE_COMMANDS,
     motion_profile: ResolvedMotionProfile | None = None,
     motion: dict[str, object] | None = None,
+    page_number: int = 1,
 ) -> str:
+    validate_path_keep_outs(
+        document,
+        machine_config.get("page_keep_out_zones"),
+        page_number=page_number,
+    )
     settings = _validated_settings(document, machine_config)
     if max_commands < 1:
         raise ValueError("max_commands must be positive")

@@ -7,6 +7,7 @@ from plotter_processor.gcode_exporter import DEFAULT_MAX_GCODE_COMMANDS, transfo
 from plotter_processor.job_models import PlotterJob
 from plotter_processor.models import PathDocument, Point
 from plotter_processor.motion_config import ResolvedMotionProfile
+from plotter_processor.page_keep_out import validate_path_keep_outs
 
 
 def generate_job_gcode(
@@ -44,6 +45,11 @@ def generate_job_gcode(
 
     for index, page_job in enumerate(job.pages):
         number = index + 1
+        validate_path_keep_outs(
+            page_job.path_document,
+            machine_config.get("page_keep_out_zones"),
+            page_number=number,
+        )
         lines.append(f"; ===== PAGE {number}/{len(job.pages)} START =====")
         lines.extend(_drawing_lines(
             page_job.path_document, machine_config, decimals=decimals, up_z=up_z,

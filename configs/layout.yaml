@@ -2,9 +2,15 @@ pages:
   A4:
     width_mm: 210.0
     height_mm: 297.0
+    hole_clearance_mm: 1.0
+    holes: []
   A5:
     width_mm: 148.0
     height_mm: 210.0
+    hole_clearance_mm: 1.0
+    holes:
+      - {x_mm: 6.0, y_mm: 80.0, radius_mm: 3.0}
+      - {x_mm: 6.0, y_mm: 130.0, radius_mm: 3.0}
 
 margins_mm:
   left: 10.0

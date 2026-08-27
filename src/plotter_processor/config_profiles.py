@@ -24,6 +24,8 @@ class PaperConfigProfile:
     margins: dict[str, object]
     pagination: dict[str, object]
     grid: dict[str, object]
+    holes: tuple[dict[str, object], ...]
+    hole_clearance_mm: object
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +99,8 @@ def resolve_config_profiles(
             _mapping(layout, "margins_mm"),
             _mapping(layout, "pagination"),
             _mapping(layout, "grid"),
+            _mappings(page_values, "holes"),
+            page_values.get("hole_clearance_mm", 0.0),
         ),
         PenConfigProfile(_mapping(machine, "pen")),
         HandwritingConfigProfile(
@@ -151,6 +155,17 @@ def _mapping(values: Mapping[str, object], key: str) -> dict[str, object]:
     if not isinstance(value, Mapping):
         raise TypeError(f"Missing or invalid configuration group: {key}")
     return dict(value)
+
+
+def _mappings(
+    values: Mapping[str, object], key: str
+) -> tuple[dict[str, object], ...]:
+    value = values.get(key, ())
+    if not isinstance(value, list):
+        raise TypeError(f"Missing or invalid configuration list: {key}")
+    if not all(isinstance(item, Mapping) for item in value):
+        raise TypeError(f"All {key} entries must be mappings")
+    return tuple(dict(item) for item in value)
 
 
 def _positive(values: Mapping[str, object], key: str) -> float:

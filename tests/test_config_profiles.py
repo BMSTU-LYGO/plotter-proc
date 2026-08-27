@@ -14,6 +14,8 @@ def test_legacy_configs_are_split_into_typed_stage_profiles() -> None:
     assert profiles.paper.name == "A5"
     assert profiles.paper.width_mm == 148
     assert profiles.paper.grid == layout["grid"]
+    assert len(profiles.paper.holes) == 2
+    assert profiles.paper.hole_clearance_mm == 1.0
     assert profiles.pen.values == machine["pen"]
     assert profiles.machine.feedrate == machine["feedrate_mm_min"]
     assert profiles.handwriting.variation == layout["handwriting"]["variation"]
