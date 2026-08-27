@@ -12,10 +12,21 @@ from tools.run_with_config import build_run_arguments
         (
             "super-fast",
             {
-                "preset": "fast",
+                "preset": "superfast",
                 "motion_profile": "fast",
                 "connections": "aggressive",
                 "join_writing": True,
+                "font_mode": "centerline",
+                "artifacts": "minimal",
+            },
+        ),
+        (
+            "fast",
+            {
+                "preset": "fast",
+                "motion_profile": "fast",
+                "connections": "off",
+                "join_writing": False,
                 "font_mode": "centerline",
                 "artifacts": "minimal",
             },

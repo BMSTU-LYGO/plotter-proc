@@ -21,10 +21,21 @@ profiles:
     flags:
       output-dir: "{build_root}/super-fast"
       stage-cache: "{build_root}/super-fast/.stage-cache"
-      preset: fast
+      preset: superfast
       motion-profile: fast
       connections: aggressive
       join-writing: true
+      artifacts: minimal
+      no-page-numbers: true
+
+  fast:
+    description: Обычная быстрая печать без агрессивного соединения букв.
+    flags:
+      output-dir: "{build_root}/fast"
+      stage-cache: "{build_root}/fast/.stage-cache"
+      preset: fast
+      motion-profile: fast
+      connections: "off"
       artifacts: minimal
       no-page-numbers: true
 
