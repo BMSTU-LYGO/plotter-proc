@@ -27,7 +27,7 @@ class WordGeometry:
 class WordBuilder:
     """Build words in O(characters), retaining a small LRU of completed words."""
 
-    def __init__(self, font: FastFont, *, cache_size: int = 256, connector_limit: float = 0.75) -> None:
+    def __init__(self, font: FastFont, *, cache_size: int = 256, connector_limit: float = 1.5) -> None:
         if cache_size < 1:
             raise ValueError("cache_size must be positive")
         if connector_limit <= 0:
@@ -55,9 +55,10 @@ class WordBuilder:
         next_id = 1
 
         for char in text:
+            if char not in self.font:
+                missing.append(char)
             glyph = self.font.get(char)
             if glyph is None:
-                missing.append(char)
                 continue
             main = _main_stroke(glyph)
             translated = tuple(Point(point.x + advance, point.y) for point in main.points) if main else ()
