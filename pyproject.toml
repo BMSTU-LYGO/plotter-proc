@@ -28,6 +28,7 @@ dev = [
 
 [project.scripts]
 plotter-processor = "plotter_processor.cli:main"
+plotter-font-compile = "plotter_processor.font_compile_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
