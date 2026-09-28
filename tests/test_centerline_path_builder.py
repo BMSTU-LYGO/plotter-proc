@@ -87,7 +87,7 @@ def test_scale_is_part_of_local_template_cache_key() -> None:
     assert cache.template_cache_hits == 0
 
 
-def test_reuses_immutable_points_for_identically_positioned_glyphs() -> None:
+def test_does_not_retain_positioned_points_between_builds() -> None:
     glyph = CenterlineGlyph(
         "А",
         ord("А"),
@@ -113,10 +113,10 @@ def test_reuses_immutable_points_for_identically_positioned_glyphs() -> None:
             )
         )
 
-    assert cache.positioned_template_hits == 1
-    assert cache.positioned_template_misses == 1
+    assert cache.positioned_template_hits == 0
+    assert cache.positioned_template_misses == 2
     assert results[0].strokes[0].points is not results[1].strokes[0].points
-    assert results[0].strokes[0].points[0] is results[1].strokes[0].points[0]
+    assert results[0].strokes[0].points[0] is not results[1].strokes[0].points[0]
 
 
 def test_materializes_recommended_cyrillic_stroke_order_and_direction() -> None:

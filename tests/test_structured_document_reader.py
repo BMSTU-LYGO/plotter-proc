@@ -15,3 +15,13 @@ def test_txt_has_structured_page_and_text_element(tmp_path: Path) -> None:
     assert len(document.pages) == 1
     assert isinstance(document.pages[0].elements[0], SourceTextElement)
     assert document.pages[0].elements[0].paragraphs == ("one", "two")
+
+
+def test_markdown_is_routed_through_common_reader(tmp_path: Path) -> None:
+    source = tmp_path / "input.md"
+    source.write_text("# Title\n\nText with **weight**.", encoding="utf-8")
+
+    document = read_structured_document(source)
+
+    assert document.metadata.source_format == "markdown"
+    assert document.pages[0].elements[0].paragraphs == ("Title", "", "Text with weight.")

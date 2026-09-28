@@ -846,6 +846,21 @@ def test_segment_index_returns_overlapping_segments_in_source_order() -> None:
     assert index.query((10, 10, 11, 11)) == []
 
 
+def test_segment_index_keeps_giant_stroke_out_of_grid_without_losing_it() -> None:
+    giant = PlotterStroke(0, [Point(0, 0), Point(100_000, 0)], False)
+    nearby = PlotterStroke(1, [Point(10, 10), Point(11, 10)], False)
+
+    index = _SegmentObstacleIndex.build([giant, nearby], cell_size_mm=4)
+
+    assert index.unindexed_strokes == (0,)
+    assert len(index.cells) <= handwriting._MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS
+    assert [item.stroke.id for item in index.query((99_999, -1, 100_001, 1))] == [0]
+
+    giant_segments = index.segment_cache[0]
+    assert giant_segments.unindexed_segments == (0,)
+    assert len(giant_segments.cells) <= handwriting._MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS
+
+
 def test_collision_checks_query_only_segments_near_each_curve_sample() -> None:
     left = PlotterStroke(0, [Point(-1, 0), Point(0, 0)], False)
     right = PlotterStroke(1, [Point(10, 10), Point(11, 10)], False)

@@ -22,11 +22,17 @@ def plan_glyph_routes(
         if config.routing_strategy == "edge":
             routes.extend(_edge_routes(component_id, component_edges))
             continue
-        eulerized = eulerize_component(component_id, component_edges)
+        eulerized = eulerize_component(
+            component_id,
+            component_edges,
+            exact_matching_max_odd_vertices=getattr(
+                config, "exact_matching_max_odd_vertices", 20
+            ),
+        )
         steps = _hierholzer(eulerized)
         ratio = eulerized.duplicated_length_px / max(eulerized.original_length_px, 1e-9)
         if ratio > config.max_retrace_ratio and config.fallback_strategy == "minimum_strokes":
-            routes.extend(_minimum_trail_routes(component_id, component_edges))
+            routes.extend(_minimum_trail_routes(component_id, component_edges, config))
             continue
         routes.append(
             ComponentRoute(
@@ -102,7 +108,9 @@ def _occurrence_circuit(
     return [(occurrences[occurrence_id], reversed_step) for occurrence_id, reversed_step in circuit]
 
 
-def _minimum_trail_routes(component_id: int, edges: list[SkeletonEdge]) -> list[ComponentRoute]:
+def _minimum_trail_routes(
+    component_id: int, edges: list[SkeletonEdge], config: CenterlineConfig
+) -> list[ComponentRoute]:
     degree: dict[int, int] = {}
     occurrences = [
         RoutedEdgeOccurrence(
@@ -115,7 +123,13 @@ def _minimum_trail_routes(component_id: int, edges: list[SkeletonEdge]) -> list[
         degree[edge.end_node_id] = degree.get(edge.end_node_id, 0) + 1
     odd = sorted(node for node, value in degree.items() if value % 2)
     if len(odd) <= 2:
-        eulerized = eulerize_component(component_id, edges)
+        eulerized = eulerize_component(
+            component_id,
+            edges,
+            exact_matching_max_odd_vertices=getattr(
+                config, "exact_matching_max_odd_vertices", 20
+            ),
+        )
         steps = _hierholzer(eulerized)
         return [
             ComponentRoute(

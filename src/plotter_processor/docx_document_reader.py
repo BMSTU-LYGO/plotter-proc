@@ -32,6 +32,13 @@ from plotter_processor.omml_parser import parse_omml
 
 EMU_PER_MM = 36000.0
 TWIP_TO_MM = 25.4 / 1440.0
+DEFAULT_PAGE_WIDTH_MM = 210.0
+DEFAULT_PAGE_HEIGHT_MM = 297.0
+DEFAULT_PAGE_MARGIN_MM = 25.4
+
+
+def _section_length_mm(value: object | None, default_mm: float) -> float:
+    return default_mm if value is None else float(value) / EMU_PER_MM
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,12 +78,12 @@ def read_docx_document(path: Path, assets_dir: Path) -> SourceDocument:
     asset_cache: dict[str, Path] = {}
     body = document.element.body
     section = document.sections[0]
-    page_width_mm = float(section.page_width) / EMU_PER_MM
-    page_height_mm = float(section.page_height) / EMU_PER_MM
-    margin_left_mm = float(section.left_margin) / EMU_PER_MM
-    margin_right_mm = float(section.right_margin) / EMU_PER_MM
-    margin_top_mm = float(section.top_margin) / EMU_PER_MM
-    margin_bottom_mm = float(section.bottom_margin) / EMU_PER_MM
+    page_width_mm = _section_length_mm(section.page_width, DEFAULT_PAGE_WIDTH_MM)
+    page_height_mm = _section_length_mm(section.page_height, DEFAULT_PAGE_HEIGHT_MM)
+    margin_left_mm = _section_length_mm(section.left_margin, DEFAULT_PAGE_MARGIN_MM)
+    margin_right_mm = _section_length_mm(section.right_margin, DEFAULT_PAGE_MARGIN_MM)
+    margin_top_mm = _section_length_mm(section.top_margin, DEFAULT_PAGE_MARGIN_MM)
+    margin_bottom_mm = _section_length_mm(section.bottom_margin, DEFAULT_PAGE_MARGIN_MM)
 
     def add_text(text: str, *, styled: SourceParagraph | None = None) -> None:
         element_id = f"page-001-text-{len(elements) + 1:03d}"

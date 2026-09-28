@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 
@@ -26,9 +27,6 @@ class CenterlinePathTemplateCache:
     entries: dict[
         tuple[str, str, float], tuple[_LocalStrokeTemplate, ...]
     ] = field(default_factory=dict)
-    positioned_entries: dict[
-        tuple[str, str, float, float, float], tuple[tuple[Point, ...], ...]
-    ] = field(default_factory=dict)
     template_cache_hits: int = 0
     template_cache_misses: int = 0
     local_points_built: int = 0
@@ -48,7 +46,7 @@ class CenterlinePathTemplateCache:
 
 
 def build_centerline_paths(
-    compiled_font: CompiledPlotterFont,
+    compiled_font: CompiledPlotterFont | Mapping[str, CompiledPlotterFont],
     glyphs: list[PositionedGlyph],
     page: PageSpec,
     *,
@@ -57,19 +55,31 @@ def build_centerline_paths(
 ) -> PathDocument:
     cache = template_cache or CenterlinePathTemplateCache()
     strokes: list[PlotterStroke] = []
+    compiled_fonts = (
+        dict(compiled_font) if isinstance(compiled_font, Mapping)
+        else {compiled_font.font_sha256: compiled_font}
+    )
     for positioned in glyphs:
+        selected = compiled_fonts.get(positioned.font_sha256 or "")
+        if selected is None and len(compiled_fonts) == 1:
+            selected = next(iter(compiled_fonts.values()))
+        if selected is None:
+            raise ValueError(
+                f'No compiled centerline font for "{positioned.char}" '
+                f"(U+{positioned.codepoint:04X})"
+            )
         try:
-            glyph = compiled_font.glyphs[positioned.char]
+            glyph = selected.glyphs[positioned.char]
         except KeyError as error:
             raise ValueError(
                 f'Centerline cache is missing glyph "{positioned.char}" '
                 f"(U+{positioned.codepoint:04X})"
             ) from error
         with hotspots.measure("build_paths.template_lookup") if hotspots else nullcontext():
-            templates = _local_templates(compiled_font, glyph, positioned, cache)
+            templates = _local_templates(selected, glyph, positioned, cache)
         with hotspots.measure("build_paths.transform") if hotspots else nullcontext():
             positioned_points = _positioned_points(
-                compiled_font, positioned, templates, cache
+                selected, positioned, templates, cache
             )
         with hotspots.measure("build_paths.stroke_materialization") if hotspots else nullcontext():
             for template, cached_points in zip(templates, positioned_points, strict=True):
@@ -86,6 +96,7 @@ def build_centerline_paths(
                         source_chars=positioned.char,
                         segment_types=("glyph",),
                         word_index=positioned.word_index,
+                        font_sha256=selected.font_sha256,
                         preserve_order=template.preserve_order,
                     )
                 )
@@ -95,14 +106,15 @@ def build_centerline_paths(
         page.width_mm,
         page.height_mm,
         strokes,
-        list(compiled_font.warnings),
+        [warning for font in compiled_fonts.values() for warning in font.warnings],
         {
             "coordinate_system": "page-mm-top-left",
             "pipeline": "ttf-centerline",
             "centerline_format": "plotter-centerline-font",
-            "centerline_version": compiled_font.schema_version,
+            "centerline_version": next(iter(compiled_fonts.values())).schema_version,
             "routing_strategy": "one_stroke_per_component",
-            "font_sha256": compiled_font.font_sha256,
+            "font_sha256": next(iter(compiled_fonts.values())).font_sha256,
+            "font_sha256_chain": list(compiled_fonts),
         },
     )
 
@@ -169,17 +181,9 @@ def _positioned_points(
     templates: tuple[_LocalStrokeTemplate, ...],
     cache: CenterlinePathTemplateCache,
 ) -> tuple[tuple[Point, ...], ...]:
-    key = (
-        compiled_font.font_sha256,
-        positioned.char,
-        positioned.scale_mm_per_font_unit,
-        positioned.x_mm,
-        positioned.baseline_y_mm,
-    )
-    cached = cache.positioned_entries.get(key)
-    if cached is not None:
-        cache.positioned_template_hits += 1
-        return cached
+    # Positioned coordinates are effectively unique in a document. Retaining them
+    # duplicates every output point for the lifetime of the run and can exhaust
+    # memory on large documents. Only local, untranslated templates are reusable.
     cache.positioned_template_misses += 1
     result = tuple(
         tuple(
@@ -192,7 +196,6 @@ def _positioned_points(
         for template in templates
     )
     cache.output_points_allocated += sum(len(points) for points in result)
-    cache.positioned_entries[key] = result
     return result
 
 

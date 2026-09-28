@@ -132,6 +132,8 @@ def test_zones_are_not_carried_to_a_new_page(tmp_path: Path, test_font: Path) ->
 
 def test_auto_layout_defaults_by_document_type() -> None:
     assert resolve_document_layout_mode(Path("input.txt"), None, "auto") == "reflow"
+    assert resolve_document_layout_mode(Path("input.md"), None, "auto") == "reflow"
+    assert resolve_document_layout_mode(Path("input.markdown"), None, "auto") == "reflow"
     assert resolve_document_layout_mode(Path("input.docx"), None, "auto") == "hybrid"
     assert resolve_document_layout_mode(Path("input.pdf"), None, "auto") == "hybrid"
     assert resolve_document_layout_mode(Path("input.pdf"), "preserve", "auto") == "preserve"

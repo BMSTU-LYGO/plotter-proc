@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from plotter_processor.centerline_font.config import load_centerline_config
 from plotter_processor.centerline_font.edge_geometry import normalize_shared_node_endpoints
+from plotter_processor.centerline_font.eulerizer import eulerize_component
 from plotter_processor.centerline_font.models import (
     ComponentRoute,
     RouteEdgeStep,
@@ -67,6 +68,16 @@ def test_expensive_t_route_uses_two_minimum_trails_fallback() -> None:
     )
     assert len(routes) == 2
     assert sum(len(route.steps) for route in routes) == 3
+
+
+def test_many_odd_vertices_use_bounded_matching() -> None:
+    edges = [_edge(index, 0, index + 1) for index in range(22)]
+
+    result = eulerize_component(0, edges, exact_matching_max_odd_vertices=20)
+
+    assert result.start_node_id != result.end_node_id
+    assert result.duplicated_length_px == 20.0
+    assert {item.source_edge_id for item in result.occurrences} == set(range(22))
 
 
 def test_route_assembler_reuses_exact_edge_geometry_without_connector() -> None:

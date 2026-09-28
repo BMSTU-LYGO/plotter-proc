@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from plotter_processor.centerline_font.cache import (
@@ -33,7 +33,7 @@ from plotter_processor.document_models import (
     SourceVectorElement,
 )
 from plotter_processor.document_paginator import PageLayout, add_page_numbers, paginate_document
-from plotter_processor.font_loader import load_font
+from plotter_processor.font_fallback import load_font_registry
 from plotter_processor.gcode_analyzer import analyze_gcode
 from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
 from plotter_processor.glyph_outline import extract_exact_outlines
@@ -98,6 +98,8 @@ from plotter_processor.validator import (
     validate_path_document,
 )
 
+DEFAULT_FALLBACK_FONTS = (("symbols", Path("assets/Cambria Math.ttf")),)
+
 
 @dataclass(slots=True)
 class PipelineOptions:
@@ -140,6 +142,7 @@ class PipelineOptions:
     stage_cache_path: Path | None = None
     preset: str | None = None
     path_mode: str = "normal"
+    fallback_fonts: tuple[tuple[str, Path], ...] = DEFAULT_FALLBACK_FONTS
 
 
 @dataclass(slots=True)
@@ -554,6 +557,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             document_fingerprint,
             font_path=options.font_path,
             settings={
+                "fallback_fonts": [
+                    {"role": role, "font_sha256": font_sha256(path)}
+                    for role, path in options.fallback_fonts
+                ],
                 "page": [page.name, page.width_mm, page.height_mm],
                 "margins": margins,
                 "grid": config_profiles.paper.grid,
@@ -601,6 +608,10 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             settings={
                 "font_mode": options.font_mode,
                 "font_sha256": font_sha256(options.font_path),
+                "fallback_fonts": [
+                    {"role": role, "font_sha256": font_sha256(path)}
+                    for role, path in options.fallback_fonts
+                ],
                 "centerline": (
                     centerline_config_fingerprint(
                         centerline_config,
@@ -643,7 +654,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     if isinstance(item, dict) and "page_index" in item
                 }
 
-        with load_font(options.font_path) as font:
+        with load_font_registry(options.font_path, list(options.fallback_fonts)) as font:
             def compute_layout(source_document: SourceDocument):
                 result = paginate_document(
                     source_document, font, page, margins, size_options, image_options,
@@ -737,32 +748,57 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 if (page_layout.page_index, glyph.glyph_index) in number_indices
             ]
             compiled = None
+            compiled_fonts: dict[str, object] = {}
             centerline_info = None
             cache_path = options.centerline_cache_path
             requested_centerline_chars = {glyph.char for glyph in number_glyphs}
             if options.font_mode == "centerline":
                 requested_centerline_chars.update(glyph.char for glyph in body_glyphs)
             geometry_cache_hit = len(cached_geometry_pages) == page_count
+            chars_by_font: dict[str, set[str]] = {}
+            if requested_centerline_chars:
+                for glyph in [*body_glyphs, *number_glyphs]:
+                    identity = glyph.font_sha256 or font_sha256(options.font_path)
+                    chars_by_font.setdefault(identity, set()).add(glyph.char)
             if requested_centerline_chars and not geometry_cache_hit:
                 with timings.measure("font_compile"):
-                    compiled, cache_path = compile_centerline_font(
-                        options.font_path,
-                        requested_centerline_chars,
-                        centerline_config,
-                        cache_path=cache_path,
-                        force=options.force_centerline_rebuild,
-                        strict_quality=(
-                            options.strict_centerline_quality
-                            if options.font_mode == "centerline" else False
-                        ),
-                        workers=options.workers,
-                        debug_dir=(
-                            output_dir / "centerline-debug" if audit_artifacts else None
-                        ),
-                    )
+                    paths_by_hash = {
+                        font_sha256(options.font_path): options.font_path,
+                        **{font_sha256(path): path for _, path in options.fallback_fonts},
+                    }
+                    for digest, chars in chars_by_font.items():
+                        source_font_path = paths_by_hash[digest]
+                        is_primary_font = digest == font_sha256(options.font_path)
+                        named_cache_path = (
+                            centerline_config.cache_directory
+                            / source_font_path.stem
+                            / "centerlines.json"
+                        )
+                        selected_cache_path = (
+                            cache_path
+                            if is_primary_font and cache_path is not None
+                            else named_cache_path
+                        )
+                        artifact, artifact_cache = compile_centerline_font(
+                            source_font_path,
+                            chars,
+                            replace(
+                                centerline_config,
+                                cache_directory=selected_cache_path.parent,
+                            ),
+                            cache_path=selected_cache_path,
+                            force=options.force_centerline_rebuild,
+                            strict_quality=(options.strict_centerline_quality if options.font_mode == "centerline" else False),
+                            workers=options.workers,
+                            debug_dir=(output_dir / "centerline-debug" / digest if audit_artifacts else None),
+                        )
+                        compiled_fonts[digest] = artifact
+                        if is_primary_font:
+                            compiled, cache_path = artifact, artifact_cache
                 if options.font_mode == "centerline":
-                    centerline_info = _centerline_report(
-                        compiled, cache_path, [*body_glyphs, *number_glyphs]
+                    centerline_info = _centerline_reports(
+                        compiled_fonts, cache_path, [*body_glyphs, *number_glyphs],
+                        options.font_path, options.fallback_fonts,
                     )
 
             preview_cache = {"hits": 0, "misses": 0}
@@ -828,7 +864,15 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                             "hits" if centerline_result.hit else "misses"
                         ] += 1
 
+            worker_count = resolve_worker_count(options.workers, page_count)
+            sequential_pages = worker_count == 1
+            # One-page-at-a-time mode avoids retaining every raw, pre-simplified
+            # document for large jobs. Global simplification priming is an optional
+            # optimization, so it is deliberately skipped in this mode.
             raw_pages: list[PreparedPage] = []
+            page_results: list[PageProcessResult] = []
+            cumulative_warnings = list(warnings)
+            simplification_template_cache = SimplificationTemplateCache()
             page_performance: dict[int, PagePerformance] = {}
             path_template_cache = CenterlinePathTemplateCache()
             outline_template_cache = OutlinePathTemplateCache()
@@ -853,8 +897,7 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                 if cached_page is not None and isinstance(
                     cached_page.get("paths"), PathDocument
                 ):
-                    raw_pages.append(
-                        PreparedPage(
+                    prepared = PreparedPage(
                             page_layout,
                             cached_page["paths"],
                             page_dir,
@@ -871,7 +914,22 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                                 else None
                             ),
                         )
-                    )
+                    if sequential_pages:
+                        cumulative_warnings.extend(prepared.paths.warnings)
+                        page_results.append(process_page(PageProcessRequest(
+                            prepared.page_layout, prepared.paths, prepared.page_dir,
+                            prepared.body_glyphs, page_count,
+                            page_performance[page_layout.page_index],
+                            [*cumulative_warnings, *page_layout.warnings],
+                            options.optimize_travel, options.font_mode, vector, preview,
+                            machine_config, motion_profile, analysis_config,
+                            simplification_config, variation_config, joining_config,
+                            retrace_config, connection_debug_enabled,
+                            simplification_template_cache, options.artifact_level != "minimal",
+                            prepared.geometry_ready, prepared.handwriting, prepared.simplification,
+                        ), options.stage_progress))
+                    else:
+                        raw_pages.append(prepared)
                     continue
                 build_cache = (
                     outline_template_cache
@@ -895,9 +953,9 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         warnings.append(
                             "Outline mode follows both boundaries of filled TTF strokes"
                         )
-                    elif body and compiled is not None:
+                    elif body and compiled_fonts:
                         paths = build_centerline_paths(
-                            compiled,
+                            compiled_fonts,
                             body,
                             page,
                             template_cache=path_template_cache,
@@ -905,13 +963,13 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                         )
                     else:
                         paths = PathDocument(page.width_mm, page.height_mm, [], [], {})
-                if numbers and compiled is not None:
+                if numbers and compiled_fonts:
                     with (
                         timings.measure("build_paths"),
                         page_metrics.measure("build_paths_ms"),
                     ):
                         number_paths = build_centerline_paths(
-                            compiled,
+                            compiled_fonts,
                             numbers,
                             page,
                             template_cache=path_template_cache,
@@ -936,11 +994,25 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
                     paths.strokes.append(stroke)
                 if page_layout.graphic_strokes:
                     paths.metadata["pipeline"] = "document-mixed"
-                raw_pages.append(PreparedPage(page_layout, paths, page_dir, body))
+                prepared = PreparedPage(page_layout, paths, page_dir, body)
+                if sequential_pages:
+                    cumulative_warnings.extend(paths.warnings)
+                    page_results.append(process_page(PageProcessRequest(
+                        page_layout, paths, page_dir, body, page_count,
+                        page_performance[page_layout.page_index],
+                        [*cumulative_warnings, *page_layout.warnings],
+                        options.optimize_travel, options.font_mode, vector, preview,
+                        machine_config, motion_profile, analysis_config,
+                        simplification_config, variation_config, joining_config,
+                        retrace_config, connection_debug_enabled,
+                        simplification_template_cache, options.artifact_level != "minimal",
+                    ), options.stage_progress))
+                else:
+                    raw_pages.append(prepared)
 
-        simplification_template_cache = SimplificationTemplateCache()
         if (
-            not geometry_cache_hit
+            not sequential_pages
+            and not geometry_cache_hit
             and simplification_config.get("enabled", False)
             and not variation_config.enabled
         ):
@@ -982,45 +1054,42 @@ def run_pipeline(options: PipelineOptions) -> PipelineResult:
             )
 
         requests: list[PageProcessRequest] = []
-        cumulative_warnings = list(warnings)
-        for prepared in raw_pages:
-            page_layout = prepared.page_layout
-            paths = prepared.paths
-            cumulative_warnings.extend(paths.warnings)
-            requests.append(
-                PageProcessRequest(
-                    page_layout,
-                    paths,
-                    prepared.page_dir,
-                    prepared.body_glyphs,
-                    page_count,
-                    page_performance[page_layout.page_index],
-                    [*cumulative_warnings, *page_layout.warnings],
-                    options.optimize_travel,
-                    options.font_mode,
-                    vector,
-                    preview,
-                    machine_config,
-                    motion_profile,
-                    analysis_config,
-                    simplification_config,
-                    variation_config,
-                    joining_config,
-                    retrace_config,
-                    connection_debug_enabled,
-                    simplification_template_cache,
-                    options.artifact_level != "minimal",
-                    prepared.geometry_ready,
-                    prepared.handwriting,
-                    prepared.simplification,
+        if not sequential_pages:
+            for prepared in raw_pages:
+                page_layout = prepared.page_layout
+                paths = prepared.paths
+                cumulative_warnings.extend(paths.warnings)
+                requests.append(
+                    PageProcessRequest(
+                        page_layout,
+                        paths,
+                        prepared.page_dir,
+                        prepared.body_glyphs,
+                        page_count,
+                        page_performance[page_layout.page_index],
+                        [*cumulative_warnings, *page_layout.warnings],
+                        options.optimize_travel,
+                        options.font_mode,
+                        vector,
+                        preview,
+                        machine_config,
+                        motion_profile,
+                        analysis_config,
+                        simplification_config,
+                        variation_config,
+                        joining_config,
+                        retrace_config,
+                        connection_debug_enabled,
+                        simplification_template_cache,
+                        options.artifact_level != "minimal",
+                        prepared.geometry_ready,
+                        prepared.handwriting,
+                        prepared.simplification,
+                    )
                 )
-            )
         warnings[:] = cumulative_warnings
-        worker_count = resolve_worker_count(options.workers, page_count)
         if worker_count == 1:
-            page_results = [
-                process_page(request, options.stage_progress) for request in requests
-            ]
+            pass
         else:
             global _PAGE_PROCESS_REQUESTS
             _PAGE_PROCESS_REQUESTS = {
@@ -1443,7 +1512,7 @@ def _centerline_report(
         key=lambda glyph: (
             not bool(glyph.quality.get("needs_review")),
             -float(glyph.quality.get("retrace_ratio", 0.0)),
-            float(glyph.quality.get("mask_coverage", 1.0)),
+            float(glyph.quality.get("mask_coverage") or 1.0),
             glyph.codepoint,
         )
     )
@@ -1492,6 +1561,41 @@ def _centerline_report(
             for glyph in problematic[:10]
         ],
     }
+
+
+def _centerline_reports(
+    compiled_fonts: dict[str, object],
+    primary_cache: Path | None,
+    glyphs: list[PositionedGlyph],
+    primary_path: Path,
+    fallbacks: tuple[tuple[str, Path], ...],
+) -> dict[str, object]:
+    reports: list[tuple[str, dict[str, object]]] = []
+    for index, (digest, compiled) in enumerate(compiled_fonts.items()):
+        reports.append((digest, _centerline_report(
+            compiled,
+            primary_cache if digest == font_sha256(primary_path) else None,
+            [glyph for glyph in glyphs if glyph.font_sha256 == digest],
+        )))
+    if not reports:
+        return {}
+    result = next(
+        report for digest, report in reports if digest == font_sha256(primary_path)
+    )
+    roles = {font_sha256(path): role for role, path in fallbacks}
+    result["fonts"] = [
+        {
+            "role": roles.get(digest, "primary"),
+            "font_sha256": digest,
+            "compiled_glyphs": report["compiled_glyphs"],
+            "cache": report["cache"],
+        }
+        for digest, report in reports
+    ]
+    result["fallback_glyph_count"] = sum(
+        1 for glyph in glyphs if glyph.font_sha256 in roles
+    )
+    return result
 
 
 def _semantic_report(strokes: list[object]) -> dict[str, object]:
@@ -1579,7 +1683,7 @@ def resolve_document_layout_mode(
     selected = explicit_mode or configured_mode
     if selected != "auto":
         return selected
-    return "reflow" if input_path.suffix.lower() == ".txt" else "hybrid"
+    return "reflow" if input_path.suffix.lower() in {".txt", ".md", ".markdown"} else "hybrid"
 
 
 def _export_job_preview(

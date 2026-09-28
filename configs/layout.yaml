@@ -252,7 +252,7 @@ centerline:
     fail_on_low_quality: false
   cache:
     enabled: true
-    directory: 1-font-cache
+    directory: font-cache
   debug:
     enabled: false
   glyph_overrides: {}

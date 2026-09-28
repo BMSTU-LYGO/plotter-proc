@@ -110,6 +110,41 @@ def test_a4_runs_with_a_compatible_workspace(tmp_path: Path, test_font: Path) ->
     assert "document_structure" not in report["outputs"]
 
 
+def test_one_worker_processes_each_page_before_building_the_next(
+    tmp_path: Path, test_font: Path, monkeypatch
+) -> None:
+    source = tmp_path / "many-pages.txt"
+    source.write_text("A " * 12_000, encoding="utf-8")
+    options = _options(
+        tmp_path, test_font, _machine_config(tmp_path, max_y=320.0), output_name="sequential"
+    )
+    options.input_path = source
+    options.font_mode = "outline"
+    options.workers = 1
+    options.page_numbers = False
+    built = 0
+    processed_after_build: list[int] = []
+    original_build = pipeline.build_paths
+    original_process = pipeline.process_page
+
+    def counted_build(*args, **kwargs):
+        nonlocal built
+        built += 1
+        return original_build(*args, **kwargs)
+
+    def counted_process(*args, **kwargs):
+        processed_after_build.append(built)
+        return original_process(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "build_paths", counted_build)
+    monkeypatch.setattr(pipeline, "process_page", counted_process)
+    result = run_pipeline(options)
+
+    assert result.status == "ok"
+    assert len(processed_after_build) > 1
+    assert processed_after_build == list(range(1, len(processed_after_build) + 1))
+
+
 def test_a5_hole_expands_layout_bounds(tmp_path: Path, test_font: Path) -> None:
     machine = _machine_config(tmp_path, max_y=220.0)
     options = _options(tmp_path, test_font, machine, output_name="a5-hole")

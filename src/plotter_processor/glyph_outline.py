@@ -18,6 +18,9 @@ class ExactGlyphPath:
 
 
 def extract_exact_outline(font: LoadedFont, positioned: PositionedGlyph) -> ExactGlyphPath | None:
+    source_for_glyph = getattr(font, "font_for_sha256", None)
+    if source_for_glyph is not None:
+        font = source_for_glyph(positioned.font_sha256)
     glyph = font.glyph_set[positioned.glyph_name]
     svg_pen = SVGPathPen(font.glyph_set)
     transform = (

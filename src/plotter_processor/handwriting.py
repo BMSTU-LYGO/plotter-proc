@@ -211,11 +211,33 @@ class _SegmentObstacle:
     bounds: tuple[float, float, float, float]
 
 
+_MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS = 4_096
+
+
+def _cell_count_exceeds_limit(
+    min_x: float,
+    min_y: float,
+    max_x: float,
+    max_y: float,
+    cell_size_mm: float,
+) -> bool:
+    """Keep malformed outlines from expanding a grid to unbounded size."""
+    if not all(math.isfinite(value) for value in (min_x, min_y, max_x, max_y)):
+        return True
+    width = math.floor(max_x / cell_size_mm) - math.floor(min_x / cell_size_mm) + 1
+    height = math.floor(max_y / cell_size_mm) - math.floor(min_y / cell_size_mm) + 1
+    return width > _MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS or (
+        height > _MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS
+        or width * height > _MAX_SPATIAL_INDEX_CELLS_PER_BOUNDS
+    )
+
+
 @dataclass(slots=True)
 class _StrokeSegmentIndex:
     segments: tuple[_SegmentObstacle, ...]
     cell_size_mm: float
     cells: dict[tuple[int, int], tuple[int, ...]]
+    unindexed_segments: tuple[int, ...]
 
     @classmethod
     def build(
@@ -226,8 +248,14 @@ class _StrokeSegmentIndex:
             for segment_index, (first, second) in enumerate(pairwise(stroke.points))
         )
         cells: dict[tuple[int, int], list[int]] = {}
+        unindexed_segments: list[int] = []
         for segment_index, segment in enumerate(segments):
             min_x, min_y, max_x, max_y = segment.bounds
+            if _cell_count_exceeds_limit(
+                min_x, min_y, max_x, max_y, cell_size_mm
+            ):
+                unindexed_segments.append(segment_index)
+                continue
             for cell_x in range(
                 math.floor(min_x / cell_size_mm),
                 math.floor(max_x / cell_size_mm) + 1,
@@ -241,22 +269,26 @@ class _StrokeSegmentIndex:
             segments,
             cell_size_mm,
             {cell: tuple(indices) for cell, indices in cells.items()},
+            tuple(unindexed_segments),
         )
 
     def query(
         self, bounds: tuple[float, float, float, float]
     ) -> list[_SegmentObstacle]:
         min_x, min_y, max_x, max_y = bounds
-        matches: set[int] = set()
-        for cell_x in range(
-            math.floor(min_x / self.cell_size_mm),
-            math.floor(max_x / self.cell_size_mm) + 1,
-        ):
-            for cell_y in range(
-                math.floor(min_y / self.cell_size_mm),
-                math.floor(max_y / self.cell_size_mm) + 1,
+        matches: set[int] = set(self.unindexed_segments)
+        if _cell_count_exceeds_limit(min_x, min_y, max_x, max_y, self.cell_size_mm):
+            matches.update(range(len(self.segments)))
+        else:
+            for cell_x in range(
+                math.floor(min_x / self.cell_size_mm),
+                math.floor(max_x / self.cell_size_mm) + 1,
             ):
-                matches.update(self.cells.get((cell_x, cell_y), ()))
+                for cell_y in range(
+                    math.floor(min_y / self.cell_size_mm),
+                    math.floor(max_y / self.cell_size_mm) + 1,
+                ):
+                    matches.update(self.cells.get((cell_x, cell_y), ()))
         return [
             self.segments[index]
             for index in sorted(matches)
@@ -271,6 +303,7 @@ class _SegmentObstacleIndex:
     cell_size_mm: float
     segment_cell_size_mm: float
     cells: dict[tuple[int, int], tuple[int, ...]]
+    unindexed_strokes: tuple[int, ...]
     segment_cache: dict[int, _StrokeSegmentIndex]
 
     @classmethod
@@ -283,8 +316,14 @@ class _SegmentObstacleIndex:
     ) -> _SegmentObstacleIndex:
         stroke_bounds = [_stroke_bounds(stroke) for stroke in strokes]
         cells: dict[tuple[int, int], list[int]] = {}
+        unindexed_strokes: list[int] = []
         for index, bounds in enumerate(stroke_bounds):
             min_x, min_y, max_x, max_y = bounds
+            if _cell_count_exceeds_limit(
+                min_x, min_y, max_x, max_y, cell_size_mm
+            ):
+                unindexed_strokes.append(index)
+                continue
             for cell_x in range(math.floor(min_x / cell_size_mm), math.floor(max_x / cell_size_mm) + 1):
                 for cell_y in range(math.floor(min_y / cell_size_mm), math.floor(max_y / cell_size_mm) + 1):
                     cells.setdefault((cell_x, cell_y), []).append(index)
@@ -294,6 +333,7 @@ class _SegmentObstacleIndex:
             cell_size_mm,
             segment_cell_size_mm,
             {cell: tuple(indices) for cell, indices in cells.items()},
+            tuple(unindexed_strokes),
             {},
         )
 
@@ -301,16 +341,19 @@ class _SegmentObstacleIndex:
         self, bounds: tuple[float, float, float, float]
     ) -> list[_SegmentObstacle]:
         min_x, min_y, max_x, max_y = bounds
-        matches: set[int] = set()
-        for cell_x in range(
-            math.floor(min_x / self.cell_size_mm),
-            math.floor(max_x / self.cell_size_mm) + 1,
-        ):
-            for cell_y in range(
-                math.floor(min_y / self.cell_size_mm),
-                math.floor(max_y / self.cell_size_mm) + 1,
+        matches: set[int] = set(self.unindexed_strokes)
+        if _cell_count_exceeds_limit(min_x, min_y, max_x, max_y, self.cell_size_mm):
+            matches.update(range(len(self.strokes)))
+        else:
+            for cell_x in range(
+                math.floor(min_x / self.cell_size_mm),
+                math.floor(max_x / self.cell_size_mm) + 1,
             ):
-                matches.update(self.cells.get((cell_x, cell_y), ()))
+                for cell_y in range(
+                    math.floor(min_y / self.cell_size_mm),
+                    math.floor(max_y / self.cell_size_mm) + 1,
+                ):
+                    matches.update(self.cells.get((cell_x, cell_y), ()))
         segments: list[_SegmentObstacle] = []
         for stroke_index in sorted(matches):
             if not _bounds_overlap(bounds, self.stroke_bounds[stroke_index]):
@@ -1237,6 +1280,12 @@ def route_words(
         if routes:
             for left_route, right_route in pairwise(routes):
                 candidates += 1
+                if left_route.glyph.font_sha256 != right_route.glyph.font_sha256:
+                    rejected += 1
+                    rejection_reasons["font_boundary"] = (
+                        rejection_reasons.get("font_boundary", 0) + 1
+                    )
+                    continue
                 right = right_route.main
                 if (
                     combined is None
@@ -1457,6 +1506,8 @@ def apply_handwriting_kerning(
     pair_rules_applied = 0
     for word in _words(glyphs):
         for left, right in pairwise(word):
+            if left.font_sha256 != right.font_sha256:
+                continue
             left_strokes = by_glyph.get(left.glyph_index, [])
             right_strokes = by_glyph.get(right.glyph_index, [])
             if not left_strokes or not right_strokes:

@@ -10,7 +10,9 @@ from plotter_processor.document_models import SourcePage, SourceTableElement, So
 from plotter_processor.fast_font import FastFont
 from plotter_processor.fast_layout import FastLayout, FastLayoutConfig, FastLayoutResult
 from plotter_processor.fast_word import WordBuilder
-from plotter_processor.gcode_exporter import generate_gcode, write_gcode_atomic
+from plotter_processor.job_models import PageJob, PlotterJob
+from plotter_processor.models import PageSpec
+from plotter_processor.multipage_gcode_exporter import write_job_gcode_atomic
 from plotter_processor.structured_document_reader import read_structured_document
 
 
@@ -18,6 +20,7 @@ from plotter_processor.structured_document_reader import read_structured_documen
 class FastPipelineResult:
     pages: int
     report_path: Path
+    gcode_path: Path
     timings_ms: dict[str, float]
     layout: FastLayoutResult
 
@@ -31,6 +34,7 @@ def run_fast_pipeline(
     layout_config: FastLayoutConfig = FastLayoutConfig(),
     fallback_char: str | None = "?",
     word_cache_size: int = 512,
+    max_gcode_commands: int = 20_000_000,
 ) -> FastPipelineResult:
     output_dir.mkdir(parents=True, exist_ok=True)
     timings: dict[str, float] = {}
@@ -51,11 +55,27 @@ def run_fast_pipeline(
 
     machine = load_yaml(machine_config_path)
     started = time.perf_counter()
-    for index, page in enumerate(laid_out.pages, 1):
-        write_gcode_atomic(
-            generate_gcode(page, machine, page_number=index),
-            output_dir / f"page-{index:03d}.gcode",
-        )
+    page_spec = PageSpec(
+        "fast",
+        layout_config.page_width_mm,
+        layout_config.page_height_mm,
+    )
+    job = PlotterJob(
+        page_spec,
+        [
+            PageJob(index, index + 1, page, (), [])
+            for index, page in enumerate(laid_out.pages)
+        ],
+        [],
+        {"pipeline": "fast-text"},
+    )
+    gcode_path = output_dir / "output.gcode"
+    write_job_gcode_atomic(
+        job,
+        machine,
+        gcode_path,
+        max_commands=max_gcode_commands,
+    )
     timings["gcode"] = _elapsed_ms(started)
     timings["total"] = sum(timings.values())
 
@@ -69,11 +89,12 @@ def run_fast_pipeline(
         "word_cache_hits": laid_out.cache_hits,
         "word_cache_misses": laid_out.cache_misses,
         "missing_chars": sorted(laid_out.missing_chars),
+        "gcode_path": str(gcode_path),
         "timings_ms": timings,
     }
     report_path = output_dir / "fast-report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return FastPipelineResult(len(laid_out.pages), report_path, timings, laid_out)
+    return FastPipelineResult(len(laid_out.pages), report_path, gcode_path, timings, laid_out)
 
 
 def _plain_text(pages: tuple[SourcePage, ...]) -> str:

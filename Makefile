@@ -4,8 +4,9 @@ FONT ?= assets/1.ttf
 PAGE ?= A5
 SIZE ?= normal
 BUILD ?= build
-CACHE_DIR ?= 1-font-cache
-FONT_CACHE_DIR ?= $(CACHE_DIR)
+CACHE_DIR ?= font-cache
+FONT_BASENAME := $(basename $(notdir $(FONT)))
+FONT_CACHE_DIR ?= $(CACHE_DIR)/$(FONT_BASENAME)
 FONT_CACHE_CORPUS ?= assets/font-cache-corpus.txt
 LAYOUT_CONFIG ?= configs/layout.yaml
 RUN_CONFIG ?= configs/run_conf.yaml
@@ -13,7 +14,19 @@ RUN_CONFIG ?= configs/run_conf.yaml
 PROFILE ?= safe
 
 .PHONY: install test lint run run-fast run-balanced run-quality demo extract calibrate benchmark benchmark-pipeline smoke audit \
-	audit-benchmark clean cache-clean font-cache-rebuild cache-rebuild font-cache-status
+	audit-benchmark clean cache-clean font font-cache-rebuild cache-rebuild font-cache-status
+
+# `make font 1` compiles assets/1.ttf into font-cache/1/centerlines.json.
+# Defining only the second requested goal keeps the convenient syntax without
+# installing a catch-all rule that could hide Makefile typos.
+ifneq ($(filter font,$(MAKECMDGOALS)),)
+FONT_NAME := $(word 2,$(MAKECMDGOALS))
+ifneq ($(FONT_NAME),)
+.PHONY: $(FONT_NAME)
+$(FONT_NAME):
+	@:
+endif
+endif
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -86,6 +99,16 @@ clean:
 	mkdir -p "$(BUILD)"
 	printf '\n' > "$(BUILD)/.gitkeep"
 
+font:
+	@test -n "$(FONT_NAME)" || (echo "Usage: make font <name>  (reads assets/<name>.ttf)"; exit 2)
+	@test "$(FONT_NAME)" = "$(notdir $(FONT_NAME))" || (echo "Font name must not contain a path"; exit 2)
+	@test -f "assets/$(FONT_NAME).ttf" || (echo "Font not found: assets/$(FONT_NAME).ttf"; exit 1)
+	mkdir -p "$(CACHE_DIR)/$(FONT_NAME)"
+	$(PYTHON) -m plotter_processor.font_compile_cli "assets/$(FONT_NAME).ttf" \
+		--layout-config "$(LAYOUT_CONFIG)" \
+		-o "$(CACHE_DIR)/$(FONT_NAME)/centerlines.json"
+	@echo "Font cache: $(CACHE_DIR)/$(FONT_NAME)/centerlines.json"
+
 cache-clean:
 	@test -n "$(CACHE_DIR)" && test "$(CACHE_DIR)" != "/"
 	rm -rf "$(CACHE_DIR)"
@@ -99,7 +122,7 @@ font-cache-rebuild:
 	$(PYTHON) -m plotter_processor compile-centerline-font "$(FONT)" \
 		--text-file "$(FONT_CACHE_CORPUS)" \
 		--layout-config "$(LAYOUT_CONFIG)" \
-		--cache-directory "$(FONT_CACHE_DIR)" \
+		--output "$(FONT_CACHE_DIR)/centerlines.json" \
 		--preview "$(BUILD)/font-cache-rebuild-preview.svg" \
 		--force
 	@echo "Rebuilt canonical centerline corpus for $(FONT) in $(FONT_CACHE_DIR)"

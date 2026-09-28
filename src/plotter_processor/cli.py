@@ -25,7 +25,7 @@ from plotter_processor.gcode_exporter import (
 from plotter_processor.job_comparison import compare_jobs
 from plotter_processor.motion_config import apply_motion_profile, resolve_motion_profile
 from plotter_processor.path_builder import load_path_document
-from plotter_processor.pipeline import PipelineOptions, run_pipeline
+from plotter_processor.pipeline import DEFAULT_FALLBACK_FONTS, PipelineOptions, run_pipeline
 from plotter_processor.presets import resolve_preset
 from plotter_processor.unicode_coverage import inspect_coverage
 
@@ -91,6 +91,7 @@ def _pipeline_options(args: argparse.Namespace) -> PipelineOptions:
         stage_cache_path=args.stage_cache,
         preset=preset.name,
         path_mode=preset.path_mode,
+        fallback_fonts=_fallback_chain(args.fallback_font),
     )
 
 
@@ -300,6 +301,10 @@ def _compose(args: argparse.Namespace) -> int:
 def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("input", type=Path)
     parser.add_argument("--font", type=Path, required=True)
+    parser.add_argument(
+        "--fallback-font", action="append", default=[], metavar="ROLE=PATH",
+        help="Ordered fallback font; may be repeated (for example symbols=assets/Cambria Math.ttf).",
+    )
     parser.add_argument("--page", choices=("A4", "A5"), default="A5")
     parser.add_argument("--size", choices=("small", "normal", "large"), default="normal")
     parser.add_argument("--layout-config", type=Path, default=Path("configs/layout.yaml"))
@@ -373,6 +378,21 @@ def _add_vector_arguments(parser: argparse.ArgumentParser) -> None:
         workers_explicit=False,
         artifacts_explicit=False,
     )
+
+
+def _fallback_font(value: str) -> tuple[str, Path]:
+    role, separator, raw_path = value.partition("=")
+    if not separator or not role or not raw_path:
+        raise ValueError("--fallback-font must use ROLE=PATH")
+    if not role.replace("_", "").replace("-", "").isalnum():
+        raise ValueError("--fallback-font role must contain only letters, numbers, _ or -")
+    return role, Path(raw_path)
+
+
+def _fallback_chain(values: list[str]) -> tuple[tuple[str, Path], ...]:
+    explicit = tuple(_fallback_font(value) for value in values)
+    known = {path.resolve() for _, path in explicit}
+    return (*explicit, *(item for item in DEFAULT_FALLBACK_FONTS if item[1].resolve() not in known))
 
 
 def _workers_value(value: str) -> str | int:

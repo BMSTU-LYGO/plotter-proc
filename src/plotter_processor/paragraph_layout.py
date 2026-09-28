@@ -420,7 +420,8 @@ def _append_word(
     elif engine == "legacy":
         for character in text:
             glyph_name = font.glyph_name_for_char(character)
-            advance = font.advance_for_glyph(glyph_name) * scale
+            glyph_scale = _char_scale(font, character, scale)
+            advance = _char_advance(font, character, scale)
             text_role = _text_role(character)
             gap = _punctuation_gap(line, character, text_role, options)
             line.cursor += gap
@@ -431,11 +432,13 @@ def _append_word(
                 x_mm=line.cursor,
                 baseline_y_mm=_punctuation_vertical_offset(text_role, options),
                 advance_mm=advance,
-                scale_mm_per_font_unit=scale,
+                scale_mm_per_font_unit=glyph_scale,
                 line_index=0,
                 glyph_index=len(line.glyphs),
                 word_index=word_index,
                 cluster_index=len(line.glyphs),
+                font_id=_font_id(font, character),
+                font_sha256=_font_sha256(font, character),
                 text_role=text_role,
             ))
             line.cursor += advance
@@ -473,8 +476,30 @@ def _advance(
             total += font.metrics.units_per_em * 0.33 * scale
         else:
             glyph_name = font.glyph_name_for_char(character)
-            total += font.advance_for_glyph(glyph_name) * scale
+            total += _char_advance(font, character, scale)
     return total
+
+
+def _char_scale(font: LoadedFont, char: str, scale: float) -> float:
+    selector = getattr(font, "scale_for_char", None)
+    return float(selector(char, scale)) if selector is not None else scale
+
+
+def _char_advance(font: LoadedFont, char: str, scale: float) -> float:
+    selector = getattr(font, "advance_for_char", None)
+    if selector is not None:
+        return float(selector(char)) * _char_scale(font, char, scale)
+    return font.advance_for_glyph(font.glyph_name_for_char(char)) * scale
+
+
+def _font_id(font: LoadedFont, char: str) -> str | None:
+    selector = getattr(font, "identity_for_char", None)
+    return selector(char).id if selector is not None else None
+
+
+def _font_sha256(font: LoadedFont, char: str) -> str | None:
+    selector = getattr(font, "identity_for_char", None)
+    return selector(char).sha256 if selector is not None else None
 
 
 def _word_space_factor(values: Mapping[str, object]) -> float:

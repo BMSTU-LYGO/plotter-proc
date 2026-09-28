@@ -11,4 +11,10 @@ __pycache__/
 .ruff_cache/
 .venv/
 .plotter-cache/
+font-cache/
+!font-cache/
+font-cache/*
+!font-cache/.gitkeep
 1-font-cache/
+math-font-cache/
+rim-font-cache/

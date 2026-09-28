@@ -112,7 +112,7 @@ def layout_text(
                         (
                             item.x_advance_font_units * scale
                             if shaped is not None
-                            else font.advance_for_glyph(font.glyph_name_for_char(item)) * scale
+                            else _char_advance(font, item, scale)
                         )
                         for item in cluster
                     ]
@@ -145,6 +145,7 @@ def layout_text(
                             else 0.0
                         )
                         x += punctuation_gap
+                        glyph_scale = scale if shaped is not None else _char_scale(font, char, scale)
                         glyph_name = (
                             item.glyph_name
                             if shaped is not None
@@ -161,15 +162,15 @@ def layout_text(
                                 - (item.y_offset_font_units * scale if shaped is not None else 0)
                                 + punctuation_y,
                                 advance_mm=advance,
-                                scale_mm_per_font_unit=scale,
+                                scale_mm_per_font_unit=glyph_scale,
                                 line_index=line_index,
                                 glyph_index=glyph_index,
                                 word_index=word_index,
                                 cluster_index=(
                                     item.cluster_index if shaped is not None else glyph_index
                                 ),
-                                font_id=item.font.id if shaped is not None else None,
-                                font_sha256=item.font.sha256 if shaped is not None else None,
+                                font_id=(item.font.id if shaped is not None else _font_id(font, char)),
+                                font_sha256=(item.font.sha256 if shaped is not None else _font_sha256(font, char)),
                                 x_offset_font_units=(
                                     item.x_offset_font_units if shaped is not None else 0.0
                                 ),
@@ -228,8 +229,30 @@ def _text_advance(text: str, font: LoadedFont, scale: float) -> float:
         elif glyph_name is None:
             font.glyph_name_for_char(char)
         else:
-            total += font.advance_for_glyph(glyph_name) * scale
+            total += _char_advance(font, char, scale)
     return total
+
+
+def _char_scale(font: LoadedFont, char: str, scale: float) -> float:
+    selector = getattr(font, "scale_for_char", None)
+    return float(selector(char, scale)) if selector is not None else scale
+
+
+def _char_advance(font: LoadedFont, char: str, scale: float) -> float:
+    selector = getattr(font, "advance_for_char", None)
+    if selector is not None:
+        return float(selector(char)) * _char_scale(font, char, scale)
+    return font.advance_for_glyph(font.glyph_name_for_char(char)) * scale
+
+
+def _font_id(font: LoadedFont, char: str) -> str | None:
+    selector = getattr(font, "identity_for_char", None)
+    return selector(char).id if selector is not None else None
+
+
+def _font_sha256(font: LoadedFont, char: str) -> str | None:
+    selector = getattr(font, "identity_for_char", None)
+    return selector(char).sha256 if selector is not None else None
 
 
 def _positive(values: Mapping[str, object], key: str) -> float:

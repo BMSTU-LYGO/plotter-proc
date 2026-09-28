@@ -113,6 +113,9 @@ def _outline_template(
     *,
     hotspots: HotspotTimings | None,
 ) -> _OutlineGlyphTemplate:
+    source_for_glyph = getattr(font, "font_for_sha256", None)
+    if source_for_glyph is not None:
+        font = source_for_glyph(positioned.font_sha256)
     key = (
         str(font.path.resolve()),
         positioned.glyph_name,

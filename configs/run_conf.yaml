@@ -14,6 +14,8 @@ common:
   latex-stroke-mode: centerline
   pdf-math: auto
   workers: auto
+  fallback-font:
+    - "symbols=assets/Cambria Math.ttf"
 
 profiles:
   super-fast:
@@ -25,7 +27,21 @@ profiles:
       motion-profile: fast
       connections: aggressive
       join-writing: true
+      workers: 1
       artifacts: minimal
+      no-page-numbers: true
+
+  hand-job:
+    description: Super-fast печать с strong-handwriting, агрессивными соединениями и SVG-превью.
+    flags:
+      output-dir: "{build_root}/hand-job"
+      stage-cache: "{build_root}/hand-job/.stage-cache"
+      preset: superfast
+      motion-profile: fast
+      connections: aggressive
+      join-writing: true
+      workers: 1
+      artifacts: normal
       no-page-numbers: true
 
   fast:

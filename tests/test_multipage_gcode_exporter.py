@@ -6,7 +6,10 @@ import yaml
 
 from plotter_processor.job_models import PageJob, PlotterJob
 from plotter_processor.models import PageSpec, PathDocument, PlotterStroke, Point
-from plotter_processor.multipage_gcode_exporter import generate_job_gcode
+from plotter_processor.multipage_gcode_exporter import (
+    generate_job_gcode,
+    write_job_gcode_atomic,
+)
 
 
 def _job(count: int = 3) -> PlotterJob:
@@ -52,3 +55,22 @@ def test_job_command_limit_and_park_workspace_are_enforced() -> None:
     machine["page_change"]["park"] = {"mode": "machine_point", "x_mm": 999, "y_mm": 10}
     with pytest.raises(ValueError, match="outside workspace"):
         generate_job_gcode(_job(2), machine)
+
+
+def test_streamed_job_matches_in_memory_output(tmp_path: Path) -> None:
+    target = tmp_path / "output.gcode"
+    expected = generate_job_gcode(_job(), _machine())
+
+    write_job_gcode_atomic(_job(), _machine(), target)
+
+    assert target.read_text(encoding="utf-8") == expected
+
+
+def test_streamed_job_removes_partial_file_when_limit_is_exceeded(tmp_path: Path) -> None:
+    target = tmp_path / "output.gcode"
+
+    with pytest.raises(ValueError, match="safe limit"):
+        write_job_gcode_atomic(_job(), _machine(), target, max_commands=10)
+
+    assert not target.exists()
+    assert not list(tmp_path.glob(".output.gcode.*.tmp"))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from math import isfinite
 
 from plotter_processor.fast_word import WordBuilder, WordGeometry
 from plotter_processor.models import PathDocument, PlotterStroke, Point
@@ -13,13 +14,54 @@ _TOKENS = re.compile(r"\f|\n|[^\S\n\f]+|[^\s\f]+")
 class FastLayoutConfig:
     page_width_mm: float = 148.0
     page_height_mm: float = 210.0
-    margin_left_mm: float = 10.0
-    margin_right_mm: float = 10.0
-    margin_top_mm: float = 10.0
-    margin_bottom_mm: float = 10.0
+    margin_left_mm: float = 2.0
+    margin_right_mm: float = 2.0
+    margin_top_mm: float = 2.0
+    margin_bottom_mm: float = 2.0
     font_size_mm: float = 4.0
-    line_height_mm: float = 6.0
-    word_spacing_mm: float = 2.0
+    line_height_mm: float | None = None
+    word_spacing_mm: float | None = None
+    line_gap_mm: float = 0.5
+
+    def __post_init__(self) -> None:
+        values = {
+            "page_width_mm": self.page_width_mm,
+            "page_height_mm": self.page_height_mm,
+            "margin_left_mm": self.margin_left_mm,
+            "margin_right_mm": self.margin_right_mm,
+            "margin_top_mm": self.margin_top_mm,
+            "margin_bottom_mm": self.margin_bottom_mm,
+            "font_size_mm": self.font_size_mm,
+        }
+        if self.line_height_mm is not None:
+            values["line_height_mm"] = self.line_height_mm
+        if self.word_spacing_mm is not None:
+            values["word_spacing_mm"] = self.word_spacing_mm
+        for name, value in values.items():
+            if not isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be a finite value greater than zero")
+        if not isfinite(self.line_gap_mm) or self.line_gap_mm < 0:
+            raise ValueError("line_gap_mm must be a finite non-negative value")
+        if self.content_width_mm <= 0 or self.content_height_mm <= 0:
+            raise ValueError("page margins must leave a positive content area")
+        if self.content_height_mm < self.font_size_mm:
+            raise ValueError("page content height must fit at least one line of the selected font size")
+
+    @property
+    def content_width_mm(self) -> float:
+        return self.page_width_mm - self.margin_left_mm - self.margin_right_mm
+
+    @property
+    def content_height_mm(self) -> float:
+        return self.page_height_mm - self.margin_top_mm - self.margin_bottom_mm
+
+    @property
+    def resolved_line_height_mm(self) -> float:
+        return self.line_height_mm if self.line_height_mm is not None else self.font_size_mm * 1.1
+
+    @property
+    def resolved_word_spacing_mm(self) -> float:
+        return self.word_spacing_mm if self.word_spacing_mm is not None else self.font_size_mm * 0.2
 
 
 @dataclass(slots=True)
@@ -45,11 +87,18 @@ class FastLayout:
     def layout(self, text: str, builder: WordBuilder) -> FastLayoutResult:
         cfg = self.config
         scale = cfg.font_size_mm / builder.font.units_per_em
+        word_spacing = cfg.resolved_word_spacing_mm
         right = cfg.page_width_mm - cfg.margin_right_mm
         bottom = cfg.page_height_mm - cfg.margin_bottom_mm
+        ascent = max(builder.font.compiled.ascent * scale, 0.0)
+        descent = max(-builder.font.compiled.descent * scale, 0.0)
+        line_height = max(
+            cfg.resolved_line_height_mm,
+            ascent + descent + cfg.line_gap_mm,
+        )
         pages: list[list[PlotterStroke]] = [[]]
         x = cfg.margin_left_mm
-        baseline = cfg.margin_top_mm + cfg.font_size_mm
+        baseline = cfg.margin_top_mm + ascent
         line_has_word = False
         words_total = 0
         missing: set[str] = set()
@@ -58,15 +107,15 @@ class FastLayout:
             nonlocal x, baseline, line_has_word
             pages.append([])
             x = cfg.margin_left_mm
-            baseline = cfg.margin_top_mm + cfg.font_size_mm
+            baseline = cfg.margin_top_mm + ascent
             line_has_word = False
 
         def new_line() -> None:
             nonlocal x, baseline, line_has_word
             x = cfg.margin_left_mm
-            baseline += cfg.line_height_mm
+            baseline += line_height
             line_has_word = False
-            if baseline > bottom:
+            if baseline + descent > bottom:
                 new_page()
 
         for token in _TOKENS.findall(text.replace("\r\n", "\n").replace("\r", "\n")):
@@ -79,7 +128,7 @@ class FastLayout:
                 continue
             if token.isspace():
                 if line_has_word:
-                    x += cfg.word_spacing_mm
+                    x += word_spacing
                 continue
             geometry = builder.build(token)
             word_scale = min(

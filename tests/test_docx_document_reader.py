@@ -61,3 +61,21 @@ def test_docx_anchor_is_not_ignored(tmp_path: Path) -> None:
     assert image.anchor_type == "anchored"
     assert image.wrap_mode == "square"
     assert "floating_image_reflowed" not in result.warnings
+
+
+def test_docx_without_section_dimensions_uses_safe_defaults(tmp_path: Path) -> None:
+    source = tmp_path / "missing-section-dimensions.docx"
+    docx = Document()
+    docx.add_paragraph("text")
+    section_properties = docx.element.body.sectPr
+    for child in list(section_properties):
+        section_properties.remove(child)
+    docx.save(source)
+
+    result = read_structured_document(source, assets_dir=tmp_path / "assets")
+
+    assert result.pages[0].width_mm == 210.0
+    assert result.pages[0].height_mm == 297.0
+    assert result.pages[0].content_bbox is not None
+    assert result.pages[0].content_bbox.x0 == 25.4
+    assert result.pages[0].content_bbox.y0 == 25.4

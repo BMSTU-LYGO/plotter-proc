@@ -12,8 +12,8 @@ def test_default_cache_is_canonical_and_outside_build(test_font: Path) -> None:
     digest = font_sha256(test_font)
     target = default_cache_path(digest, config)
 
-    assert config.cache_directory == Path("1-font-cache")
-    assert target.parts[0] == "1-font-cache"
+    assert config.cache_directory == Path("font-cache")
+    assert target.parts[0] == "font-cache"
     assert target.parts[1] == digest
     assert "build" not in target.parts
 
@@ -31,7 +31,7 @@ def test_cache_directory_does_not_change_config_fingerprint(test_font: Path) -> 
 
 
 def test_gitignore_contains_persistent_cache() -> None:
-    assert "1-font-cache/" in Path(".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "font-cache/" in Path(".gitignore").read_text(encoding="utf-8").splitlines()
 
 
 def test_make_clean_preserves_cache_and_cache_clean_removes_it(tmp_path: Path) -> None:

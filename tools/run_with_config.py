@@ -40,9 +40,13 @@ def build_run_arguments(
         value = _format_value(raw_value, context)
         if value is False or value is None:
             continue
-        arguments.append(f"--{name}")
-        if value is not True:
-            arguments.append(str(value))
+        if isinstance(value, list):
+            for item in value:
+                arguments.extend((f"--{name}", str(item)))
+        else:
+            arguments.append(f"--{name}")
+            if value is not True:
+                arguments.append(str(value))
     return arguments
 
 
@@ -60,6 +64,8 @@ def _format_value(value: Any, context: Mapping[str, str]) -> Any:
             raise ValueError(f"Unknown run config placeholder: {error.args[0]}") from error
     if isinstance(value, (bool, int, float)) or value is None:
         return value
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return [_format_value(item, context) for item in value]
     raise ValueError(f"Run config flag values must be scalar, got {type(value).__name__}")
 
 
