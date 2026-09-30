@@ -11,6 +11,7 @@ add_library(fontc_core
     src/graph_cleanup.cpp
     src/pruning.cpp
     src/rasterizer.cpp
+    src/routing.cpp
     src/skeleton_graph.cpp
     src/thinning.cpp
 )
@@ -67,5 +68,9 @@ if(BUILD_TESTING)
     add_executable(fontc_graph_cleanup_test tests/graph_cleanup_test.cpp)
     target_link_libraries(fontc_graph_cleanup_test PRIVATE fontc_core)
     add_test(NAME fontc_graph_cleanup COMMAND fontc_graph_cleanup_test)
+
+    add_executable(fontc_routing_test tests/routing_test.cpp)
+    target_link_libraries(fontc_routing_test PRIVATE fontc_core)
+    add_test(NAME fontc_routing COMMAND fontc_routing_test)
 endif()
 
