@@ -6,6 +6,7 @@ find_package(Freetype REQUIRED)
 
 add_library(fontc_core
     src/cli.cpp
+    src/font_face.cpp
 )
 target_compile_features(fontc_core PUBLIC cxx_std_20)
 target_include_directories(fontc_core PUBLIC include)
@@ -23,5 +24,12 @@ target_link_libraries(fontc PRIVATE fontc_core)
 include(CTest)
 if(BUILD_TESTING)
     add_test(NAME fontc_help COMMAND fontc --help)
+
+    add_executable(fontc_font_face_test tests/font_face_test.cpp)
+    target_link_libraries(fontc_font_face_test PRIVATE fontc_core)
+    add_test(
+        NAME fontc_font_face
+        COMMAND fontc_font_face_test "${CMAKE_CURRENT_SOURCE_DIR}/../../../../assets/1.ttf"
+    )
 endif()
 
