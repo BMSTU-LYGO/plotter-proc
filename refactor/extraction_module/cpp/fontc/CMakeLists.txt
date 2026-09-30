@@ -7,6 +7,7 @@ find_package(Freetype REQUIRED)
 add_library(fontc_core
     src/cli.cpp
     src/font_face.cpp
+    src/binary_image.cpp
     src/rasterizer.cpp
 )
 target_compile_features(fontc_core PUBLIC cxx_std_20)
@@ -39,5 +40,9 @@ if(BUILD_TESTING)
         NAME fontc_rasterizer
         COMMAND fontc_rasterizer_test "${CMAKE_CURRENT_SOURCE_DIR}/../../../../assets/1.ttf"
     )
+
+    add_executable(fontc_binary_image_test tests/binary_image_test.cpp)
+    target_link_libraries(fontc_binary_image_test PRIVATE fontc_core)
+    add_test(NAME fontc_binary_image COMMAND fontc_binary_image_test)
 endif()
 
