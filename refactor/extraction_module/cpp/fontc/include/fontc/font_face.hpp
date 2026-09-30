@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fontc/font_metrics.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -13,13 +15,6 @@ namespace fontc {
 class FreeTypeError final : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
-};
-
-struct FontMetrics {
-    int units_per_em;
-    int ascender;
-    int descender;
-    int line_gap;
 };
 
 struct GlyphMetrics {
