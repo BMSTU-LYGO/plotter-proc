@@ -1,4 +1,5 @@
 #include "fontc/binary_image.hpp"
+#include "fontc/rasterizer.hpp"
 
 #include <cstdlib>
 #include <iostream>

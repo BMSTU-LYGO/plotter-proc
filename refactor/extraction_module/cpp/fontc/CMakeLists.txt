@@ -8,6 +8,7 @@ add_library(fontc_core
     src/cli.cpp
     src/font_face.cpp
     src/binary_image.cpp
+    src/pruning.cpp
     src/rasterizer.cpp
     src/thinning.cpp
 )
@@ -52,5 +53,9 @@ if(BUILD_TESTING)
         NAME fontc_thinning
         COMMAND fontc_thinning_test "${CMAKE_CURRENT_SOURCE_DIR}/../../../../assets/1.ttf"
     )
+
+    add_executable(fontc_pruning_test tests/pruning_test.cpp)
+    target_link_libraries(fontc_pruning_test PRIVATE fontc_core)
+    add_test(NAME fontc_pruning COMMAND fontc_pruning_test)
 endif()
 

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "fontc/rasterizer.hpp"
-
 #include <cstdint>
 #include <vector>
 
 namespace fontc {
+
+struct RasterGlyph;
 
 struct BinaryImage {
     int width;
