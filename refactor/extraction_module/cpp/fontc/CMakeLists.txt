@@ -10,6 +10,7 @@ add_library(fontc_core
     src/binary_image.cpp
     src/pruning.cpp
     src/rasterizer.cpp
+    src/skeleton_graph.cpp
     src/thinning.cpp
 )
 target_compile_features(fontc_core PUBLIC cxx_std_20)
@@ -57,5 +58,9 @@ if(BUILD_TESTING)
     add_executable(fontc_pruning_test tests/pruning_test.cpp)
     target_link_libraries(fontc_pruning_test PRIVATE fontc_core)
     add_test(NAME fontc_pruning COMMAND fontc_pruning_test)
+
+    add_executable(fontc_skeleton_graph_test tests/skeleton_graph_test.cpp)
+    target_link_libraries(fontc_skeleton_graph_test PRIVATE fontc_core)
+    add_test(NAME fontc_skeleton_graph COMMAND fontc_skeleton_graph_test)
 endif()
 
