@@ -8,6 +8,7 @@ add_library(fontc_core
     src/cli.cpp
     src/font_face.cpp
     src/binary_image.cpp
+    src/graph_cleanup.cpp
     src/pruning.cpp
     src/rasterizer.cpp
     src/skeleton_graph.cpp
@@ -62,5 +63,9 @@ if(BUILD_TESTING)
     add_executable(fontc_skeleton_graph_test tests/skeleton_graph_test.cpp)
     target_link_libraries(fontc_skeleton_graph_test PRIVATE fontc_core)
     add_test(NAME fontc_skeleton_graph COMMAND fontc_skeleton_graph_test)
+
+    add_executable(fontc_graph_cleanup_test tests/graph_cleanup_test.cpp)
+    target_link_libraries(fontc_graph_cleanup_test PRIVATE fontc_core)
+    add_test(NAME fontc_graph_cleanup COMMAND fontc_graph_cleanup_test)
 endif()
 
