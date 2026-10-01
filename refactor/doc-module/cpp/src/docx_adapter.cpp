@@ -25,6 +25,11 @@ constexpr double kDefaultPageHeightMm = 297.0;
 constexpr double kDefaultMarginMm = 25.4;
 constexpr double kPointToMm = 25.4 / 72.0;
 
+[[nodiscard]] std::string padded_order(std::uint32_t order) {
+    const auto digits = std::to_string(order + 1);
+    return std::string(3 - std::min<std::size_t>(3, digits.size()), '0') + digits;
+}
+
 struct XmlNode final {
     std::string name;
     std::map<std::string, std::string> attributes;
@@ -298,7 +303,7 @@ void descendants(const XmlNode& node, std::string_view name, std::vector<const X
     const auto* extent = !extents.empty() ? extents.front() : nullptr;
     const Millimetres displayed_width{extent ? decimal(attribute(*extent, "cx")).value_or(0.0) * kEmuToMm : 0.0};
     const Millimetres displayed_height{extent ? decimal(attribute(*extent, "cy")).value_or(0.0) * kEmuToMm : 0.0};
-    RasterImageElement image; image.id = "page-001-image-" + std::to_string(order + 1); image.source_order = order; image.source_page = 0; image.image_path = asset.string(); image.width = pixels.first; image.height = pixels.second;
+    RasterImageElement image; image.id = "page-001-image-" + padded_order(order); image.source_order = order; image.source_page = 0; image.image_path = asset.string(); image.width = pixels.first; image.height = pixels.second;
     if (displayed_width.value > 0.0) image.displayed_width = displayed_width;
     if (displayed_height.value > 0.0) image.displayed_height = displayed_height;
     if (container && !anchor_nodes.empty()) {
@@ -316,7 +321,7 @@ void descendants(const XmlNode& node, std::string_view name, std::vector<const X
 
 
 [[nodiscard]] TableElement parse_table(const XmlNode& node, const StyleBook& styles, std::vector<std::string>& warnings, std::uint32_t order) {
-    TableElement table; table.id = "page-001-table-" + std::to_string(order + 1); table.source_order = order; table.source_page = 0;
+    TableElement table; table.id = "page-001-table-" + padded_order(order); table.source_order = order; table.source_page = 0;
     if (const auto* properties = child(node, "tblPr")) { if (const auto* justification = child(*properties, "jc")) table.alignment = attribute(*justification, "val"); if (const auto* indent = child(*properties, "tblInd")) table.left_indent = twips(indent, {"w"}); if (const auto* width = child(*properties, "tblW")) table.preferred_width = twips(width, {"w"}); }
     if (const auto* grid = child(node, "tblGrid")) for (const auto* column : children(*grid, "gridCol")) if (const auto width = twips(column, {"w"})) table.column_widths.push_back(*width);
     struct ActiveMerge final { std::size_t cell_index{}; std::uint32_t row{}; };
@@ -358,8 +363,8 @@ void parse_vml_lines(const XmlNode& pict, std::vector<SourceElement>& elements, 
         if (!start || !end) { warnings.push_back("docx_vml_line_coordinates_invalid"); continue; }
         const auto* stroke = child(*line, "stroke"); const auto start_style = stroke ? attribute(*stroke, "startarrow").value_or("none") : "none"; const auto end_style = stroke ? attribute(*stroke, "endarrow").value_or("none") : "none";
         const auto bbox = Rect{{std::min(start->x.value, end->x.value)}, {std::min(start->y.value, end->y.value)}, {std::abs(end->x.value - start->x.value)}, {std::abs(end->y.value - start->y.value)}};
-        if (start_style != "none" || end_style != "none") { ArrowElement arrow; arrow.id = "page-001-arrow-" + std::to_string(order + 1); arrow.source_order = order++; arrow.source_page = 0; arrow.points = {*start, *end}; arrow.head_at_start = start_style != "none"; arrow.head_at_end = end_style != "none"; arrow.head_style = arrow.head_at_end ? end_style : start_style; arrow.start_head_style = start_style; arrow.end_head_style = end_style; arrow.stroke_color = attribute(*line, "strokecolor"); arrow.line_width = vml_length(attribute(*line, "strokeweight").value_or("")); arrow.bounds = bbox; elements.emplace_back(std::move(arrow)); }
-        else { LineElement plain; plain.id = "page-001-line-" + std::to_string(order + 1); plain.source_order = order++; plain.source_page = 0; plain.start = *start; plain.end = *end; plain.line_width = vml_length(attribute(*line, "strokeweight").value_or("")); plain.bounds = bbox; elements.emplace_back(std::move(plain)); }
+        if (start_style != "none" || end_style != "none") { ArrowElement arrow; arrow.id = "page-001-arrow-" + padded_order(order); arrow.source_order = order++; arrow.source_page = 0; arrow.points = {*start, *end}; arrow.head_at_start = start_style != "none"; arrow.head_at_end = end_style != "none"; arrow.head_style = arrow.head_at_end ? end_style : start_style; arrow.start_head_style = start_style; arrow.end_head_style = end_style; arrow.stroke_color = attribute(*line, "strokecolor"); arrow.line_width = vml_length(attribute(*line, "strokeweight").value_or("")); arrow.bounds = bbox; elements.emplace_back(std::move(arrow)); }
+        else { LineElement plain; plain.id = "page-001-line-" + padded_order(order); plain.source_order = order++; plain.source_page = 0; plain.start = *start; plain.end = *end; plain.line_width = vml_length(attribute(*line, "strokeweight").value_or("")); plain.bounds = bbox; elements.emplace_back(std::move(plain)); }
     }
 }
 
@@ -388,11 +393,11 @@ ImportResult read_docx_document(const std::filesystem::path& source_path, const 
         for (const auto& item : body->children) {
             if (item.name == "p") {
                 const auto paragraph = parse_paragraph(item, styles, warnings);
-                if (!paragraph.runs.empty()) { TextElement text; text.id = "page-001-text-" + std::to_string(order + 1); text.source_order = order++; text.source_page = 0; text.paragraphs.push_back(paragraph); page.elements.emplace_back(std::move(text)); }
+                if (!paragraph.runs.empty()) { TextElement text; text.id = "page-001-text-" + padded_order(order); text.source_order = order++; text.source_page = 0; text.paragraphs.push_back(paragraph); page.elements.emplace_back(std::move(text)); }
                 std::vector<const XmlNode*> drawings; descendants(item, "drawing", drawings);
                 for (const auto* drawing : drawings) if (const auto image = parse_image(*drawing, archive, asset_root, assets, warnings, order, width, height, left, top)) { auto placed = *image; placed.source_order = order++; page.elements.emplace_back(std::move(placed)); }
                 std::vector<const XmlNode*> maths; descendants(item, "oMath", maths);
-                for (const auto* math : maths) { MathElement equation; equation.id = "page-001-math-" + std::to_string(order + 1); equation.source_order = order++; equation.source_page = 0; equation.expression = descendant_text(*math); equation.source_syntax = "omml"; equation.display_mode = false; if (equation.expression.empty()) warnings.push_back("docx_omml_empty_equation"); page.elements.emplace_back(std::move(equation)); }
+                for (const auto* math : maths) { MathElement equation; equation.id = "page-001-math-" + padded_order(order); equation.source_order = order++; equation.source_page = 0; equation.expression = descendant_text(*math); equation.source_syntax = "omml"; equation.display_mode = false; if (equation.expression.empty()) warnings.push_back("docx_omml_empty_equation"); page.elements.emplace_back(std::move(equation)); }
                 std::vector<const XmlNode*> picts; descendants(item, "pict", picts); for (const auto* pict : picts) parse_vml_lines(*pict, page.elements, order, warnings);
             } else if (item.name == "tbl") page.elements.emplace_back(parse_table(item, styles, warnings, order++));
             else if (item.name != "sectPr") warnings.push_back("docx_body_element_not_supported:" + item.name);
