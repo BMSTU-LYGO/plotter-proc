@@ -6,12 +6,17 @@ find_package(Freetype REQUIRED)
 
 add_library(fontc_core
     src/cli.cpp
+    src/compiler.cpp
+    src/compiled_font.cpp
     src/font_face.cpp
     src/binary_image.cpp
     src/graph_cleanup.cpp
+    src/pfc.cpp
+    src/geometry.cpp
     src/pruning.cpp
     src/rasterizer.cpp
     src/routing.cpp
+    src/runtime_font.cpp
     src/skeleton_graph.cpp
     src/thinning.cpp
 )
@@ -27,6 +32,9 @@ endif()
 
 add_executable(fontc src/main.cpp)
 target_link_libraries(fontc PRIVATE fontc_core)
+
+add_executable(fontc_benchmark tools/benchmark.cpp)
+target_link_libraries(fontc_benchmark PRIVATE fontc_core)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -72,5 +80,33 @@ if(BUILD_TESTING)
     add_executable(fontc_routing_test tests/routing_test.cpp)
     target_link_libraries(fontc_routing_test PRIVATE fontc_core)
     add_test(NAME fontc_routing COMMAND fontc_routing_test)
+
+    add_executable(fontc_geometry_test tests/geometry_test.cpp)
+    target_link_libraries(fontc_geometry_test PRIVATE fontc_core)
+    add_test(NAME fontc_geometry COMMAND fontc_geometry_test)
+
+    add_executable(fontc_compiled_font_test tests/compiled_font_test.cpp)
+    target_link_libraries(fontc_compiled_font_test PRIVATE fontc_core)
+    add_test(NAME fontc_compiled_font COMMAND fontc_compiled_font_test)
+
+    add_executable(fontc_compiler_test tests/compiler_test.cpp)
+    target_link_libraries(fontc_compiler_test PRIVATE fontc_core)
+    add_test(NAME fontc_compiler COMMAND fontc_compiler_test)
+
+    add_executable(fontc_pfc_test tests/pfc_test.cpp)
+    target_link_libraries(fontc_pfc_test PRIVATE fontc_core)
+    add_test(NAME fontc_pfc COMMAND fontc_pfc_test)
+
+    add_executable(fontc_runtime_font_test tests/runtime_font_test.cpp)
+    target_link_libraries(fontc_runtime_font_test PRIVATE fontc_core)
+    add_test(NAME fontc_runtime_font COMMAND fontc_runtime_font_test)
+
+    add_executable(fontc_pipeline_regression_test tests/pipeline_regression_test.cpp)
+    target_link_libraries(fontc_pipeline_regression_test PRIVATE fontc_core)
+    add_test(
+        NAME fontc_pipeline_regression
+        COMMAND fontc_pipeline_regression_test "${CMAKE_CURRENT_SOURCE_DIR}/../../../../assets/1.ttf"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../../../../assets/font-cache-corpus.txt"
+    )
 endif()
 
