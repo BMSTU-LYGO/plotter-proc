@@ -1,0 +1,22 @@
+{
+  "format": "cppdoc-parity",
+  "stages": [
+    "document",
+    "layout",
+    "paths",
+    "job",
+    "report",
+    "gcode",
+    "preview"
+  ],
+  "files": [
+    "document.json",
+    "layout.json",
+    "job.json",
+    "report.json",
+    "output.gcode",
+    "preview.svg",
+    "paths/page-001.json",
+    "gcode/page-001.gcode"
+  ]
+}

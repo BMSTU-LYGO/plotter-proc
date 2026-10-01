@@ -1,0 +1,55 @@
+{
+  "job": {
+    "format": "plotter-job",
+    "metadata": {
+      "artifact_level": "normal",
+      "page_count": 1,
+      "pause_seconds": 90.0
+    },
+    "page": {
+      "height_mm": 210.0,
+      "name": "A5",
+      "width_mm": 148.0
+    },
+    "page_count": 1,
+    "pages": [
+      {
+        "directory": ".",
+        "gcode": "output.gcode",
+        "metadata": {
+          "formulas": [],
+          "line_boxes": [
+            {
+              "height": 10.975,
+              "width": 88.235,
+              "x": 10.0,
+              "y": 10.0
+            }
+          ],
+          "page_number": 1,
+          "page_number_center_x_mm": 74.0,
+          "page_number_glyph_indices": [
+            29
+          ],
+          "page_number_text": "1",
+          "page_number_width_mm": 1.504,
+          "placements": [],
+          "table_fragments": [],
+          "text": "Мама мыла раму. Мир, шрифт, линия."
+        },
+        "page_index": 0,
+        "page_number": 1,
+        "paths": "paths.json",
+        "preview": "plotter-preview.svg",
+        "report": "report.json",
+        "source_element_ids": [
+          "page-001-text-001"
+        ],
+        "warnings": []
+      }
+    ],
+    "version": 1,
+    "warnings": []
+  },
+  "stage": "job"
+}
