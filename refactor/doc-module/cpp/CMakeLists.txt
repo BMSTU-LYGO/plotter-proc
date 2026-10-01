@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(plotter_doc_module VERSION 0.1.0 LANGUAGES CXX)
+
+option(PLOTTER_DOC_BUILD_TESTS "Build document module smoke tests" ON)
+
+function(plotter_doc_target target source)
+    add_library(${target} ${source})
+    target_compile_features(${target} PUBLIC cxx_std_20)
+    target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
+    endif()
+endfunction()
+
+plotter_doc_target(plotter_doc_model src/model.cpp)
+plotter_doc_target(plotter_doc_import src/import.cpp)
+plotter_doc_target(plotter_doc_layout src/layout.cpp)
+plotter_doc_target(plotter_doc_geometry src/geometry.cpp)
+plotter_doc_target(plotter_doc_gcode src/gcode.cpp)
+plotter_doc_target(plotter_doc_pipeline src/pipeline.cpp)
+
+target_link_libraries(plotter_doc_import PUBLIC plotter_doc_model)
+target_link_libraries(plotter_doc_layout PUBLIC plotter_doc_model plotter_doc_geometry)
+target_link_libraries(plotter_doc_geometry PUBLIC plotter_doc_model)
+target_link_libraries(plotter_doc_gcode PUBLIC plotter_doc_model plotter_doc_geometry)
+target_link_libraries(plotter_doc_pipeline PUBLIC plotter_doc_import plotter_doc_layout plotter_doc_gcode)
+
+include(CTest)
+if(BUILD_TESTING AND PLOTTER_DOC_BUILD_TESTS)
+    add_executable(plotter_doc_contract_smoke tests/contract_smoke.cpp)
+    target_link_libraries(plotter_doc_contract_smoke PRIVATE plotter_doc_pipeline)
+    add_test(NAME plotter_doc_contract_smoke COMMAND plotter_doc_contract_smoke)
+endif()
