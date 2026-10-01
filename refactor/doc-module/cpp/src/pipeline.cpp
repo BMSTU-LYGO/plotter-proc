@@ -58,7 +58,12 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     paragraph.alignment = alignment(item.alignment);
                     paragraph.space_before = item.space_before.value_or(Millimetres{});
                     paragraph.space_after = item.space_after.value_or(Millimetres{});
+                    if (item.first_line_indent || item.hanging_indent || item.left_indent || item.right_indent ||
+                        item.line_spacing || !item.tab_stops.empty())
+                        throw std::runtime_error("rich paragraph positioning is not implemented");
                     for (const TextRun& run : item.runs) {
+                        if (run.style.bold || run.style.italic || run.style.strike || run.style.underline || run.style.baseline_shift)
+                            throw std::runtime_error("rich text decorations are not implemented");
                         paragraph.runs.push_back({run.text, {options.font_id, run.style.font_size.value_or(options.font_size), {}, {}}});
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
@@ -128,10 +133,13 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
         result.report.import.source_pages = static_cast<std::uint32_t>(source.pages.size());
         bool needs_font = false;
         auto paragraphs = collect_text(source, options, result.report.import, needs_font);
+        if (needs_font && result.report.import.vector_elements)
+            throw std::runtime_error("mixed text and vector placement is not implemented");
         if (options.page_numbers && !needs_font) throw std::invalid_argument("page numbers require a text font");
         FontRegistry registry;
         if (needs_font) {
-            if (options.pfc_path.empty()) throw std::invalid_argument("text input requires a compiled .pfc font");
+            if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
+                throw std::invalid_argument("text input requires a compiled .pfc font");
             registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
         }
         LayoutDocument layout;
