@@ -1,7 +1,9 @@
 #include "plotter/doc/table_path_builder.hpp"
+#include "fontc/pfc.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <stdexcept>
 #include <utility>
 
@@ -62,6 +64,21 @@ int main() {
     try { static_cast<void>(TablePathBuilder{}.build(table, {210}, {297})); }
     catch (const std::runtime_error&) { text_error = true; }
     require(text_error, "nonempty cell text must report unsupported path building");
+
+    const auto font_path = std::filesystem::temp_directory_path() / "plotter-table-path-smoke.pfc";
+    fontc::CompiledFont font;
+    font.metrics = {1000, 800, -200, 0};
+    font.glyphs.push_back({63, 500, {}});
+    font.glyphs.push_back({65, 600, {fontc::CompiledStroke{{{0, 0}, {2000, 1000}}}}});
+    fontc::write_pfc(font_path, font);
+    FontRegistry fonts;
+    fonts.register_pfc({"main", "table-font-hash", font_path});
+    const auto text_paths = TablePathBuilder{fonts, "main", {10.0}, {1.5}}.build(table, {210}, {297});
+    const auto text_stroke = std::find_if(text_paths.strokes.begin(), text_paths.strokes.end(), [](const Stroke& stroke) { return stroke.element_type == "table-cell-text"; });
+    require(text_stroke != text_paths.strokes.end(), "font-backed builder must materialize table cell text");
+    require(text_stroke->element_id == "source-table" && text_stroke->layout_group == "source-table:r0c0" && text_stroke->font_sha256 == "table-font-hash", "cell text provenance must include its table cell and font");
+    require(text_stroke->points[0].x.value >= 11.5 && text_stroke->points[1].x.value <= 68.5, "cell text must be clipped to padded merged-cell bounds");
+    std::filesystem::remove(font_path);
 
     TableElement unpositioned;
     unpositioned.id = "unpositioned";

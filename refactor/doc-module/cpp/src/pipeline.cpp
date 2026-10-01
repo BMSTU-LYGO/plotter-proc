@@ -1,6 +1,7 @@
 #include "plotter/doc/pipeline.hpp"
 
 #include "plotter/doc/centerline_path_builder.hpp"
+#include "plotter/doc/outline_path_builder.hpp"
 #include "plotter/doc/docx_adapter.hpp"
 #include "plotter/doc/gcode_exporter.hpp"
 #include "plotter/doc/gcode_analyzer.hpp"
@@ -62,9 +63,12 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     paragraph.alignment = alignment(item.alignment);
                     paragraph.space_before = item.space_before.value_or(Millimetres{});
                     paragraph.space_after = item.space_after.value_or(Millimetres{});
-                    if (item.first_line_indent || item.hanging_indent || item.left_indent || item.right_indent ||
-                        item.line_spacing || !item.tab_stops.empty())
-                        throw std::runtime_error("rich paragraph positioning is not implemented");
+                    paragraph.first_line_indent = item.first_line_indent.value_or(Millimetres{});
+                    paragraph.hanging_indent = item.hanging_indent.value_or(Millimetres{});
+                    paragraph.left_indent = item.left_indent.value_or(Millimetres{});
+                    paragraph.right_indent = item.right_indent.value_or(Millimetres{});
+                    paragraph.line_spacing = item.line_spacing;
+                    paragraph.tab_stops = item.tab_stops;
                     for (const TextRun& run : item.runs) {
                         if (run.style.bold || run.style.italic || run.style.strike || run.style.underline || run.style.baseline_shift)
                             throw std::runtime_error("rich text decorations are not implemented");
@@ -76,7 +80,13 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
             else if (const auto* math = std::get_if<MathElement>(&source)) {
                 ++stats.math_elements;
                 if (!math->visual_image_path) needs_font = true;
-            } else if (std::holds_alternative<TableElement>(source)) ++stats.tables;
+            } else if (const auto* table = std::get_if<TableElement>(&source)) {
+                ++stats.tables;
+                for (const auto& cell : table->cells)
+                    for (const auto& paragraph : cell.paragraphs)
+                        for (const auto& run : paragraph.runs)
+                            if (!run.text.empty()) needs_font = true;
+            }
             else if (std::holds_alternative<VectorElement>(source)) ++stats.vector_elements;
         }
     }
@@ -114,7 +124,9 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
             } else if constexpr (std::is_same_v<Type, RasterImageElement>) {
                 append_built(RasterPathBuilder{}.build(element, paths.page_width, paths.page_height));
             } else if constexpr (std::is_same_v<Type, TableElement>) {
-                append_built(TablePathBuilder{}.build(element, paths.page_width, paths.page_height));
+                if (fonts.contains(options.font_id))
+                    append_built(TablePathBuilder{fonts, options.font_id, options.font_size}.build(element, paths.page_width, paths.page_height));
+                else append_built(TablePathBuilder{}.build(element, paths.page_width, paths.page_height));
             } else if constexpr (std::is_same_v<Type, MathElement>) {
                 if (element.visual_image_path) {
                     if (!element.bounds) throw std::runtime_error("visual math has no placement bounds");
@@ -172,9 +184,16 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             throw std::invalid_argument("page numbers require text content and a font");
         FontRegistry registry;
         if (needs_font) {
-            if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
-                throw std::invalid_argument("text input requires a compiled .pfc font");
-            registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
+            if (options.font_mode == FontMode::centerline) {
+                if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
+                    throw std::invalid_argument("centerline mode requires a compiled .pfc font");
+                registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
+            } else {
+                const auto extension = options.pfc_path.extension().string();
+                if (extension != ".ttf" && extension != ".otf")
+                    throw std::invalid_argument("outline mode requires a .ttf or .otf font");
+                registry.register_outline_font({options.font_id, options.font_sha256, options.pfc_path});
+            }
         }
         LayoutDocument layout;
         if (!paragraphs.empty()) {
@@ -195,9 +214,53 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             PathDocument paths;
             paths.page_width = options.config.page.width;
             paths.page_height = options.config.page.height;
-            if (index < layout.pages.size()) paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
-            if (index < source.pages.size()) append_graphics(paths, source.pages[index], registry, options);
+            if (index < layout.pages.size()) {
+                if (options.font_mode == FontMode::centerline)
+                    paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
+                else paths = OutlinePathBuilder{options.pfc_path}.build(layout.pages[index], paths.page_width, paths.page_height);
+            }
+            if (index < source.pages.size()) {
+                const auto& input_page = source.pages[index];
+                const Millimetres source_width = input_page.width.value_or(options.config.page.width);
+                const Millimetres source_height = input_page.height.value_or(options.config.page.height);
+                PathDocument graphics;
+                graphics.page_width = source_width;
+                graphics.page_height = source_height;
+                append_graphics(graphics, input_page, registry, options);
+                if (!graphics.strokes.empty()) {
+                    const auto& paper = options.config.page;
+                    const Rect target_content{paper.margins.left, paper.margins.top,
+                        {paper.width.value - paper.margins.left.value - paper.margins.right.value},
+                        {paper.height.value - paper.margins.top.value - paper.margins.bottom.value}};
+                    const SourcePageTransformOptions transform_options{
+                        options.document_layout, source_width, source_height,
+                        {{0.0}, {0.0}, source_width, source_height}, paper.width, paper.height,
+                        target_content, options.preserve_max_upscale, false};
+                    auto mapped = transform_source_page_paths(graphics, transform_options);
+                    if (const auto* error = std::get_if<SourcePageTransformError>(&mapped))
+                        throw std::runtime_error(error->code + ": " + error->message);
+                    graphics = std::move(std::get<TransformedSourcePage>(mapped).paths);
+                    for (auto& stroke : graphics.strokes) {
+                        stroke.id = paths.strokes.size();
+                        paths.strokes.push_back(std::move(stroke));
+                    }
+                }
+                paths.warnings.insert(paths.warnings.end(), graphics.warnings.begin(), graphics.warnings.end());
+            }
             if (options.optimize_geometry) paths = optimize_paths(paths);
+            if (options.handwriting.enabled) {
+                auto settings = options.handwriting;
+                settings.keep_outs = options.config.machine.keep_out;
+                auto transformed = apply_handwriting(paths, settings);
+                if (const auto* error = std::get_if<HandwritingError>(&transformed))
+                    throw std::runtime_error(error->code + ": " + error->message);
+                paths = std::move(std::get<PathDocument>(transformed));
+            }
+            if (options.simplify_geometry) {
+                const PathSimplificationOptions settings{{0.001}, {0.04},
+                    {options.font_mode == FontMode::outline ? 0.05 : 0.06}};
+                paths = simplify_path_document(paths, settings);
+            }
             const auto checks = preflight(paths, options.config);
             if (!checks.ok()) throw std::runtime_error("path preflight failed on page " + std::to_string(index + 1) + ": " + checks.issues.front().code);
             PageJob page;

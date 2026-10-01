@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <stdexcept>
 #include <utility>
@@ -107,11 +108,70 @@ void append_unique(std::vector<Segment>& segments, Segment segment) {
     segments.push_back(segment);
 }
 
+std::vector<std::pair<std::uint32_t, std::string>> decode_utf8(const std::string& input) {
+    std::vector<std::pair<std::uint32_t, std::string>> result;
+    for (std::size_t i = 0; i < input.size();) {
+        const unsigned char first = static_cast<unsigned char>(input[i]); std::uint32_t codepoint = 0xFFFDU; std::size_t length = 1;
+        if (first < 0x80U) codepoint = first;
+        else if ((first & 0xE0U) == 0xC0U && i + 1 < input.size() && (static_cast<unsigned char>(input[i + 1]) & 0xC0U) == 0x80U) { codepoint = (static_cast<std::uint32_t>(first & 0x1FU) << 6U) | (static_cast<unsigned char>(input[i + 1]) & 0x3FU); length = codepoint >= 0x80U ? 2 : 1; }
+        else if ((first & 0xF0U) == 0xE0U && i + 2 < input.size() && (static_cast<unsigned char>(input[i + 1]) & 0xC0U) == 0x80U && (static_cast<unsigned char>(input[i + 2]) & 0xC0U) == 0x80U) { codepoint = (static_cast<std::uint32_t>(first & 0x0FU) << 12U) | (static_cast<std::uint32_t>(static_cast<unsigned char>(input[i + 1]) & 0x3FU) << 6U) | (static_cast<unsigned char>(input[i + 2]) & 0x3FU); length = (codepoint >= 0x800U && !(codepoint >= 0xD800U && codepoint <= 0xDFFFU)) ? 3 : 1; }
+        else if ((first & 0xF8U) == 0xF0U && i + 3 < input.size() && (static_cast<unsigned char>(input[i + 1]) & 0xC0U) == 0x80U && (static_cast<unsigned char>(input[i + 2]) & 0xC0U) == 0x80U && (static_cast<unsigned char>(input[i + 3]) & 0xC0U) == 0x80U) { codepoint = (static_cast<std::uint32_t>(first & 0x07U) << 18U) | (static_cast<std::uint32_t>(static_cast<unsigned char>(input[i + 1]) & 0x3FU) << 12U) | (static_cast<std::uint32_t>(static_cast<unsigned char>(input[i + 2]) & 0x3FU) << 6U) | (static_cast<unsigned char>(input[i + 3]) & 0x3FU); length = (codepoint >= 0x10000U && codepoint <= 0x10FFFFU) ? 4 : 1; }
+        result.emplace_back(codepoint, input.substr(i, length)); i += length;
+    }
+    return result;
+}
+
+bool clip_line(Point& first, Point& second, const Rect& clip) {
+    const double dx = second.x.value - first.x.value, dy = second.y.value - first.y.value; double low = 0.0, high = 1.0;
+    const auto test = [&](double p, double q) { if (std::abs(p) < kDimensionEpsilon) return q >= 0.0; const double ratio = q / p; if (p < 0.0) { if (ratio > high) return false; if (ratio > low) low = ratio; } else { if (ratio < low) return false; if (ratio < high) high = ratio; } return true; };
+    if (!test(-dx, first.x.value - clip.x.value) || !test(dx, clip.right().value - first.x.value) || !test(-dy, first.y.value - clip.y.value) || !test(dy, clip.bottom().value - first.y.value)) return false;
+    const Point original = first; first = {{original.x.value + low * dx}, {original.y.value + low * dy}}; second = {{original.x.value + high * dx}, {original.y.value + high * dy}}; return true;
+}
+
+void append_cell_text(PathDocument& result, const TableElement& table, const TableCell& cell, const Rect& cell_bounds, const FontRegistry& fonts, const std::string& font_id, Points default_size, Millimetres padding, std::int64_t& glyph_index) {
+    const Rect clip{{cell_bounds.x.value + padding.value}, {cell_bounds.y.value + padding.value}, {cell_bounds.width.value - 2.0 * padding.value}, {cell_bounds.height.value - 2.0 * padding.value}};
+    if (!clip.has_positive_area()) return;
+    double baseline = clip.y.value;
+    const std::string group = table.id + ":r" + std::to_string(cell.row) + "c" + std::to_string(cell.column);
+    for (const Paragraph& paragraph : cell.paragraphs) {
+        double max_line = 0.0;
+        for (const TextRun& run : paragraph.runs) {
+            const Points size = run.style.font_size.value_or(default_size); if (size.value <= 0.0) throw std::invalid_argument("table cell text requires a positive font size");
+            const ResolvedGlyph probe = fonts.resolve(font_id, static_cast<std::uint32_t>('?'));
+            max_line = std::max(max_line, to_millimetres(size).value * std::max(1.2, static_cast<double>(probe.ascender - probe.descender + probe.line_gap) / static_cast<double>(probe.units_per_em)));
+        }
+        if (max_line == 0.0) continue;
+        baseline += max_line;
+        double x = clip.x.value;
+        for (const TextRun& run : paragraph.runs) {
+            const Points size = run.style.font_size.value_or(default_size); const Millimetres size_mm = to_millimetres(size);
+            for (const auto& [codepoint, utf8] : decode_utf8(run.text)) {
+                if (codepoint == '\n' || codepoint == '\r') { baseline += max_line; x = clip.x.value; continue; }
+                const ResolvedGlyph glyph = fonts.resolve(font_id, codepoint); const double scale = size_mm.value / static_cast<double>(glyph.units_per_em);
+                for (const FontStroke& contour : fonts.glyph_geometry(glyph.font_id, glyph.glyph_codepoint).strokes) {
+                    for (std::size_t point = 1; point < contour.points.size(); ++point) {
+                        Point first{{x + contour.points[point - 1].x.value * scale}, {baseline - contour.points[point - 1].y.value * scale}}; Point second{{x + contour.points[point].x.value * scale}, {baseline - contour.points[point].y.value * scale}};
+                        if (!clip_line(first, second, clip) || same_point(first, second)) continue;
+                        Stroke stroke; stroke.id = result.strokes.size(); stroke.points = {first, second}; stroke.glyph_index = glyph_index; stroke.source_page_index = static_cast<std::int64_t>(table.source_page); stroke.character = utf8; stroke.element_id = table.id; stroke.element_type = "table-cell-text"; stroke.font_role = "table-cell"; stroke.font_sha256 = glyph.font_sha256; stroke.source_glyph_indices = {glyph_index}; stroke.source_characters = utf8; stroke.semantic_role = "table-cell-text"; stroke.layout_group = group; stroke.segment_types = {"glyph", "table-cell-text"}; result.strokes.push_back(std::move(stroke));
+                    }
+                }
+                ++glyph_index; x += font_units_to_millimetres(glyph.advance, size_mm, glyph.units_per_em).value;
+            }
+        }
+        baseline += paragraph.space_after.value_or(Millimetres{}).value;
+    }
+}
+
 [[nodiscard]] std::string source_order(std::uint32_t value) {
     return std::to_string(value);
 }
 
 }  // namespace
+
+TablePathBuilder::TablePathBuilder(const FontRegistry& fonts, std::string font_id, Points font_size, Millimetres cell_padding)
+    : fonts_(&fonts), font_id_(std::move(font_id)), font_size_(font_size), cell_padding_(cell_padding) {
+    if (font_id_.empty() || font_size_.value <= 0.0 || cell_padding_.value < 0.0) throw std::invalid_argument("table text builder requires a font id, positive size, and nonnegative padding");
+}
 
 PathDocument TablePathBuilder::build(const TableElement& table, Millimetres page_width,
                                      Millimetres page_height) const {
@@ -134,7 +194,7 @@ PathDocument TablePathBuilder::build(const TableElement& table, Millimetres page
     }
     for (const TableCell& cell : table.cells) {
         for (const Paragraph& paragraph : cell.paragraphs) {
-            if (std::any_of(paragraph.runs.begin(), paragraph.runs.end(), [](const TextRun& run) { return !run.text.empty(); }))
+            if (!fonts_ && std::any_of(paragraph.runs.begin(), paragraph.runs.end(), [](const TextRun& run) { return !run.text.empty(); }))
                 throw std::runtime_error("table cell text path building is not implemented");
         }
     }
@@ -148,6 +208,7 @@ PathDocument TablePathBuilder::build(const TableElement& table, Millimetres page
     const auto ys = offsets(table.bounds->y.value, heights);
 
     std::vector<Segment> segments;
+    std::int64_t next_glyph{};
     for (const TableCell& cell : table.cells) {
         const std::size_t row = cell.row;
         const std::size_t column = cell.column;
@@ -165,6 +226,7 @@ PathDocument TablePathBuilder::build(const TableElement& table, Millimetres page
         if (cell.borders.right) append_unique(segments, {{{right}, {top}}, {{right}, {bottom}}});
         if (cell.borders.bottom) append_unique(segments, {{{right}, {bottom}}, {{left}, {bottom}}});
         if (cell.borders.left) append_unique(segments, {{{left}, {bottom}}, {{left}, {top}}});
+        if (fonts_) append_cell_text(result, table, cell, {{left}, {top}, {right - left}, {bottom - top}}, *fonts_, font_id_, font_size_, cell_padding_, next_glyph);
     }
 
     for (const Segment& segment : segments) {

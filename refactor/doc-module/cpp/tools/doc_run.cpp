@@ -16,6 +16,12 @@ int main(int argc, char** argv) {
         if (argument == "--input") options.input_path = next();
         else if (argument == "--output") options.output_directory = next();
         else if (argument == "--font") options.pfc_path = next();
+        else if (argument == "--font-mode") {
+            const auto mode = next();
+            if (mode == "centerline") options.font_mode = FontMode::centerline;
+            else if (mode == "outline") options.font_mode = FontMode::outline;
+            else { std::cerr << "unsupported font mode: " << mode << '\n'; return 2; }
+        }
         else if (argument == "--layout-config") layout_config = next();
         else if (argument == "--machine-config") machine_config = next();
         else if (argument == "--page") {
@@ -36,9 +42,18 @@ int main(int argc, char** argv) {
             else if (level == "audit") options.artifact_level = ArtifactLevel::audit;
             else { std::cerr << "unsupported artifact level: " << level << '\n'; return 2; }
         } else if (argument == "--optimize") options.optimize_geometry = true;
+        else if (argument == "--simplify") options.simplify_geometry = true;
         else if (argument == "--page-numbers") options.page_numbers = true;
+        else if (argument == "--handwriting") options.handwriting.enabled = true;
+        else if (argument == "--document-layout") {
+            const auto mode = next();
+            if (mode == "preserve") options.document_layout = SourcePageTransformMode::preserve;
+            else if (mode == "contain") options.document_layout = SourcePageTransformMode::contain;
+            else if (mode == "reflow") options.document_layout = SourcePageTransformMode::reflow;
+            else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
+        }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc>] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--optimize] [--page-numbers]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

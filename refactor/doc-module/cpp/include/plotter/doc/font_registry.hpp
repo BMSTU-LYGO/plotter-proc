@@ -15,8 +15,9 @@ namespace fontc { class RuntimeFont; struct CompiledGlyph; struct FontMetrics; }
 
 namespace plotter::doc {
 
-// A PFC cache is the only font input accepted here.  Font compilation belongs
-// to fontc and is deliberately kept out of document-layout processes.
+struct FreeTypeHandle;
+
+// PFC provides centerlines; TTF/OTF supplies metrics for outline layout.
 struct FontRegistration final {
     std::string id;
     std::string sha256;
@@ -43,6 +44,7 @@ struct ResolvedGlyph final {
 class FontRegistry final {
 public:
     void register_pfc(FontRegistration registration);
+    void register_outline_font(FontRegistration registration);
     void set_fallback_font(std::string id);
 
     [[nodiscard]] bool contains(std::string_view id) const noexcept;
@@ -54,7 +56,11 @@ public:
     [[nodiscard]] GlyphGeometry glyph_geometry(std::string_view font_id, std::uint32_t codepoint) const;
 
 private:
-    struct Entry final { FontRegistration registration; std::shared_ptr<fontc::RuntimeFont> runtime; };
+    struct Entry final {
+        FontRegistration registration;
+        std::shared_ptr<fontc::RuntimeFont> runtime;
+        std::shared_ptr<FreeTypeHandle> outline;
+    };
     [[nodiscard]] const Entry& entry(std::string_view id) const;
     std::map<std::string, Entry, std::less<>> entries_;
     std::string fallback_font_id_;

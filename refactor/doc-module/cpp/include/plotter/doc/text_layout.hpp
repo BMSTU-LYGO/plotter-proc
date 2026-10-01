@@ -24,6 +24,9 @@ struct LayoutParagraph final {
     TextAlignment alignment{TextAlignment::left};
     Millimetres space_before{}, space_after{};
     std::optional<Millimetres> line_height;
+    Millimetres first_line_indent{}, hanging_indent{}, left_indent{}, right_indent{};
+    std::optional<double> line_spacing;
+    std::vector<TabStop> tab_stops;
     bool page_break_before{};
     std::optional<std::string> source_element_id;
 };

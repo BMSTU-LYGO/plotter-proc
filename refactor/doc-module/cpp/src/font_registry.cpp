@@ -2,10 +2,29 @@
 
 #include "fontc/runtime_font.hpp"
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include <stdexcept>
 #include <utility>
 
 namespace plotter::doc {
+
+struct FreeTypeHandle final {
+    FT_Library library{};
+    FT_Face face{};
+    explicit FreeTypeHandle(const std::filesystem::path& path) {
+        if (FT_Init_FreeType(&library) != 0) throw std::runtime_error("cannot initialize FreeType");
+        const auto native = path.string();
+        if (FT_New_Face(library, native.c_str(), 0, &face) != 0) {
+            FT_Done_FreeType(library); library = nullptr;
+            throw std::runtime_error("cannot open outline font: " + native);
+        }
+    }
+    ~FreeTypeHandle() { if (face) FT_Done_Face(face); if (library) FT_Done_FreeType(library); }
+    FreeTypeHandle(const FreeTypeHandle&) = delete;
+    FreeTypeHandle& operator=(const FreeTypeHandle&) = delete;
+};
 
 void FontRegistry::register_pfc(FontRegistration registration) {
     if (registration.id.empty()) throw std::invalid_argument("font id must not be empty");
@@ -13,7 +32,16 @@ void FontRegistry::register_pfc(FontRegistration registration) {
     if (entries_.contains(registration.id)) throw std::invalid_argument("font id is already registered");
     const std::string id = registration.id;
     auto runtime = std::make_shared<fontc::RuntimeFont>(registration.pfc_path);
-    entries_.emplace(id, Entry{std::move(registration), std::move(runtime)});
+    entries_.emplace(id, Entry{std::move(registration), std::move(runtime), {}});
+}
+
+void FontRegistry::register_outline_font(FontRegistration registration) {
+    if (registration.id.empty()) throw std::invalid_argument("font id must not be empty");
+    if (registration.pfc_path.empty()) throw std::invalid_argument("outline font path must not be empty");
+    if (entries_.contains(registration.id)) throw std::invalid_argument("font id is already registered");
+    const std::string id = registration.id;
+    auto outline = std::make_shared<FreeTypeHandle>(registration.pfc_path);
+    entries_.emplace(id, Entry{std::move(registration), {}, std::move(outline)});
 }
 
 void FontRegistry::set_fallback_font(std::string id) {
@@ -33,29 +61,44 @@ const FontRegistry::Entry& FontRegistry::entry(std::string_view id) const {
 
 ResolvedGlyph FontRegistry::resolve(std::string_view requested_font_id, std::uint32_t codepoint) const {
     const Entry& requested = entry(requested_font_id);
+    const auto contains_glyph = [](const Entry& item, std::uint32_t value) {
+        if (item.runtime) return item.runtime->contains(value);
+        return FT_Get_Char_Index(item.outline->face, static_cast<FT_ULong>(value)) != 0U;
+    };
     const Entry* selected = &requested;
-    const fontc::CompiledGlyph* glyph = requested.runtime->contains(codepoint)
-        ? &requested.runtime->lookup(codepoint) : nullptr;
-    if (glyph == nullptr && !fallback_font_id_.empty()) {
-        const Entry& fallback = entry(fallback_font_id_);
-        if (fallback.runtime->contains(codepoint)) {
-            selected = &fallback;
-            glyph = &fallback.runtime->lookup(codepoint);
-        }
+    std::uint32_t selected_codepoint = codepoint;
+    if (!contains_glyph(requested, codepoint)) {
+        if (!fallback_font_id_.empty() && contains_glyph(entry(fallback_font_id_), codepoint))
+            selected = &entry(fallback_font_id_);
+        else selected_codepoint = '?';
     }
-    if (glyph == nullptr) glyph = &requested.runtime->lookup(codepoint);
-    const fontc::FontMetrics& metrics = selected->runtime->metrics();
-    if (metrics.units_per_em <= 0) throw std::runtime_error("PFC units_per_em must be positive");
-    return {selected->registration.id, selected->registration.sha256, codepoint, glyph->codepoint,
-            {static_cast<double>(glyph->advance_font_units)}, metrics.units_per_em, metrics.ascender,
-            metrics.descender, metrics.line_gap, glyph->codepoint != codepoint};
+    if (selected->runtime) {
+        const auto& glyph = selected->runtime->lookup(selected_codepoint);
+        const auto& metrics = selected->runtime->metrics();
+        if (metrics.units_per_em <= 0) throw std::runtime_error("PFC units_per_em must be positive");
+        return {selected->registration.id, selected->registration.sha256, codepoint, glyph.codepoint,
+                {static_cast<double>(glyph.advance_font_units)}, metrics.units_per_em, metrics.ascender,
+                metrics.descender, metrics.line_gap, glyph.codepoint != codepoint};
+    }
+    FT_Face face = selected->outline->face;
+    const FT_UInt glyph_index = FT_Get_Char_Index(face, static_cast<FT_ULong>(selected_codepoint));
+    if (!glyph_index || FT_Load_Glyph(face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP) != 0)
+        throw std::runtime_error("outline font has no usable glyph");
+    const auto units = static_cast<std::int32_t>(face->units_per_EM);
+    if (units <= 0) throw std::runtime_error("outline font has invalid units_per_em");
+    return {selected->registration.id, selected->registration.sha256, codepoint, selected_codepoint,
+            {static_cast<double>(face->glyph->metrics.horiAdvance)}, units,
+            static_cast<std::int32_t>(face->ascender), static_cast<std::int32_t>(face->descender),
+            static_cast<std::int32_t>(face->height - (face->ascender - face->descender)), selected_codepoint != codepoint};
 }
 
 }  // namespace plotter::doc
 
 namespace plotter::doc {
 GlyphGeometry FontRegistry::glyph_geometry(std::string_view font_id, std::uint32_t codepoint) const {
-    const fontc::CompiledGlyph& glyph = entry(font_id).runtime->lookup(codepoint);
+    const Entry& selected = entry(font_id);
+    if (!selected.runtime) throw std::runtime_error("centerline glyph geometry requires a PFC font");
+    const fontc::CompiledGlyph& glyph = selected.runtime->lookup(codepoint);
     GlyphGeometry result;
     result.glyph_codepoint = glyph.codepoint;
     result.strokes.reserve(glyph.strokes.size());

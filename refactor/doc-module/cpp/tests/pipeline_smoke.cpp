@@ -41,7 +41,12 @@ int main() {
     plotter::doc::TableElement table;
     table.id = "table-1"; table.rows = 1; table.columns = 1;
     table.bounds = plotter::doc::Rect{{30}, {60}, {20}, {10}};
-    plotter::doc::TableCell cell; table.cells.push_back(cell);
+    plotter::doc::TableCell cell;
+    plotter::doc::Paragraph table_paragraph;
+    plotter::doc::TextRun table_run; table_run.text = "A";
+    table_paragraph.runs.push_back(table_run);
+    cell.paragraphs.push_back(table_paragraph);
+    table.cells.push_back(cell);
     source_page.elements.push_back(table);
     plotter::doc::MathElement math;
     math.id = "math-1"; math.expression = "A";
@@ -53,11 +58,12 @@ int main() {
     options.output_directory = root / "out-direct";
     const auto direct_result = plotter::doc::run_pipeline(direct, options);
     require(direct_result.ok, "typed Document pipeline failed");
-    bool has_table = false, has_math = false;
+    bool has_table = false, has_table_text = false, has_math = false;
     for (const auto& stroke : direct_result.job.pages.front().paths.strokes) {
         has_table |= stroke.element_type == "table";
+        has_table_text |= stroke.element_type == "table-cell-text";
         has_math |= stroke.element_type == "math";
     }
-    require(has_table && has_math, "table and math paths were not assembled");
+    require(has_table && has_table_text && has_math, "table cell text and math paths were not assembled");
     std::filesystem::remove_all(root);
 }
