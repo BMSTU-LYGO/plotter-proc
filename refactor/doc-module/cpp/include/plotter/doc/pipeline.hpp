@@ -3,6 +3,7 @@
 #include "plotter/doc/artifact_writer.hpp"
 #include "plotter/doc/config.hpp"
 #include "plotter/doc/font_registry.hpp"
+#include "plotter/doc/page_numbers.hpp"
 
 #include <filesystem>
 #include <string>
@@ -19,6 +20,7 @@ struct PipelineOptions final {
     PipelineConfig config{};
     ArtifactLevel artifact_level{ArtifactLevel::normal};
     bool optimize_geometry{};
+    bool page_numbers{};
 };
 
 struct PipelineResult final {

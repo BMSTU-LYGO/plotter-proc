@@ -125,6 +125,7 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
         result.report.import.source_pages = static_cast<std::uint32_t>(source.pages.size());
         bool needs_font = false;
         auto paragraphs = collect_text(source, options, result.report.import, needs_font);
+        if (options.page_numbers && !needs_font) throw std::invalid_argument("page numbers require a text font");
         FontRegistry registry;
         if (needs_font) {
             if (options.pfc_path.empty()) throw std::invalid_argument("text input requires a compiled .pfc font");
@@ -137,7 +138,9 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
             text_options.page_width = page.width; text_options.page_height = page.height;
             text_options.margin_left = page.margins.left; text_options.margin_right = page.margins.right;
             text_options.margin_top = page.margins.top; text_options.margin_bottom = page.margins.bottom;
+            if (options.page_numbers) text_options.footer_reserve = {8.0};
             layout = TextLayoutEngine{registry}.layout(paragraphs, text_options);
+            append_page_numbers(layout, registry, {options.page_numbers, page.width, page.height, {4.5}, {9.0}, options.font_id});
         }
         const std::size_t page_count = std::max(source.pages.size(), layout.pages.size());
         result.job.page_width = options.config.page.width;

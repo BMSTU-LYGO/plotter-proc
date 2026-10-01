@@ -36,8 +36,9 @@ int main(int argc, char** argv) {
             else if (level == "audit") options.artifact_level = ArtifactLevel::audit;
             else { std::cerr << "unsupported artifact level: " << level << '\n'; return 2; }
         } else if (argument == "--optimize") options.optimize_geometry = true;
+        else if (argument == "--page-numbers") options.page_numbers = true;
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc>] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--optimize]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc>] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--optimize] [--page-numbers]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }
