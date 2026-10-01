@@ -1,0 +1,670 @@
+{
+  "report": {
+    "artifact_level": "normal",
+    "document_import": {
+      "arrows": 0,
+      "generic_lines": 0,
+      "image_cache_hits": 0,
+      "image_cache_misses": 1,
+      "image_micro_strokes_suppressed": 15,
+      "image_points": 208,
+      "image_strokes": 4,
+      "images_skipped": 0,
+      "layout_mode": "hybrid",
+      "math_elements": 0,
+      "pdf_vector_elements": 0,
+      "raster_images_found": 1,
+      "raster_images_vectorized": 1,
+      "repeated_headers_emitted": 0,
+      "shared_borders_suppressed": 0,
+      "source_pages": 1,
+      "table_cells": 0,
+      "table_pages": 0,
+      "table_splits": 0,
+      "tables": 0,
+      "text_elements": 13,
+      "underlines": 0
+    },
+    "document_layout": {
+      "elements": [
+        {
+          "anchor": "flow",
+          "center_displacement_mm": null,
+          "element_type": "raster-image",
+          "fallbacks": [],
+          "id": "page-001-image-011",
+          "mapped_bbox_mm": null,
+          "output_bbox_mm": {
+            "height": 33.0,
+            "width": 99.0,
+            "x": 55.5,
+            "y": 12.0
+          },
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "placement_reason": "activated_at_source_order",
+          "scale": 1.1,
+          "source_bbox_mm": null,
+          "source_order": 10,
+          "source_page_index": 0,
+          "target_page_index": 1,
+          "wrap_mode": "inline",
+          "wrap_side": "both"
+        }
+      ],
+      "images": 1,
+      "images_top_bottom": 0,
+      "images_with_source_bbox": 0,
+      "images_wrapped": 0,
+      "layout_objects": {
+        "images_scaled": 1,
+        "object_overflow_count": 0,
+        "table_rows_auto_height": 0,
+        "tables_paginated": 0,
+        "tables_scaled": 0
+      },
+      "max_center_displacement_mm": null,
+      "max_unexplained_vertical_gap_mm": 0.0,
+      "mean_center_displacement_mm": null,
+      "mean_scale_factor": 1.1,
+      "mode": "hybrid",
+      "overlaps_remaining": 0.0,
+      "page_overflow_area_mm2": 0.0,
+      "page_transform": {
+        "offset_x_mm": -13.745,
+        "offset_y_mm": -9.17,
+        "scale": 1.1,
+        "source_content_rect": {
+          "height": 228.6,
+          "width": 152.4,
+          "x": 31.75,
+          "y": 25.4
+        },
+        "source_height_mm": 279.4,
+        "source_page_index": 0,
+        "source_width_mm": 215.9,
+        "target_content_rect": {
+          "height": 269.0,
+          "width": 190.0,
+          "x": 10.0,
+          "y": 10.0
+        },
+        "target_height_mm": 297.0,
+        "target_page_start": 0,
+        "target_width_mm": 210.0
+      },
+      "position_fallbacks": 0,
+      "position_preserved": 0,
+      "unexplained_vertical_gap_count": 0
+    },
+    "font": "/home/saucesamba/Рабочий стол/PLotter/assets/1.ttf",
+    "font_mode": "outline",
+    "handwriting": {
+      "accepted": 0,
+      "beziers_built": 0,
+      "cheap_rejected_pairs": 0,
+      "collision_queries": 0,
+      "connector_length_mm": 0.0,
+      "enabled": false,
+      "joins_created": 0,
+      "joins_rejected": 0,
+      "mode": "off",
+      "pairs_total": 0,
+      "pen_lifts_saved": 0,
+      "rejected": 0,
+      "rejected_collision": 0,
+      "rejected_corridor": 0,
+      "rejected_distance": 0,
+      "rejected_tangent": 0,
+      "rejections_by_reason": {},
+      "segments_tested": 0,
+      "snapped_existing_contact": 0,
+      "solver_calls": 0,
+      "words": 0
+    },
+    "handwriting_profile": {
+      "connections": {
+        "allow_connector_outside_ink": true,
+        "collision_clearance_mm": 0.1,
+        "connect_across_punctuation": false,
+        "connect_letters_only": true,
+        "connector_step_mm": 0.2,
+        "contact_epsilon_mm": 0.08,
+        "do_not_join_after": [
+          "(",
+          "«",
+          "-"
+        ],
+        "do_not_join_before": [
+          ".",
+          ",",
+          "!",
+          "?",
+          ":",
+          ";",
+          ")"
+        ],
+        "enabled": false,
+        "lift_between_words": true,
+        "max_distance_mm": 2.5,
+        "max_tangent_mismatch_deg": 135.0,
+        "max_vertical_offset_mm": 2.0,
+        "min_corridor_inside_ratio": 0.75,
+        "mode": "safe",
+        "outside_ink_margin_mm": 0.35,
+        "pair_rules": {
+          "ло": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "на": {
+            "handle_scale": 1.03,
+            "spacing_adjustment_mm": -0.05
+          },
+          "ов": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "по": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "пр": {
+            "handle_scale": 1.08,
+            "spacing_adjustment_mm": -0.08
+          },
+          "ро": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "ст": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.08
+          },
+          "ть": {
+            "handle_scale": 0.95,
+            "spacing_adjustment_mm": 0.04
+          }
+        }
+      },
+      "retrace": {
+        "allowed_segment_types": [
+          "glyph"
+        ],
+        "enabled": true,
+        "endpoint_tolerance_mm": 1e-06,
+        "max_length_mm": 1.2,
+        "max_repeats": 1,
+        "max_retrace_ratio": 1.0,
+        "profiles": {
+          "superfast": {
+            "allowed_segment_types": [
+              "glyph",
+              "connector",
+              "snap",
+              "retrace"
+            ],
+            "endpoint_tolerance_mm": 0.08,
+            "max_length_mm": 3.0,
+            "max_repeats": 3,
+            "max_retrace_ratio": 0.65
+          }
+        }
+      },
+      "routing": {
+        "cost": {
+          "collision_risk": 100.0,
+          "connection_quality": 2.0,
+          "direction_change": 0.011111,
+          "pen_lift": 8.0,
+          "retrace": 1.5,
+          "travel": 1.0
+        },
+        "cost_profiles": {
+          "superfast": {
+            "collision_risk": 100.0,
+            "connection_quality": 1.5,
+            "direction_change": 0.005556,
+            "pen_lift": 24.0,
+            "retrace": 0.65,
+            "travel": 1.0
+          }
+        },
+        "max_current_travel_penalty_mm": 0.35,
+        "next_glyph_lookahead": true
+      },
+      "spacing": {
+        "max_kerning_adjustment_mm": 0.15,
+        "shape_aware": true
+      },
+      "stroke_order": {
+        "enabled": true,
+        "glyphs": [
+          "ъ",
+          "ь",
+          "ы",
+          "ж",
+          "ф",
+          "т"
+        ]
+      },
+      "variation": {
+        "baseline_jitter_mm": 0.15,
+        "enabled": true,
+        "letter": {
+          "height_percent": 9.0,
+          "slant": 0.1,
+          "width_percent": 10.0,
+          "y_offset_mm": 0.22
+        },
+        "line": {
+          "drift_mm": 0.16
+        },
+        "realism": "strong",
+        "rotation_deg": 3.0,
+        "scale_percent": 7.0,
+        "seed": 1,
+        "spacing_jitter_mm": 0.15,
+        "stroke_thickness": {
+          "enabled": true,
+          "offset_mm": 0.025,
+          "probability": 0.12
+        },
+        "word": {
+          "width_percent": 8.0
+        }
+      }
+    },
+    "input": "tests/fixtures/layout/paragraph_formatting_demo.docx",
+    "latex": {
+      "backend": "mathtext",
+      "block_expressions": 1,
+      "cache_hits": 0,
+      "cache_misses": 1,
+      "enabled": true,
+      "expressions_found": 1,
+      "fallbacks": 0,
+      "formulas": [
+        {
+          "delimiter": "$$",
+          "display_mode": true,
+          "element_id": "page-001-text-010-formula-001",
+          "expression": "E = mc^2",
+          "formula_index": 1,
+          "height_mm": 5.997222,
+          "points": 78,
+          "quality": {
+            "bbox_too_large": false,
+            "centerline_coverage_ratio": 1.0,
+            "components_after_pruning": 6,
+            "components_before_pruning": 6,
+            "draw_length_mm": 51.575379,
+            "empty_geometry": false,
+            "expected_formula_bbox": [
+              0.0,
+              0.0,
+              22.577778,
+              5.997222
+            ],
+            "formula_bbox": [
+              0.282972,
+              0.126199,
+              21.897324,
+              5.317845
+            ],
+            "glyphs_expected": 5,
+            "glyphs_lost": 0,
+            "graph_edges": 72,
+            "graph_nodes": 78,
+            "junction_count": 0,
+            "layout_glyphs": 5,
+            "needs_review": false,
+            "non_finite_points": 0,
+            "outside_bbox_points": 0,
+            "pen_lift_limit": 20,
+            "pen_lifts": 6,
+            "points": 78,
+            "quality_failures": [],
+            "render_path": "vector-first",
+            "retrace_ratio": 0.018811,
+            "retraced_length_mm": 0.970172,
+            "strokes": 6,
+            "structural_lines": 0,
+            "structural_lines_expected": 0
+          },
+          "source_bbox": null,
+          "source_kind": "semantic-latex",
+          "source_page_index": 0,
+          "source_position": 0,
+          "source_syntax": "dollar-block",
+          "stroke_mode": "centerline",
+          "strokes": 6,
+          "target_bbox": {
+            "height": 5.997222,
+            "width": 22.577778,
+            "x": 93.711111,
+            "y": 240.006806
+          },
+          "warnings": [],
+          "width_mm": 22.577778
+        }
+      ],
+      "glyph_cache_hits": 0,
+      "glyph_cache_misses": 5,
+      "glyph_cache_version": "math-glyph-centerline-v2",
+      "inline_expressions": 0,
+      "needs_review": 0,
+      "omml_expressions": 0,
+      "outline_fallbacks": 0,
+      "pdf_math_mode": "auto",
+      "pdf_visual_expressions": 0,
+      "pen_lifts": 6,
+      "points": 78,
+      "raster_fallback": 0,
+      "rendered": 1,
+      "requested_mode": "auto",
+      "semantic_expressions": 1,
+      "stroke_mode": "centerline",
+      "strokes": 6,
+      "unsupported": [
+        "full LaTeX documents and packages",
+        "TikZ, user macros, bibliography, and file includes",
+        "external LaTeX or shell execution",
+        "full OMML conversion",
+        "LaTeX reconstruction from PDF"
+      ],
+      "vector_rendered": 1,
+      "warnings": []
+    },
+    "layout_objects": {
+      "images_scaled": 1,
+      "object_overflow_count": 0,
+      "table_rows_auto_height": 0,
+      "tables_paginated": 0,
+      "tables_scaled": 0
+    },
+    "math": {
+      "cache_hits": 0,
+      "formulas_total": 1,
+      "latex": 1,
+      "omml": 0,
+      "pdf_visual": 0,
+      "quality_failures": 0,
+      "raster_fallback": 0,
+      "vector_first_ratio": 1.0,
+      "vector_rendered": 1,
+      "warnings": 0
+    },
+    "motion": {
+      "average_segment_length_mm": 0.443263,
+      "down_settle_ms": 100,
+      "down_z_mm": 1.0,
+      "draw_distance_mm": 13947.724909,
+      "draw_feed_mm_min": 1000.0,
+      "dwell_count": 1389,
+      "dwell_time_seconds": 138.9,
+      "estimated_job_time_seconds": 3629.589,
+      "gcode_analysis": {
+        "dwell_count": 1389,
+        "dwell_time_seconds": 138.9,
+        "gcode_command_count": 37027,
+        "ideal_total_time_seconds": 2421.223978,
+        "motion_command_count": 35634,
+        "z_command_count": 2779
+      },
+      "gcode_command_count": 37027,
+      "ideal_draw_time_seconds": 836.863495,
+      "ideal_motion_time_seconds": 3539.589,
+      "ideal_total_time_minutes": 40.208907,
+      "ideal_total_time_seconds": 2412.534399,
+      "ideal_travel_time_seconds": 103.330904,
+      "ideal_z_time_seconds": 1333.44,
+      "median_segment_length_mm": 0.353715,
+      "p95_segment_length_mm": 1.125044,
+      "page_change_pause_time_seconds": 90.0,
+      "pen_down_count": 1389,
+      "pen_lift_count": 1389,
+      "pen_lift_distance_mm": 5556.0,
+      "pen_lower_distance_mm": 5556.0,
+      "pen_up_count": 1390,
+      "planner_risk": "medium",
+      "point_count": 31473,
+      "profile": "safe",
+      "short_segment_count": 5911,
+      "short_segment_ratio": 0.187854,
+      "stroke_count": 1389,
+      "total_z_distance_mm": 11112.0,
+      "travel_distance_mm": 5166.545213,
+      "travel_feed_mm_min": 3000.0,
+      "up_z_mm": 5.0,
+      "very_short_segment_count": 1,
+      "xy_draw_commands": 31466,
+      "xy_travel_commands": 1389,
+      "z_feed_mm_min": 500.0
+    },
+    "page": "A4",
+    "page_transform": {
+      "offset_x_mm": -13.745,
+      "offset_y_mm": -9.17,
+      "scale": 1.1,
+      "source_content_rect": {
+        "height": 228.6,
+        "width": 152.4,
+        "x": 31.75,
+        "y": 25.4
+      },
+      "source_height_mm": 279.4,
+      "source_page_index": 0,
+      "source_width_mm": 215.9,
+      "target_content_rect": {
+        "height": 269.0,
+        "width": 190.0,
+        "x": 10.0,
+        "y": 10.0
+      },
+      "target_height_mm": 297.0,
+      "target_page_start": 0,
+      "target_width_mm": 210.0
+    },
+    "pages": [
+      {
+        "bounding_box_mm": {
+          "max_x": 200.67,
+          "max_y": 292.235264,
+          "min_x": 10.1475,
+          "min_y": 12.8755
+        },
+        "characters": 974,
+        "closed_contours": 1382,
+        "contours": 1389,
+        "draw_distance_mm": 13947.725,
+        "estimated_time_minutes": 40.208907,
+        "gcode": "pages/page-001/page.gcode",
+        "glyphs": 830,
+        "image_elements": 0,
+        "lines": 20,
+        "open_contours": 7,
+        "page": 1,
+        "points": 31473,
+        "strokes": 1389,
+        "text_elements": 10,
+        "travel_distance_mm": 5166.545
+      },
+      {
+        "bounding_box_mm": {
+          "max_x": 192.845,
+          "max_y": 292.29972,
+          "min_x": 10.125,
+          "min_y": 14.490566
+        },
+        "characters": 425,
+        "closed_contours": 656,
+        "contours": 661,
+        "draw_distance_mm": 6295.501,
+        "estimated_time_minutes": 18.784246,
+        "gcode": "pages/page-002/page.gcode",
+        "glyphs": 367,
+        "image_elements": 1,
+        "lines": 8,
+        "open_contours": 5,
+        "page": 2,
+        "points": 14229,
+        "strokes": 661,
+        "text_elements": 3,
+        "travel_distance_mm": 2433.236
+      }
+    ],
+    "pagination": {
+      "enabled": true,
+      "page_count": 2,
+      "page_number_format": "{page}",
+      "page_numbers": true,
+      "park_corner": "top_right",
+      "park_mode": "corner",
+      "pause_count": 1,
+      "pause_seconds": 90.0,
+      "total_pause_seconds": 90.0
+    },
+    "paragraph_formatting": {
+      "centered": 3,
+      "custom_tab_stops": 1,
+      "first_line_indents": 1,
+      "headings": 2,
+      "justified": 1,
+      "paragraphs_total": 13,
+      "right_aligned": 1,
+      "titles": 1
+    },
+    "pipeline": "ttf-vector",
+    "preset": null,
+    "schema_versions": {
+      "build_report": 1,
+      "compiled_font": 3,
+      "document_model": 1,
+      "job": 1,
+      "layout_model": 2,
+      "paths": 2,
+      "stage_cache": 5
+    },
+    "semantic_objects": {
+      "arrows": 0,
+      "classification_conflicts": 0,
+      "classification_conflicts_measured": true,
+      "duplicate_primitives_suppressed": null,
+      "duplicate_primitives_suppressed_measured": false,
+      "generic_lines": 0,
+      "repeated_headers_emitted": 0,
+      "shared_borders_suppressed": 0,
+      "table_cells": 0,
+      "table_pages": 0,
+      "table_splits": 0,
+      "tables": 0,
+      "underlines": 0
+    },
+    "shaping": "legacy",
+    "simplification": {
+      "complexity_after_route": {
+        "max_points_per_stroke": 406,
+        "median_points_per_stroke": 30,
+        "p95_points_per_stroke": 61.0,
+        "point_count": 39576,
+        "stroke_count": 1389
+      },
+      "complexity_after_simplification": {
+        "max_points_per_stroke": 63,
+        "median_points_per_stroke": 25,
+        "p95_points_per_stroke": 48.0,
+        "point_count": 31473,
+        "stroke_count": 1389
+      },
+      "complexity_before_route": {
+        "max_points_per_stroke": 406,
+        "median_points_per_stroke": 30,
+        "p95_points_per_stroke": 61.0,
+        "point_count": 39576,
+        "stroke_count": 1389
+      },
+      "dedupe_occurrences_skipped": 0,
+      "enabled": true,
+      "glyph_occurrences_reused": 0,
+      "max_observed_deviation_mm": 0.049988,
+      "point_reduction_ratio": 0.204745,
+      "points_after_simplification": 31473,
+      "points_before_simplification": 39576,
+      "post_join_strokes_processed": 1389,
+      "segments_after_simplification": 31466,
+      "segments_before_simplification": 39569,
+      "unique_templates_simplified": 0
+    },
+    "size": "normal",
+    "stages": {
+      "build_paths": {
+        "calls": 0,
+        "input": "LayoutPage",
+        "metadata": [],
+        "output": "PathGeometry"
+      },
+      "gcode": {
+        "calls": 0,
+        "input": "FinalGeometry",
+        "metadata": [],
+        "output": "GCode"
+      },
+      "handwriting": {
+        "calls": 0,
+        "input": "PathGeometry",
+        "metadata": [],
+        "output": "HandwritingGeometry"
+      },
+      "layout": {
+        "calls": 1,
+        "input": "DocumentModel",
+        "metadata": [
+          {
+            "mode": "hybrid",
+            "page": "A4"
+          }
+        ],
+        "output": "LayoutModel"
+      },
+      "read_document": {
+        "calls": 1,
+        "input": "InputDocument",
+        "metadata": [
+          {
+            "format": ".docx"
+          }
+        ],
+        "output": "DocumentModel"
+      },
+      "simplification": {
+        "calls": 0,
+        "input": "HandwritingGeometry",
+        "metadata": [],
+        "output": "FinalGeometry"
+      }
+    },
+    "statistics": {
+      "bounding_box_mm": null,
+      "characters": 1399.0,
+      "closed_contours": 2038.0,
+      "contours": 2050.0,
+      "draw_distance_mm": 20243.226,
+      "estimated_time_minutes": 58.993153,
+      "glyphs": 1197.0,
+      "lines": 28.0,
+      "open_contours": 12.0,
+      "pages": 2,
+      "points": 45702.0,
+      "strokes": 2050.0,
+      "travel_distance_mm": 7599.781
+    },
+    "status": "ok",
+    "warnings": [],
+    "workers": {
+      "requested": 1,
+      "resolved": 1
+    }
+  },
+  "stage": "report"
+}

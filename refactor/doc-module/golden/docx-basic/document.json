@@ -1,0 +1,593 @@
+{
+  "document": {
+    "metadata": {
+      "properties": [],
+      "source_format": "docx",
+      "title": null
+    },
+    "pages": [
+      {
+        "content_bbox": {
+          "x0": 31.75,
+          "x1": 184.15,
+          "y0": 25.4,
+          "y1": 254.0
+        },
+        "elements": [
+          {
+            "bbox": null,
+            "id": "page-001-text-001",
+            "paragraphs": [
+              "ЛАБОРАТОРНАЯ РАБОТА №1"
+            ],
+            "source_order": 0,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": "center",
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.0,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "ЛАБОРАТОРНАЯ РАБОТА №1"
+                  }
+                ],
+                "semantic_role": "title",
+                "space_after_mm": 5.291667,
+                "space_before_mm": null,
+                "style_id": "Title",
+                "style_name": "Title",
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-002",
+            "paragraphs": [
+              "Форматирование абзацев"
+            ],
+            "source_order": 1,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Форматирование абзацев"
+                  }
+                ],
+                "semantic_role": "heading_1",
+                "space_after_mm": 0.0,
+                "space_before_mm": 8.466667,
+                "style_id": "Heading1",
+                "style_name": "heading 1",
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-003",
+            "paragraphs": [
+              "Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается "
+            ],
+            "source_order": 2,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": 10.00125,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается "
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-004",
+            "paragraphs": [
+              "Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. "
+            ],
+            "source_order": 3,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": 11.994444,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. "
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-005",
+            "paragraphs": [
+              "Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. "
+            ],
+            "source_order": 4,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": 14.993056,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. "
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-006",
+            "paragraphs": [
+              "Центрированный абзац"
+            ],
+            "source_order": 5,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": "center",
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Центрированный абзац"
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-007",
+            "paragraphs": [
+              "Абзац по правому краю"
+            ],
+            "source_order": 6,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": "right",
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Абзац по правому краю"
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-008",
+            "paragraphs": [
+              "Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. "
+            ],
+            "source_order": 7,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": "justify",
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. "
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-009",
+            "paragraphs": [
+              "Термин:\tЗначение\nСкорость:\t1000 мм/мин"
+            ],
+            "source_order": 8,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Термин:\tЗначение\nСкорость:\t1000 мм/мин"
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [
+                  {
+                    "alignment": "left",
+                    "position_mm": 54.998056
+                  }
+                ],
+                "tab_stops_mm": [
+                  54.998056
+                ]
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-010",
+            "paragraphs": [
+              "$$E = mc^2$$"
+            ],
+            "source_order": 9,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": "center",
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "$$E = mc^2$$"
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "anchor_offset_x_mm": 0.0,
+            "anchor_offset_y_mm": 0.0,
+            "anchor_type": "flow",
+            "bbox": null,
+            "behind_text": false,
+            "displayed_height": 30.0,
+            "displayed_width": 90.0,
+            "distance_bottom_mm": 0.0,
+            "distance_left_mm": 0.0,
+            "distance_right_mm": 0.0,
+            "distance_top_mm": 0.0,
+            "height_px": 160,
+            "id": "page-001-image-011",
+            "image_path": "<run>/.stage-cache/read_document/0fc05414142ac7ebf88e4a7364713679cef31ef8e916001bb7d8cfe76e015a59/assets/image-001-4b97b263cac0.png",
+            "relative_to_h": null,
+            "relative_to_v": null,
+            "rotation_deg": 0.0,
+            "source_order": 10,
+            "source_page_index": 0,
+            "width_px": 480,
+            "wrap_mode": "inline",
+            "wrap_side": "both",
+            "z_order": 0
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-012",
+            "paragraphs": [
+              "\n"
+            ],
+            "source_order": 11,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "\n"
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-013",
+            "paragraphs": [
+              "Вторая страница"
+            ],
+            "source_order": 12,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Вторая страница"
+                  }
+                ],
+                "semantic_role": "heading_1",
+                "space_after_mm": 0.0,
+                "space_before_mm": 8.466667,
+                "style_id": "Heading1",
+                "style_name": "heading 1",
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          },
+          {
+            "bbox": null,
+            "id": "page-001-text-014",
+            "paragraphs": [
+              "Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. "
+            ],
+            "source_order": 13,
+            "source_page_index": 0,
+            "styled_paragraphs": [
+              {
+                "alignment": null,
+                "bbox": null,
+                "first_line_indent_mm": null,
+                "hanging_indent_mm": null,
+                "left_indent_mm": null,
+                "line_spacing": 1.15,
+                "right_indent_mm": null,
+                "runs": [
+                  {
+                    "bbox": null,
+                    "style": {
+                      "baseline_shift": null,
+                      "bold": false,
+                      "font_size_pt": null,
+                      "italic": false,
+                      "strike": false,
+                      "underline": null
+                    },
+                    "text": "Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. "
+                  }
+                ],
+                "semantic_role": "body",
+                "space_after_mm": 3.527778,
+                "space_before_mm": null,
+                "style_id": null,
+                "style_name": null,
+                "tab_stops": [],
+                "tab_stops_mm": []
+              }
+            ]
+          }
+        ],
+        "height_pt": 279.4,
+        "source_page_index": 0,
+        "width_pt": 215.9
+      }
+    ],
+    "schema_version": 1,
+    "source_path": "<input>",
+    "warnings": []
+  },
+  "stage": "document"
+}

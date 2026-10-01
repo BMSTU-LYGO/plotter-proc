@@ -1,0 +1,334 @@
+{
+  "job": {
+    "format": "plotter-job",
+    "metadata": {
+      "artifact_level": "normal",
+      "page_count": 2,
+      "pause_seconds": 90.0
+    },
+    "page": {
+      "height_mm": 297.0,
+      "name": "A4",
+      "width_mm": 210.0
+    },
+    "page_count": 2,
+    "pages": [
+      {
+        "directory": "pages/page-001",
+        "gcode": "pages/page-001/page.gcode",
+        "metadata": {
+          "formulas": [
+            {
+              "delimiter": "$$",
+              "display_mode": true,
+              "element_id": "page-001-text-010-formula-001",
+              "expression": "E = mc^2",
+              "formula_index": 1,
+              "height_mm": 5.997222,
+              "points": 78,
+              "quality": {
+                "bbox_too_large": false,
+                "centerline_coverage_ratio": 1.0,
+                "components_after_pruning": 6,
+                "components_before_pruning": 6,
+                "draw_length_mm": 51.575379,
+                "empty_geometry": false,
+                "expected_formula_bbox": [
+                  0.0,
+                  0.0,
+                  22.577778,
+                  5.997222
+                ],
+                "formula_bbox": [
+                  0.282972,
+                  0.126199,
+                  21.897324,
+                  5.317845
+                ],
+                "glyphs_expected": 5,
+                "glyphs_lost": 0,
+                "graph_edges": 72,
+                "graph_nodes": 78,
+                "junction_count": 0,
+                "layout_glyphs": 5,
+                "needs_review": false,
+                "non_finite_points": 0,
+                "outside_bbox_points": 0,
+                "pen_lift_limit": 20,
+                "pen_lifts": 6,
+                "points": 78,
+                "quality_failures": [],
+                "render_path": "vector-first",
+                "retrace_ratio": 0.018811,
+                "retraced_length_mm": 0.970172,
+                "strokes": 6,
+                "structural_lines": 0,
+                "structural_lines_expected": 0
+              },
+              "source_bbox": null,
+              "source_kind": "semantic-latex",
+              "source_page_index": 0,
+              "source_position": 0,
+              "source_syntax": "dollar-block",
+              "stroke_mode": "centerline",
+              "strokes": 6,
+              "target_bbox": {
+                "height": 5.997222,
+                "width": 22.577778,
+                "x": 93.711111,
+                "y": 240.006806
+              },
+              "warnings": [],
+              "width_mm": 22.577778
+            }
+          ],
+          "line_boxes": [
+            {
+              "height": 11.853,
+              "width": 112.78575,
+              "x": 48.607125,
+              "y": 10.0
+            },
+            {
+              "height": 12.62125,
+              "width": 68.775,
+              "x": 10.0,
+              "y": 35.611333
+            },
+            {
+              "height": 10.097,
+              "width": 159.795,
+              "x": 20.00125,
+              "y": 48.232583
+            },
+            {
+              "height": 10.097,
+              "width": 174.835,
+              "x": 10.0,
+              "y": 58.329583
+            },
+            {
+              "height": 10.097,
+              "width": 180.235,
+              "x": 10.0,
+              "y": 68.426583
+            },
+            {
+              "height": 10.097,
+              "width": 174.445,
+              "x": 21.994444,
+              "y": 82.051361
+            },
+            {
+              "height": 10.097,
+              "width": 115.855,
+              "x": 21.994444,
+              "y": 92.148361
+            },
+            {
+              "height": 10.097,
+              "width": 156.825,
+              "x": 10.0,
+              "y": 105.773139
+            },
+            {
+              "height": 10.097,
+              "width": 146.1,
+              "x": 10.0,
+              "y": 115.870139
+            },
+            {
+              "height": 10.097,
+              "width": 50.24,
+              "x": 79.88,
+              "y": 129.494917
+            },
+            {
+              "height": 10.097,
+              "width": 50.415,
+              "x": 149.585,
+              "y": 143.119694
+            },
+            {
+              "height": 10.097,
+              "width": 190.0,
+              "x": 10.0,
+              "y": 156.744472
+            },
+            {
+              "height": 10.097,
+              "width": 190.0,
+              "x": 10.0,
+              "y": 166.841472
+            },
+            {
+              "height": 10.097,
+              "width": 190.0,
+              "x": 10.0,
+              "y": 176.938472
+            },
+            {
+              "height": 10.097,
+              "width": 190.0,
+              "x": 10.0,
+              "y": 187.035472
+            },
+            {
+              "height": 10.097,
+              "width": 172.815,
+              "x": 10.0,
+              "y": 197.132472
+            },
+            {
+              "height": 10.097,
+              "width": 80.237861,
+              "x": 10.0,
+              "y": 210.75725
+            },
+            {
+              "height": 10.097,
+              "width": 90.087861,
+              "x": 10.0,
+              "y": 224.382028
+            },
+            {
+              "height": 10.975,
+              "width": 21.614351,
+              "x": 93.994084,
+              "y": 240.006806
+            }
+          ],
+          "page_number": 1,
+          "page_number_center_x_mm": 105.0,
+          "page_number_glyph_indices": [
+            829
+          ],
+          "page_number_text": "1",
+          "page_number_width_mm": 1.504,
+          "placements": [],
+          "table_fragments": [],
+          "text": "ЛАБОРАТОРНАЯ РАБОТА №1Форматирование абзацевПервый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Первый абзац начинается с красной строки и продолжается Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с левым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Абзац с правым отступом. Центрированный абзацАбзац по правому краюВыровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Выровненный по ширине длинный абзац. Термин:\tЗначение\nСкорость:\t1000 мм/мин$$E = mc^2$$"
+        },
+        "page_index": 0,
+        "page_number": 1,
+        "paths": "pages/page-001/paths.json",
+        "preview": "pages/page-001/plotter-preview.svg",
+        "report": "pages/page-001/report.json",
+        "source_element_ids": [
+          "page-001-text-001",
+          "page-001-text-002",
+          "page-001-text-003",
+          "page-001-text-004",
+          "page-001-text-005",
+          "page-001-text-006",
+          "page-001-text-007",
+          "page-001-text-008",
+          "page-001-text-009",
+          "page-001-text-010"
+        ],
+        "warnings": []
+      },
+      {
+        "directory": "pages/page-002",
+        "gcode": "pages/page-002/page.gcode",
+        "metadata": {
+          "formulas": [],
+          "line_boxes": [
+            {
+              "height": 12.62125,
+              "width": 48.45,
+              "x": 10.0,
+              "y": 77.416667
+            },
+            {
+              "height": 10.097,
+              "width": 169.88,
+              "x": 10.0,
+              "y": 90.037917
+            },
+            {
+              "height": 10.097,
+              "width": 183.06,
+              "x": 10.0,
+              "y": 100.134917
+            },
+            {
+              "height": 10.097,
+              "width": 169.88,
+              "x": 10.0,
+              "y": 110.231917
+            },
+            {
+              "height": 10.097,
+              "width": 183.06,
+              "x": 10.0,
+              "y": 120.328917
+            },
+            {
+              "height": 10.097,
+              "width": 169.88,
+              "x": 10.0,
+              "y": 130.425917
+            },
+            {
+              "height": 10.097,
+              "width": 64.53,
+              "x": 10.0,
+              "y": 140.522917
+            }
+          ],
+          "page_number": 2,
+          "page_number_center_x_mm": 105.0,
+          "page_number_glyph_indices": [
+            366
+          ],
+          "page_number_text": "2",
+          "page_number_width_mm": 2.24,
+          "placements": [
+            {
+              "anchor": "flow",
+              "center_displacement_mm": null,
+              "element_type": "raster-image",
+              "fallbacks": [],
+              "id": "page-001-image-011",
+              "mapped_bbox_mm": null,
+              "output_bbox_mm": {
+                "height": 33.0,
+                "width": 99.0,
+                "x": 55.5,
+                "y": 12.0
+              },
+              "overlap_area_mm2": 0.0,
+              "page_overflow_area_mm2": 0.0,
+              "placement_reason": "activated_at_source_order",
+              "scale": 1.1,
+              "source_bbox_mm": null,
+              "source_order": 10,
+              "source_page_index": 0,
+              "target_page_index": 1,
+              "wrap_mode": "inline",
+              "wrap_side": "both"
+            }
+          ],
+          "table_fragments": [],
+          "text": "\n\nВторая страницаФормат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. Формат абзаца должен сохраниться после page break. "
+        },
+        "page_index": 1,
+        "page_number": 2,
+        "paths": "pages/page-002/paths.json",
+        "preview": "pages/page-002/plotter-preview.svg",
+        "report": "pages/page-002/report.json",
+        "source_element_ids": [
+          "page-001-image-011",
+          "page-001-text-012",
+          "page-001-text-013",
+          "page-001-text-014"
+        ],
+        "warnings": []
+      }
+    ],
+    "version": 1,
+    "warnings": []
+  },
+  "stage": "job"
+}

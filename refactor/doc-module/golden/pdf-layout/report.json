@@ -1,0 +1,911 @@
+{
+  "report": {
+    "artifact_level": "normal",
+    "document_import": {
+      "arrows": 0,
+      "generic_lines": 0,
+      "image_cache_hits": 1,
+      "image_cache_misses": 1,
+      "image_micro_strokes_suppressed": 16,
+      "image_points": 326,
+      "image_strokes": 16,
+      "images_skipped": 0,
+      "layout_mode": "hybrid",
+      "math_elements": 4,
+      "pdf_vector_elements": 0,
+      "raster_images_found": 2,
+      "raster_images_vectorized": 2,
+      "repeated_headers_emitted": 0,
+      "shared_borders_suppressed": 0,
+      "source_pages": 2,
+      "table_cells": 0,
+      "table_pages": 0,
+      "table_splits": 0,
+      "tables": 0,
+      "text_elements": 5,
+      "underlines": 0
+    },
+    "document_layout": {
+      "elements": [
+        {
+          "anchor": "absolute",
+          "center_displacement_mm": 0.0,
+          "element_type": "raster-image",
+          "fallbacks": [
+            "image_wrap_none_approximated_as_square"
+          ],
+          "id": "page-001-image-005",
+          "mapped_bbox_mm": {
+            "height": 32.556327,
+            "width": 54.260545,
+            "x": 126.500581,
+            "y": 74.802083
+          },
+          "output_bbox_mm": {
+            "height": 32.556327,
+            "width": 54.260545,
+            "x": 126.500581,
+            "y": 74.802083
+          },
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "placement_reason": "activated_at_source_order",
+          "scale": 0.904761,
+          "source_bbox_mm": {
+            "height": 35.983333,
+            "width": 59.972222,
+            "x": 128.763889,
+            "y": 61.736111
+          },
+          "source_order": 4,
+          "source_page_index": 0,
+          "target_page_index": 0,
+          "wrap_mode": "square",
+          "wrap_side": "both"
+        },
+        {
+          "anchor": "absolute",
+          "center_displacement_mm": 2.0,
+          "element_type": "raster-image",
+          "fallbacks": [
+            "image_wrap_none_approximated_as_square"
+          ],
+          "id": "page-002-image-006",
+          "mapped_bbox_mm": {
+            "height": 32.556327,
+            "width": 54.260545,
+            "x": 26.597343,
+            "y": 10.0
+          },
+          "output_bbox_mm": {
+            "height": 32.556327,
+            "width": 54.260545,
+            "x": 26.597343,
+            "y": 12.0
+          },
+          "overlap_area_mm2": 0.0,
+          "page_overflow_area_mm2": 0.0,
+          "placement_reason": "activated_at_source_order",
+          "scale": 0.904761,
+          "source_bbox_mm": {
+            "height": 35.983333,
+            "width": 59.972222,
+            "x": 18.344444,
+            "y": 77.611111
+          },
+          "source_order": 5,
+          "source_page_index": 1,
+          "target_page_index": 2,
+          "wrap_mode": "square",
+          "wrap_side": "both"
+        }
+      ],
+      "images": 2,
+      "images_top_bottom": 0,
+      "images_with_source_bbox": 2,
+      "images_wrapped": 2,
+      "layout_objects": {
+        "images_scaled": 2,
+        "object_overflow_count": 0,
+        "table_rows_auto_height": 0,
+        "tables_paginated": 0,
+        "tables_scaled": 0
+      },
+      "max_center_displacement_mm": 2.0,
+      "max_unexplained_vertical_gap_mm": 0.0,
+      "mean_center_displacement_mm": 1.0,
+      "mean_scale_factor": 0.904761,
+      "mode": "hybrid",
+      "overlaps_remaining": 0.0,
+      "page_overflow_area_mm2": 0.0,
+      "page_transform": [
+        {
+          "offset_x_mm": 10.0,
+          "offset_y_mm": 10.14291,
+          "scale": 0.904761,
+          "source_content_rect": {
+            "height": 297.000089,
+            "width": 210.000145,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_height_mm": 297.000089,
+          "source_page_index": 0,
+          "source_width_mm": 210.000145,
+          "target_content_rect": {
+            "height": 269.0,
+            "width": 190.0,
+            "x": 10.0,
+            "y": 10.0
+          },
+          "target_height_mm": 297.0,
+          "target_page_start": 0,
+          "target_width_mm": 210.0
+        },
+        {
+          "offset_x_mm": 10.0,
+          "offset_y_mm": 10.14291,
+          "scale": 0.904761,
+          "source_content_rect": {
+            "height": 297.000089,
+            "width": 210.000145,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_height_mm": 297.000089,
+          "source_page_index": 1,
+          "source_width_mm": 210.000145,
+          "target_content_rect": {
+            "height": 269.0,
+            "width": 190.0,
+            "x": 10.0,
+            "y": 10.0
+          },
+          "target_height_mm": 297.0,
+          "target_page_start": 1,
+          "target_width_mm": 210.0
+        }
+      ],
+      "position_fallbacks": 2,
+      "position_preserved": 2,
+      "unexplained_vertical_gap_count": 0
+    },
+    "font": "/home/saucesamba/Рабочий стол/PLotter/assets/1.ttf",
+    "font_mode": "outline",
+    "handwriting": {
+      "accepted": 0,
+      "beziers_built": 0,
+      "cheap_rejected_pairs": 0,
+      "collision_queries": 0,
+      "connector_length_mm": 0.0,
+      "enabled": false,
+      "joins_created": 0,
+      "joins_rejected": 0,
+      "mode": "off",
+      "pairs_total": 0,
+      "pen_lifts_saved": 0,
+      "rejected": 0,
+      "rejected_collision": 0,
+      "rejected_corridor": 0,
+      "rejected_distance": 0,
+      "rejected_tangent": 0,
+      "rejections_by_reason": {},
+      "segments_tested": 0,
+      "snapped_existing_contact": 0,
+      "solver_calls": 0,
+      "words": 0
+    },
+    "handwriting_profile": {
+      "connections": {
+        "allow_connector_outside_ink": true,
+        "collision_clearance_mm": 0.1,
+        "connect_across_punctuation": false,
+        "connect_letters_only": true,
+        "connector_step_mm": 0.2,
+        "contact_epsilon_mm": 0.08,
+        "do_not_join_after": [
+          "(",
+          "«",
+          "-"
+        ],
+        "do_not_join_before": [
+          ".",
+          ",",
+          "!",
+          "?",
+          ":",
+          ";",
+          ")"
+        ],
+        "enabled": false,
+        "lift_between_words": true,
+        "max_distance_mm": 2.5,
+        "max_tangent_mismatch_deg": 135.0,
+        "max_vertical_offset_mm": 2.0,
+        "min_corridor_inside_ratio": 0.75,
+        "mode": "safe",
+        "outside_ink_margin_mm": 0.35,
+        "pair_rules": {
+          "ло": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "на": {
+            "handle_scale": 1.03,
+            "spacing_adjustment_mm": -0.05
+          },
+          "ов": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "по": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "пр": {
+            "handle_scale": 1.08,
+            "spacing_adjustment_mm": -0.08
+          },
+          "ро": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.06
+          },
+          "ст": {
+            "handle_scale": 1.05,
+            "spacing_adjustment_mm": -0.08
+          },
+          "ть": {
+            "handle_scale": 0.95,
+            "spacing_adjustment_mm": 0.04
+          }
+        }
+      },
+      "retrace": {
+        "allowed_segment_types": [
+          "glyph"
+        ],
+        "enabled": true,
+        "endpoint_tolerance_mm": 1e-06,
+        "max_length_mm": 1.2,
+        "max_repeats": 1,
+        "max_retrace_ratio": 1.0,
+        "profiles": {
+          "superfast": {
+            "allowed_segment_types": [
+              "glyph",
+              "connector",
+              "snap",
+              "retrace"
+            ],
+            "endpoint_tolerance_mm": 0.08,
+            "max_length_mm": 3.0,
+            "max_repeats": 3,
+            "max_retrace_ratio": 0.65
+          }
+        }
+      },
+      "routing": {
+        "cost": {
+          "collision_risk": 100.0,
+          "connection_quality": 2.0,
+          "direction_change": 0.011111,
+          "pen_lift": 8.0,
+          "retrace": 1.5,
+          "travel": 1.0
+        },
+        "cost_profiles": {
+          "superfast": {
+            "collision_risk": 100.0,
+            "connection_quality": 1.5,
+            "direction_change": 0.005556,
+            "pen_lift": 24.0,
+            "retrace": 0.65,
+            "travel": 1.0
+          }
+        },
+        "max_current_travel_penalty_mm": 0.35,
+        "next_glyph_lookahead": true
+      },
+      "spacing": {
+        "max_kerning_adjustment_mm": 0.15,
+        "shape_aware": true
+      },
+      "stroke_order": {
+        "enabled": true,
+        "glyphs": [
+          "ъ",
+          "ь",
+          "ы",
+          "ж",
+          "ф",
+          "т"
+        ]
+      },
+      "variation": {
+        "baseline_jitter_mm": 0.15,
+        "enabled": true,
+        "letter": {
+          "height_percent": 9.0,
+          "slant": 0.1,
+          "width_percent": 10.0,
+          "y_offset_mm": 0.22
+        },
+        "line": {
+          "drift_mm": 0.16
+        },
+        "realism": "strong",
+        "rotation_deg": 3.0,
+        "scale_percent": 7.0,
+        "seed": 1,
+        "spacing_jitter_mm": 0.15,
+        "stroke_thickness": {
+          "enabled": true,
+          "offset_mm": 0.025,
+          "probability": 0.12
+        },
+        "word": {
+          "width_percent": 8.0
+        }
+      }
+    },
+    "input": "tests/fixtures/layout/mixed_layout_demo.pdf",
+    "latex": {
+      "backend": "mathtext",
+      "block_expressions": 4,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "enabled": true,
+      "expressions_found": 4,
+      "fallbacks": 0,
+      "formulas": [
+        {
+          "delimiter": "pdf-visual",
+          "display_mode": true,
+          "element_id": "page-001-math-001-formula-001",
+          "expression": "Inline: x^2 + y^2 = r^2",
+          "formula_index": 1,
+          "height_mm": 7.458333,
+          "points": 188,
+          "quality": {
+            "centerline_coverage_ratio": 0.91186,
+            "components_after_pruning": 21,
+            "components_before_pruning": 21,
+            "draw_length_mm": 83.52153,
+            "graph_edges": 49,
+            "graph_nodes": 69,
+            "junction_count": 14,
+            "mask_foreground_pixels": 16020,
+            "needs_review": false,
+            "points": 188,
+            "retrace_ratio": 0.089068,
+            "retraced_length_mm": 7.439129,
+            "small_components_removed": 0,
+            "strokes": 21
+          },
+          "source_bbox": {
+            "x0": 34.477778,
+            "x1": 76.861706,
+            "y0": 132.232502,
+            "y1": 139.649104
+          },
+          "source_kind": "pdf-visual",
+          "source_page_index": 0,
+          "source_position": 0,
+          "source_syntax": "pdf-visual",
+          "stroke_mode": "centerline",
+          "strokes": 21,
+          "target_bbox": {
+            "height": 7.458333,
+            "width": 42.416667,
+            "x": 83.791667,
+            "y": 109.35841
+          },
+          "warnings": [],
+          "width_mm": 42.416667
+        },
+        {
+          "delimiter": "pdf-visual",
+          "display_mode": true,
+          "element_id": "page-001-math-002-formula-002",
+          "expression": "integral(0, infinity) x^2 e^-x dx = 2",
+          "formula_index": 2,
+          "height_mm": 8.416667,
+          "points": 418,
+          "quality": {
+            "centerline_coverage_ratio": 0.947506,
+            "components_after_pruning": 36,
+            "components_before_pruning": 36,
+            "draw_length_mm": 184.150504,
+            "graph_edges": 86,
+            "graph_nodes": 116,
+            "junction_count": 26,
+            "mask_foreground_pixels": 39071,
+            "needs_review": false,
+            "points": 418,
+            "retrace_ratio": 0.098994,
+            "retraced_length_mm": 18.229867,
+            "small_components_removed": 0,
+            "strokes": 36
+          },
+          "source_bbox": {
+            "x0": 60.936111,
+            "x1": 135.927981,
+            "y0": 147.349032,
+            "y1": 155.735063
+          },
+          "source_kind": "pdf-visual",
+          "source_page_index": 0,
+          "source_position": 0,
+          "source_syntax": "pdf-visual",
+          "stroke_mode": "centerline",
+          "strokes": 36,
+          "target_bbox": {
+            "height": 8.416667,
+            "width": 75.041667,
+            "x": 67.479167,
+            "y": 122.681327
+          },
+          "warnings": [],
+          "width_mm": 75.041667
+        },
+        {
+          "delimiter": "pdf-visual",
+          "display_mode": true,
+          "element_id": "page-002-math-001-formula-003",
+          "expression": "Inline: x^2 + y^2 = r^2",
+          "formula_index": 3,
+          "height_mm": 7.458333,
+          "points": 188,
+          "quality": {
+            "centerline_coverage_ratio": 0.91186,
+            "components_after_pruning": 21,
+            "components_before_pruning": 21,
+            "draw_length_mm": 83.52153,
+            "graph_edges": 49,
+            "graph_nodes": 69,
+            "junction_count": 14,
+            "mask_foreground_pixels": 16020,
+            "needs_review": false,
+            "points": 188,
+            "retrace_ratio": 0.089068,
+            "retraced_length_mm": 7.439129,
+            "small_components_removed": 0,
+            "strokes": 21
+          },
+          "source_bbox": {
+            "x0": 34.477778,
+            "x1": 76.861706,
+            "y0": 132.232502,
+            "y1": 139.649104
+          },
+          "source_kind": "pdf-visual",
+          "source_page_index": 1,
+          "source_position": 0,
+          "source_syntax": "pdf-visual",
+          "stroke_mode": "centerline",
+          "strokes": 21,
+          "target_bbox": {
+            "height": 7.458333,
+            "width": 42.416667,
+            "x": 83.791667,
+            "y": 46.556327
+          },
+          "warnings": [],
+          "width_mm": 42.416667
+        },
+        {
+          "delimiter": "pdf-visual",
+          "display_mode": true,
+          "element_id": "page-002-math-002-formula-004",
+          "expression": "integral(0, infinity) x^2 e^-x dx = 2",
+          "formula_index": 4,
+          "height_mm": 8.416667,
+          "points": 418,
+          "quality": {
+            "centerline_coverage_ratio": 0.947506,
+            "components_after_pruning": 36,
+            "components_before_pruning": 36,
+            "draw_length_mm": 184.150504,
+            "graph_edges": 86,
+            "graph_nodes": 116,
+            "junction_count": 26,
+            "mask_foreground_pixels": 39071,
+            "needs_review": false,
+            "points": 418,
+            "retrace_ratio": 0.098994,
+            "retraced_length_mm": 18.229867,
+            "small_components_removed": 0,
+            "strokes": 36
+          },
+          "source_bbox": {
+            "x0": 60.936111,
+            "x1": 135.927981,
+            "y0": 147.349032,
+            "y1": 155.735063
+          },
+          "source_kind": "pdf-visual",
+          "source_page_index": 1,
+          "source_position": 0,
+          "source_syntax": "pdf-visual",
+          "stroke_mode": "centerline",
+          "strokes": 36,
+          "target_bbox": {
+            "height": 8.416667,
+            "width": 75.041667,
+            "x": 67.479167,
+            "y": 59.879243
+          },
+          "warnings": [],
+          "width_mm": 75.041667
+        }
+      ],
+      "glyph_cache_hits": 0,
+      "glyph_cache_misses": 0,
+      "glyph_cache_version": "math-glyph-centerline-v2",
+      "inline_expressions": 0,
+      "needs_review": 0,
+      "omml_expressions": 0,
+      "outline_fallbacks": 0,
+      "pdf_math_mode": "auto",
+      "pdf_visual_expressions": 4,
+      "pen_lifts": 114,
+      "points": 1212,
+      "raster_fallback": 0,
+      "rendered": 4,
+      "requested_mode": "auto",
+      "semantic_expressions": 0,
+      "stroke_mode": "centerline",
+      "strokes": 114,
+      "unsupported": [
+        "full LaTeX documents and packages",
+        "TikZ, user macros, bibliography, and file includes",
+        "external LaTeX or shell execution",
+        "full OMML conversion",
+        "LaTeX reconstruction from PDF"
+      ],
+      "vector_rendered": 0,
+      "warnings": []
+    },
+    "layout_objects": {
+      "images_scaled": 2,
+      "object_overflow_count": 0,
+      "table_rows_auto_height": 0,
+      "tables_paginated": 0,
+      "tables_scaled": 0
+    },
+    "math": {
+      "cache_hits": 0,
+      "formulas_total": 4,
+      "latex": 0,
+      "omml": 0,
+      "pdf_visual": 4,
+      "quality_failures": 0,
+      "raster_fallback": 0,
+      "vector_first_ratio": 0.0,
+      "vector_rendered": 0,
+      "warnings": 0
+    },
+    "motion": {
+      "average_segment_length_mm": 0.457396,
+      "down_settle_ms": 100,
+      "down_z_mm": 1.0,
+      "draw_distance_mm": 5959.869809,
+      "draw_feed_mm_min": 1000.0,
+      "dwell_count": 762,
+      "dwell_time_seconds": 76.2,
+      "estimated_job_time_seconds": 5468.244,
+      "gcode_analysis": {
+        "dwell_count": 762,
+        "dwell_time_seconds": 76.2,
+        "gcode_command_count": 16083,
+        "ideal_total_time_seconds": 1233.06614,
+        "motion_command_count": 15314,
+        "z_command_count": 1525
+      },
+      "gcode_command_count": 16083,
+      "ideal_draw_time_seconds": 357.592189,
+      "ideal_motion_time_seconds": 5288.244,
+      "ideal_total_time_minutes": 20.451374,
+      "ideal_total_time_seconds": 1227.082461,
+      "ideal_travel_time_seconds": 61.770272,
+      "ideal_z_time_seconds": 731.52,
+      "median_segment_length_mm": 0.349721,
+      "p95_segment_length_mm": 1.08884,
+      "page_change_pause_time_seconds": 180.0,
+      "pen_down_count": 762,
+      "pen_lift_count": 762,
+      "pen_lift_distance_mm": 3048.0,
+      "pen_lower_distance_mm": 3048.0,
+      "pen_up_count": 763,
+      "planner_risk": "medium",
+      "point_count": 13095,
+      "profile": "safe",
+      "short_segment_count": 1722,
+      "short_segment_ratio": 0.132157,
+      "stroke_count": 762,
+      "total_z_distance_mm": 6096.0,
+      "travel_distance_mm": 3088.513623,
+      "travel_feed_mm_min": 3000.0,
+      "up_z_mm": 5.0,
+      "very_short_segment_count": 20,
+      "xy_draw_commands": 13030,
+      "xy_travel_commands": 762,
+      "z_feed_mm_min": 500.0
+    },
+    "page": "A4",
+    "page_transform": [
+      {
+        "offset_x_mm": 10.0,
+        "offset_y_mm": 10.14291,
+        "scale": 0.904761,
+        "source_content_rect": {
+          "height": 297.000089,
+          "width": 210.000145,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "source_height_mm": 297.000089,
+        "source_page_index": 0,
+        "source_width_mm": 210.000145,
+        "target_content_rect": {
+          "height": 269.0,
+          "width": 190.0,
+          "x": 10.0,
+          "y": 10.0
+        },
+        "target_height_mm": 297.0,
+        "target_page_start": 0,
+        "target_width_mm": 210.0
+      },
+      {
+        "offset_x_mm": 10.0,
+        "offset_y_mm": 10.14291,
+        "scale": 0.904761,
+        "source_content_rect": {
+          "height": 297.000089,
+          "width": 210.000145,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "source_height_mm": 297.000089,
+        "source_page_index": 1,
+        "source_width_mm": 210.000145,
+        "target_content_rect": {
+          "height": 269.0,
+          "width": 190.0,
+          "x": 10.0,
+          "y": 10.0
+        },
+        "target_height_mm": 297.0,
+        "target_page_start": 1,
+        "target_width_mm": 210.0
+      }
+    ],
+    "pages": [
+      {
+        "bounding_box_mm": {
+          "max_x": 197.204167,
+          "max_y": 292.235264,
+          "min_x": 9.99375,
+          "min_y": 12.26875
+        },
+        "characters": 463,
+        "closed_contours": 697,
+        "contours": 762,
+        "draw_distance_mm": 5959.87,
+        "estimated_time_minutes": 20.451374,
+        "gcode": "pages/page-001/page.gcode",
+        "glyphs": 388,
+        "image_elements": 1,
+        "lines": 8,
+        "open_contours": 65,
+        "page": 1,
+        "points": 13095,
+        "strokes": 762,
+        "text_elements": 2,
+        "travel_distance_mm": 3088.514
+      },
+      {
+        "bounding_box_mm": {
+          "max_x": 199.741667,
+          "max_y": 292.29972,
+          "min_x": 9.99375,
+          "min_y": 12.26875
+        },
+        "characters": 1710,
+        "closed_contours": 2520,
+        "contours": 2521,
+        "draw_distance_mm": 18853.018,
+        "estimated_time_minutes": 65.498153,
+        "gcode": "pages/page-002/page.gcode",
+        "glyphs": 1412,
+        "image_elements": 0,
+        "lines": 24,
+        "open_contours": 1,
+        "page": 2,
+        "points": 44234,
+        "strokes": 2521,
+        "text_elements": 3,
+        "travel_distance_mm": 6322.405
+      },
+      {
+        "bounding_box_mm": {
+          "max_x": 141.229167,
+          "max_y": 292.327292,
+          "min_x": 27.686183,
+          "min_y": 13.091274
+        },
+        "characters": 0,
+        "closed_contours": 1,
+        "contours": 66,
+        "draw_distance_mm": 569.329,
+        "estimated_time_minutes": 2.187872,
+        "gcode": "pages/page-003/page.gcode",
+        "glyphs": 1,
+        "image_elements": 1,
+        "lines": 3,
+        "open_contours": 65,
+        "page": 3,
+        "points": 685,
+        "strokes": 66,
+        "text_elements": 0,
+        "travel_distance_mm": 1357.628
+      }
+    ],
+    "pagination": {
+      "enabled": true,
+      "page_count": 3,
+      "page_number_format": "{page}",
+      "page_numbers": true,
+      "park_corner": "top_right",
+      "park_mode": "corner",
+      "pause_count": 2,
+      "pause_seconds": 90.0,
+      "total_pause_seconds": 180.0
+    },
+    "paragraph_formatting": {
+      "centered": 0,
+      "custom_tab_stops": 0,
+      "first_line_indents": 0,
+      "headings": 2,
+      "justified": 0,
+      "paragraphs_total": 22,
+      "right_aligned": 0,
+      "titles": 0
+    },
+    "pipeline": "ttf-vector",
+    "preset": null,
+    "schema_versions": {
+      "build_report": 1,
+      "compiled_font": 3,
+      "document_model": 1,
+      "job": 1,
+      "layout_model": 2,
+      "paths": 2,
+      "stage_cache": 5
+    },
+    "semantic_objects": {
+      "arrows": 0,
+      "classification_conflicts": 0,
+      "classification_conflicts_measured": true,
+      "duplicate_primitives_suppressed": null,
+      "duplicate_primitives_suppressed_measured": false,
+      "generic_lines": 0,
+      "repeated_headers_emitted": 0,
+      "shared_borders_suppressed": 0,
+      "table_cells": 0,
+      "table_pages": 0,
+      "table_splits": 0,
+      "tables": 0,
+      "underlines": 0
+    },
+    "shaping": "legacy",
+    "simplification": {
+      "complexity_after_route": {
+        "max_points_per_stroke": 406,
+        "median_points_per_stroke": 21.0,
+        "p95_points_per_stroke": 52.0,
+        "point_count": 16773,
+        "stroke_count": 762
+      },
+      "complexity_after_simplification": {
+        "max_points_per_stroke": 72,
+        "median_points_per_stroke": 16.0,
+        "p95_points_per_stroke": 41.0,
+        "point_count": 13095,
+        "stroke_count": 762
+      },
+      "complexity_before_route": {
+        "max_points_per_stroke": 406,
+        "median_points_per_stroke": 21.0,
+        "p95_points_per_stroke": 52.0,
+        "point_count": 16773,
+        "stroke_count": 762
+      },
+      "dedupe_occurrences_skipped": 0,
+      "enabled": true,
+      "glyph_occurrences_reused": 0,
+      "max_observed_deviation_mm": 0.04992,
+      "point_reduction_ratio": 0.219281,
+      "points_after_simplification": 13095,
+      "points_before_simplification": 16773,
+      "post_join_strokes_processed": 762,
+      "segments_after_simplification": 13030,
+      "segments_before_simplification": 16708,
+      "unique_templates_simplified": 0
+    },
+    "size": "normal",
+    "stages": {
+      "build_paths": {
+        "calls": 0,
+        "input": "LayoutPage",
+        "metadata": [],
+        "output": "PathGeometry"
+      },
+      "gcode": {
+        "calls": 0,
+        "input": "FinalGeometry",
+        "metadata": [],
+        "output": "GCode"
+      },
+      "handwriting": {
+        "calls": 0,
+        "input": "PathGeometry",
+        "metadata": [],
+        "output": "HandwritingGeometry"
+      },
+      "layout": {
+        "calls": 1,
+        "input": "DocumentModel",
+        "metadata": [
+          {
+            "mode": "hybrid",
+            "page": "A4"
+          }
+        ],
+        "output": "LayoutModel"
+      },
+      "read_document": {
+        "calls": 1,
+        "input": "InputDocument",
+        "metadata": [
+          {
+            "format": ".pdf"
+          }
+        ],
+        "output": "DocumentModel"
+      },
+      "simplification": {
+        "calls": 0,
+        "input": "HandwritingGeometry",
+        "metadata": [],
+        "output": "FinalGeometry"
+      }
+    },
+    "statistics": {
+      "bounding_box_mm": null,
+      "characters": 2173.0,
+      "closed_contours": 3218.0,
+      "contours": 3349.0,
+      "draw_distance_mm": 25382.217,
+      "estimated_time_minutes": 88.137399,
+      "glyphs": 1801.0,
+      "lines": 35.0,
+      "open_contours": 131.0,
+      "pages": 3,
+      "points": 58014.0,
+      "strokes": 3349.0,
+      "travel_distance_mm": 10768.547
+    },
+    "status": "ok",
+    "warnings": [
+      "image_wrap_none_approximated_as_square: page-001-image-005",
+      "image_wrap_none_approximated_as_square: page-002-image-006"
+    ],
+    "workers": {
+      "requested": 1,
+      "resolved": 1
+    }
+  },
+  "stage": "report"
+}

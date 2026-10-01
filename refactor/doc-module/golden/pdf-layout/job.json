@@ -1,0 +1,548 @@
+{
+  "job": {
+    "format": "plotter-job",
+    "metadata": {
+      "artifact_level": "normal",
+      "page_count": 3,
+      "pause_seconds": 90.0
+    },
+    "page": {
+      "height_mm": 297.0,
+      "name": "A4",
+      "width_mm": 210.0
+    },
+    "page_count": 3,
+    "pages": [
+      {
+        "directory": "pages/page-001",
+        "gcode": "pages/page-001/page.gcode",
+        "metadata": {
+          "formulas": [
+            {
+              "delimiter": "pdf-visual",
+              "display_mode": true,
+              "element_id": "page-001-math-001-formula-001",
+              "expression": "Inline: x^2 + y^2 = r^2",
+              "formula_index": 1,
+              "height_mm": 7.458333,
+              "points": 188,
+              "quality": {
+                "centerline_coverage_ratio": 0.91186,
+                "components_after_pruning": 21,
+                "components_before_pruning": 21,
+                "draw_length_mm": 83.52153,
+                "graph_edges": 49,
+                "graph_nodes": 69,
+                "junction_count": 14,
+                "mask_foreground_pixels": 16020,
+                "needs_review": false,
+                "points": 188,
+                "retrace_ratio": 0.089068,
+                "retraced_length_mm": 7.439129,
+                "small_components_removed": 0,
+                "strokes": 21
+              },
+              "source_bbox": {
+                "x0": 34.477778,
+                "x1": 76.861706,
+                "y0": 132.232502,
+                "y1": 139.649104
+              },
+              "source_kind": "pdf-visual",
+              "source_page_index": 0,
+              "source_position": 0,
+              "source_syntax": "pdf-visual",
+              "stroke_mode": "centerline",
+              "strokes": 21,
+              "target_bbox": {
+                "height": 7.458333,
+                "width": 42.416667,
+                "x": 83.791667,
+                "y": 109.35841
+              },
+              "warnings": [],
+              "width_mm": 42.416667
+            },
+            {
+              "delimiter": "pdf-visual",
+              "display_mode": true,
+              "element_id": "page-001-math-002-formula-002",
+              "expression": "integral(0, infinity) x^2 e^-x dx = 2",
+              "formula_index": 2,
+              "height_mm": 8.416667,
+              "points": 418,
+              "quality": {
+                "centerline_coverage_ratio": 0.947506,
+                "components_after_pruning": 36,
+                "components_before_pruning": 36,
+                "draw_length_mm": 184.150504,
+                "graph_edges": 86,
+                "graph_nodes": 116,
+                "junction_count": 26,
+                "mask_foreground_pixels": 39071,
+                "needs_review": false,
+                "points": 418,
+                "retrace_ratio": 0.098994,
+                "retraced_length_mm": 18.229867,
+                "small_components_removed": 0,
+                "strokes": 36
+              },
+              "source_bbox": {
+                "x0": 60.936111,
+                "x1": 135.927981,
+                "y0": 147.349032,
+                "y1": 155.735063
+              },
+              "source_kind": "pdf-visual",
+              "source_page_index": 0,
+              "source_position": 0,
+              "source_syntax": "pdf-visual",
+              "stroke_mode": "centerline",
+              "strokes": 36,
+              "target_bbox": {
+                "height": 8.416667,
+                "width": 75.041667,
+                "x": 67.479167,
+                "y": 122.681327
+              },
+              "warnings": [],
+              "width_mm": 75.041667
+            }
+          ],
+          "line_boxes": [
+            {
+              "height": 13.71875,
+              "width": 85.28125,
+              "x": 10.0,
+              "y": 10.0
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 26.21875
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 37.864583
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 49.510417
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 61.15625
+            }
+          ],
+          "page_number": 1,
+          "page_number_center_x_mm": 105.0,
+          "page_number_glyph_indices": [
+            387
+          ],
+          "page_number_text": "1",
+          "page_number_width_mm": 1.504,
+          "placements": [
+            {
+              "anchor": "absolute",
+              "center_displacement_mm": 0.0,
+              "element_type": "raster-image",
+              "fallbacks": [
+                "image_wrap_none_approximated_as_square"
+              ],
+              "id": "page-001-image-005",
+              "mapped_bbox_mm": {
+                "height": 32.556327,
+                "width": 54.260545,
+                "x": 126.500581,
+                "y": 74.802083
+              },
+              "output_bbox_mm": {
+                "height": 32.556327,
+                "width": 54.260545,
+                "x": 126.500581,
+                "y": 74.802083
+              },
+              "overlap_area_mm2": 0.0,
+              "page_overflow_area_mm2": 0.0,
+              "placement_reason": "activated_at_source_order",
+              "scale": 0.904761,
+              "source_bbox_mm": {
+                "height": 35.983333,
+                "width": 59.972222,
+                "x": 128.763889,
+                "y": 61.736111
+              },
+              "source_order": 4,
+              "source_page_index": 0,
+              "target_page_index": 0,
+              "wrap_mode": "square",
+              "wrap_side": "both"
+            }
+          ],
+          "table_fragments": [],
+          "text": "Mixed layout regression - page 1Natural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image."
+        },
+        "page_index": 0,
+        "page_number": 1,
+        "paths": "pages/page-001/paths.json",
+        "preview": "pages/page-001/plotter-preview.svg",
+        "report": "pages/page-001/report.json",
+        "source_element_ids": [
+          "page-001-text-003",
+          "page-001-text-004",
+          "page-001-image-005",
+          "page-001-math-001",
+          "page-001-math-002"
+        ],
+        "warnings": [
+          "image_wrap_none_approximated_as_square: page-001-image-005",
+          "image_wrap_none_approximated_as_square: page-002-image-006"
+        ]
+      },
+      {
+        "directory": "pages/page-002",
+        "gcode": "pages/page-002/page.gcode",
+        "metadata": {
+          "formulas": [],
+          "line_boxes": [
+            {
+              "height": 13.71875,
+              "width": 86.43125,
+              "x": 10.0,
+              "y": 10.0
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 26.21875
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 37.864583
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 49.510417
+            },
+            {
+              "height": 9.145833,
+              "width": 187.383333,
+              "x": 10.0,
+              "y": 61.15625
+            },
+            {
+              "height": 9.145833,
+              "width": 186.683333,
+              "x": 10.0,
+              "y": 72.802083
+            },
+            {
+              "height": 9.145833,
+              "width": 3.516667,
+              "x": 10.0,
+              "y": 81.947917
+            },
+            {
+              "height": 9.145833,
+              "width": 179.9125,
+              "x": 10.0,
+              "y": 93.59375
+            },
+            {
+              "height": 9.145833,
+              "width": 177.020833,
+              "x": 10.0,
+              "y": 105.239583
+            },
+            {
+              "height": 9.145833,
+              "width": 16.716667,
+              "x": 10.0,
+              "y": 114.385417
+            },
+            {
+              "height": 9.145833,
+              "width": 179.954167,
+              "x": 10.0,
+              "y": 126.03125
+            },
+            {
+              "height": 9.145833,
+              "width": 9.716667,
+              "x": 10.0,
+              "y": 135.177083
+            },
+            {
+              "height": 9.145833,
+              "width": 186.904167,
+              "x": 10.0,
+              "y": 146.822917
+            },
+            {
+              "height": 9.145833,
+              "width": 178.779167,
+              "x": 10.0,
+              "y": 158.46875
+            },
+            {
+              "height": 9.145833,
+              "width": 13.4625,
+              "x": 10.0,
+              "y": 167.614583
+            },
+            {
+              "height": 9.145833,
+              "width": 189.204167,
+              "x": 10.0,
+              "y": 179.260417
+            },
+            {
+              "height": 9.145833,
+              "width": 181.641667,
+              "x": 10.0,
+              "y": 190.90625
+            },
+            {
+              "height": 9.145833,
+              "width": 186.683333,
+              "x": 10.0,
+              "y": 202.552083
+            },
+            {
+              "height": 9.145833,
+              "width": 3.516667,
+              "x": 10.0,
+              "y": 211.697917
+            },
+            {
+              "height": 9.145833,
+              "width": 179.9125,
+              "x": 10.0,
+              "y": 223.34375
+            },
+            {
+              "height": 9.145833,
+              "width": 177.020833,
+              "x": 10.0,
+              "y": 234.989583
+            },
+            {
+              "height": 9.145833,
+              "width": 16.716667,
+              "x": 10.0,
+              "y": 244.135417
+            },
+            {
+              "height": 9.145833,
+              "width": 118.9625,
+              "x": 10.0,
+              "y": 255.78125
+            }
+          ],
+          "page_number": 2,
+          "page_number_center_x_mm": 105.0,
+          "page_number_glyph_indices": [
+            1411
+          ],
+          "page_number_text": "2",
+          "page_number_width_mm": 2.24,
+          "placements": [],
+          "table_fragments": [],
+          "text": "Mixed layout regression - page 2Natural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image.\nNatural text flow before the image. Natural text flow before the image. Natural text flow before the image.Wrapped text remains close to the image and returns to normal width below it. Wrapped text remains close to\nthe image and returns to normal width below it. Wrapped text remains close to the image and returns to\nnormal width below it. Wrapped text remains close to the image and returns to normal width below it. Wrapped\ntext remains close to the image and returns to normal width below it. Wrapped text remains close to the image\nand returns to normal width below it. Wrapped text remains close to the image and returns to normal width\nbelow it. Wrapped text remains close to the image and returns to normal width below it. Wrapped text remains\nclose to the image and returns to normal width below it. Wrapped text remains close to the image and returns\nto normal width below it. Wrapped text remains close to the image and returns to normal width below it.\nWrapped text remains close to the image and returns to normal width below it. Wrapped text remains close to\nthe image and returns to normal width below it. Wrapped text remains close to the image and returns to\nnormal width below it. Wrapped text remains close to the image and returns to normal width below it. Wrapped\ntext remains close to the image and returns to normal width below it."
+        },
+        "page_index": 1,
+        "page_number": 2,
+        "paths": "pages/page-002/paths.json",
+        "preview": "pages/page-002/plotter-preview.svg",
+        "report": "pages/page-002/report.json",
+        "source_element_ids": [
+          "page-002-text-003",
+          "page-002-text-004",
+          "page-002-text-005"
+        ],
+        "warnings": [
+          "image_wrap_none_approximated_as_square: page-001-image-005",
+          "image_wrap_none_approximated_as_square: page-002-image-006"
+        ]
+      },
+      {
+        "directory": "pages/page-003",
+        "gcode": "pages/page-003/page.gcode",
+        "metadata": {
+          "formulas": [
+            {
+              "delimiter": "pdf-visual",
+              "display_mode": true,
+              "element_id": "page-002-math-001-formula-003",
+              "expression": "Inline: x^2 + y^2 = r^2",
+              "formula_index": 3,
+              "height_mm": 7.458333,
+              "points": 188,
+              "quality": {
+                "centerline_coverage_ratio": 0.91186,
+                "components_after_pruning": 21,
+                "components_before_pruning": 21,
+                "draw_length_mm": 83.52153,
+                "graph_edges": 49,
+                "graph_nodes": 69,
+                "junction_count": 14,
+                "mask_foreground_pixels": 16020,
+                "needs_review": false,
+                "points": 188,
+                "retrace_ratio": 0.089068,
+                "retraced_length_mm": 7.439129,
+                "small_components_removed": 0,
+                "strokes": 21
+              },
+              "source_bbox": {
+                "x0": 34.477778,
+                "x1": 76.861706,
+                "y0": 132.232502,
+                "y1": 139.649104
+              },
+              "source_kind": "pdf-visual",
+              "source_page_index": 1,
+              "source_position": 0,
+              "source_syntax": "pdf-visual",
+              "stroke_mode": "centerline",
+              "strokes": 21,
+              "target_bbox": {
+                "height": 7.458333,
+                "width": 42.416667,
+                "x": 83.791667,
+                "y": 46.556327
+              },
+              "warnings": [],
+              "width_mm": 42.416667
+            },
+            {
+              "delimiter": "pdf-visual",
+              "display_mode": true,
+              "element_id": "page-002-math-002-formula-004",
+              "expression": "integral(0, infinity) x^2 e^-x dx = 2",
+              "formula_index": 4,
+              "height_mm": 8.416667,
+              "points": 418,
+              "quality": {
+                "centerline_coverage_ratio": 0.947506,
+                "components_after_pruning": 36,
+                "components_before_pruning": 36,
+                "draw_length_mm": 184.150504,
+                "graph_edges": 86,
+                "graph_nodes": 116,
+                "junction_count": 26,
+                "mask_foreground_pixels": 39071,
+                "needs_review": false,
+                "points": 418,
+                "retrace_ratio": 0.098994,
+                "retraced_length_mm": 18.229867,
+                "small_components_removed": 0,
+                "strokes": 36
+              },
+              "source_bbox": {
+                "x0": 60.936111,
+                "x1": 135.927981,
+                "y0": 147.349032,
+                "y1": 155.735063
+              },
+              "source_kind": "pdf-visual",
+              "source_page_index": 1,
+              "source_position": 0,
+              "source_syntax": "pdf-visual",
+              "stroke_mode": "centerline",
+              "strokes": 36,
+              "target_bbox": {
+                "height": 8.416667,
+                "width": 75.041667,
+                "x": 67.479167,
+                "y": 59.879243
+              },
+              "warnings": [],
+              "width_mm": 75.041667
+            }
+          ],
+          "line_boxes": [],
+          "page_number": 3,
+          "page_number_center_x_mm": 105.0,
+          "page_number_glyph_indices": [
+            0
+          ],
+          "page_number_text": "3",
+          "page_number_width_mm": 2.08,
+          "placements": [
+            {
+              "anchor": "absolute",
+              "center_displacement_mm": 2.0,
+              "element_type": "raster-image",
+              "fallbacks": [
+                "image_wrap_none_approximated_as_square"
+              ],
+              "id": "page-002-image-006",
+              "mapped_bbox_mm": {
+                "height": 32.556327,
+                "width": 54.260545,
+                "x": 26.597343,
+                "y": 10.0
+              },
+              "output_bbox_mm": {
+                "height": 32.556327,
+                "width": 54.260545,
+                "x": 26.597343,
+                "y": 12.0
+              },
+              "overlap_area_mm2": 0.0,
+              "page_overflow_area_mm2": 0.0,
+              "placement_reason": "activated_at_source_order",
+              "scale": 0.904761,
+              "source_bbox_mm": {
+                "height": 35.983333,
+                "width": 59.972222,
+                "x": 18.344444,
+                "y": 77.611111
+              },
+              "source_order": 5,
+              "source_page_index": 1,
+              "target_page_index": 2,
+              "wrap_mode": "square",
+              "wrap_side": "both"
+            }
+          ],
+          "table_fragments": [],
+          "text": ""
+        },
+        "page_index": 2,
+        "page_number": 3,
+        "paths": "pages/page-003/paths.json",
+        "preview": "pages/page-003/plotter-preview.svg",
+        "report": "pages/page-003/report.json",
+        "source_element_ids": [
+          "page-002-image-006",
+          "page-002-math-001",
+          "page-002-math-002"
+        ],
+        "warnings": [
+          "image_wrap_none_approximated_as_square: page-001-image-005",
+          "image_wrap_none_approximated_as_square: page-002-image-006"
+        ]
+      }
+    ],
+    "version": 1,
+    "warnings": [
+      "image_wrap_none_approximated_as_square: page-001-image-005",
+      "image_wrap_none_approximated_as_square: page-002-image-006"
+    ]
+  },
+  "stage": "job"
+}

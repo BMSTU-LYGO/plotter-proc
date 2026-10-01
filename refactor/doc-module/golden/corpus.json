@@ -2,11 +2,55 @@
   "format": "cppdoc-parity-corpus",
   "version": 1,
   "cases": [
-    {"id": "txt-basic", "input": "tests/fixtures/layout/cache_benchmark.txt", "format": "txt", "page": "A5", "font_mode": "outline", "golden": true},
-    {"id": "markdown-basic", "input": "refactor/doc-module/fixtures/basic.md", "format": "markdown", "page": "A5", "font_mode": "outline", "golden": true},
-    {"id": "docx-basic", "input": "tests/fixtures/layout/paragraph_formatting_demo.docx", "format": "docx", "page": "A4", "font_mode": "outline", "golden": false},
-    {"id": "docx-table", "input": "tests/fixtures/update_7/lines_tables/merged_cells.docx", "format": "docx", "page": "A5", "font_mode": "centerline", "golden": false},
-    {"id": "pdf-layout", "input": "tests/fixtures/layout/mixed_layout_demo.pdf", "format": "pdf", "page": "A4", "font_mode": "outline", "golden": false},
-    {"id": "svg-vector", "input": "tests/fixtures/update_18/vector_diagram.svg", "format": "svg", "page": "A5", "font_mode": "outline", "golden": false}
+    {
+      "id": "txt-basic",
+      "input": "tests/fixtures/layout/cache_benchmark.txt",
+      "format": "txt",
+      "page": "A5",
+      "font_mode": "outline",
+      "golden": true
+    },
+    {
+      "id": "markdown-basic",
+      "input": "refactor/doc-module/fixtures/basic.md",
+      "format": "markdown",
+      "page": "A5",
+      "font_mode": "outline",
+      "golden": true
+    },
+    {
+      "id": "docx-basic",
+      "input": "tests/fixtures/layout/paragraph_formatting_demo.docx",
+      "format": "docx",
+      "page": "A4",
+      "font_mode": "outline",
+      "golden": true,
+      "machine_config": "refactor/doc-module/fixtures/machine-a4.yaml"
+    },
+    {
+      "id": "docx-table",
+      "input": "tests/fixtures/update_7/lines_tables/merged_cells.docx",
+      "format": "docx",
+      "page": "A5",
+      "font_mode": "centerline",
+      "golden": false
+    },
+    {
+      "id": "pdf-layout",
+      "input": "tests/fixtures/layout/mixed_layout_demo.pdf",
+      "format": "pdf",
+      "page": "A4",
+      "font_mode": "outline",
+      "golden": true,
+      "machine_config": "refactor/doc-module/fixtures/machine-a4.yaml"
+    },
+    {
+      "id": "svg-vector",
+      "input": "tests/fixtures/update_18/vector_diagram.svg",
+      "format": "svg",
+      "page": "A5",
+      "font_mode": "outline",
+      "golden": true
+    }
   ]
 }

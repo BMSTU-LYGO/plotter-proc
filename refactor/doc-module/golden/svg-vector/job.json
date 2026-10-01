@@ -1,0 +1,89 @@
+{
+  "job": {
+    "format": "plotter-job",
+    "metadata": {
+      "artifact_level": "normal",
+      "page_count": 1,
+      "pause_seconds": 90.0
+    },
+    "page": {
+      "height_mm": 210.0,
+      "name": "A5",
+      "width_mm": 148.0
+    },
+    "page_count": 1,
+    "pages": [
+      {
+        "directory": ".",
+        "gcode": "output.gcode",
+        "metadata": {
+          "formulas": [],
+          "line_boxes": [],
+          "page_number": 1,
+          "page_number_center_x_mm": 74.0,
+          "page_number_glyph_indices": [
+            0
+          ],
+          "page_number_text": "1",
+          "page_number_width_mm": 1.504,
+          "placements": [
+            {
+              "anchor": "absolute",
+              "center_displacement_mm": 19.229607,
+              "element_type": "pdf-vector",
+              "fallbacks": [
+                "image_wrap_none_approximated_as_square"
+              ],
+              "id": "page-001-svg-001",
+              "mapped_bbox_mm": {
+                "height": 85.333333,
+                "width": 128.0,
+                "x": 10.0,
+                "y": 58.333333
+              },
+              "output_bbox_mm": {
+                "height": 49.066667,
+                "width": 115.2,
+                "x": 10.0,
+                "y": 58.333333
+              },
+              "overlap_area_mm2": 0.0,
+              "page_overflow_area_mm2": 0.0,
+              "placement_reason": "page_anchor_preplaced",
+              "scale": 1.0,
+              "source_bbox_mm": {
+                "height": 80.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "source_order": 0,
+              "source_page_index": 0,
+              "target_page_index": 0,
+              "wrap_mode": "square",
+              "wrap_side": "both"
+            }
+          ],
+          "table_fragments": [],
+          "text": ""
+        },
+        "page_index": 0,
+        "page_number": 1,
+        "paths": "paths.json",
+        "preview": "plotter-preview.svg",
+        "report": "report.json",
+        "source_element_ids": [
+          "page-001-svg-001"
+        ],
+        "warnings": [
+          "image_wrap_none_approximated_as_square: page-001-svg-001"
+        ]
+      }
+    ],
+    "version": 1,
+    "warnings": [
+      "image_wrap_none_approximated_as_square: page-001-svg-001"
+    ]
+  },
+  "stage": "job"
+}
