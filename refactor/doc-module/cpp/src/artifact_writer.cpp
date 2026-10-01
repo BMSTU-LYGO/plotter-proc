@@ -17,7 +17,23 @@ void atomic_write(const std::filesystem::path& path, std::string_view content) {
     auto temporary = path; temporary += "." + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".tmp";
     try { std::ofstream stream(temporary, std::ios::binary | std::ios::trunc); if (!stream) throw ArtifactError("cannot create artifact: " + temporary.string()); stream.write(content.data(), static_cast<std::streamsize>(content.size())); stream.close(); if (!stream) throw ArtifactError("cannot write artifact: " + path.string()); std::filesystem::rename(temporary, path, error); if (error) throw ArtifactError("cannot publish artifact: " + error.message()); } catch (...) { std::filesystem::remove(temporary, error); throw; }
 }
-std::string quote(std::string_view value) { std::string output{"\""}; for (char c : value) { if (c == '"' || c == '\\') output += '\\'; if (c == '\n') output += "\\n"; else output += c; } return output + '"'; }
+std::string quote(std::string_view value) {
+    std::string output{"\""};
+    static constexpr char hex[] = "0123456789abcdef";
+    for (unsigned char c : value) {
+        switch (c) {
+        case '"': output += "\\\""; break;
+        case '\\': output += "\\\\"; break;
+        case '\n': output += "\\n"; break;
+        case '\r': output += "\\r"; break;
+        case '\t': output += "\\t"; break;
+        default:
+            if (c < 0x20U) { output += "\\u00"; output += hex[c >> 4U]; output += hex[c & 15U]; }
+            else output += static_cast<char>(c);
+        }
+    }
+    return output + '"';
+}
 std::string number(double value) { if (!std::isfinite(value)) throw ArtifactError("artifact cannot encode non-finite number"); std::ostringstream stream; stream.imbue(std::locale::classic()); stream << std::setprecision(15) << (value == 0.0 ? 0.0 : value); return stream.str(); }
 std::string page_directory(const PageJob& page) { std::ostringstream name; name << "pages/page-" << std::setw(3) << std::setfill('0') << page.page_number; return name.str(); }
 std::string job_json(const PlotterJob& job, ArtifactLevel level) { std::string out{"{\"job\":{\"format\":\"plotter-job\",\"metadata\":{\"artifact_level\":" + quote(artifact_level_name(level)) + ",\"page_count\":" + std::to_string(job.pages.size()) + "},\"page\":{\"height_mm\":" + number(job.page_height.value) + ",\"width_mm\":" + number(job.page_width.value) + "},\"page_count\":" + std::to_string(job.pages.size()) + ",\"pages\":["}; for (std::size_t i = 0; i < job.pages.size(); ++i) { if (i) out += ","; const auto& page = job.pages[i]; const auto directory = page_directory(page); out += "{\"directory\":" + quote(directory) + ",\"page_index\":" + std::to_string(page.page_index) + ",\"page_number\":" + std::to_string(page.page_number) + ",\"paths\":" + quote(directory + "/paths.json") + ",\"preview\":" + quote(directory + "/plotter-preview.svg") + ",\"report\":" + quote(directory + "/report.json") + ",\"warnings\":["; for (std::size_t w = 0; w < page.warnings.size(); ++w) { if (w) out += ","; out += quote(page.warnings[w]); } out += "]}"; } return out + "],\"version\":1,\"warnings\":[]},\"stage\":\"job\"}"; }
