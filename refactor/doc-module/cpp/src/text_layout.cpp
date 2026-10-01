@@ -62,6 +62,18 @@ constexpr double kDefaultTabInterval = 12.5;
     return position - following.width.value;
 }
 
+bool has_underline(const LayoutTextStyle& style) { return style.underline && *style.underline != "none" && *style.underline != "nil"; }
+
+void append_decoration(LayoutPage& page, const MeasuredCharacter& item, double start_x, double baseline, std::int64_t glyph_index, std::int32_t word_index, const std::optional<std::string>& element_id) {
+    const double size = to_millimetres(item.character.style.font_size).value;
+    const auto append = [&](const std::string& role, double y) {
+        Stroke stroke; stroke.id = page.graphic_strokes.size(); stroke.points = {{{start_x}, {y}}, {{start_x + item.advance.value}, {y}}};
+        stroke.glyph_index = glyph_index; stroke.word_index = word_index; stroke.source_page_index = static_cast<std::int64_t>(page.page_index); stroke.character = item.character.utf8; stroke.element_id = element_id; stroke.element_type = "text-decoration"; stroke.font_role = "body"; stroke.font_sha256 = item.glyph.font_sha256; stroke.source_glyph_indices = {glyph_index}; stroke.source_characters = item.character.utf8; stroke.semantic_role = role; stroke.segment_types = {"text-decoration"}; stroke.preserve_order = true; page.graphic_strokes.push_back(std::move(stroke));
+    };
+    if (has_underline(item.character.style)) append("underline", baseline + std::max(0.2, size * 0.08));
+    if (item.character.style.strike) append("strike", baseline - std::max(0.2, size * 0.28));
+}
+
 }  // namespace
 
 LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& paragraphs, const TextLayoutOptions& options) const {
@@ -142,7 +154,11 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
                     PositionedGlyph placed; placed.character = item.character.utf8; placed.glyph_name = "U+" + std::to_string(item.glyph.glyph_codepoint); placed.codepoint = item.character.codepoint;
                     placed.x = {x}; placed.baseline_y = {baseline}; placed.advance = item.advance; placed.scale_mm_per_font_unit = to_millimetres(item.character.style.font_size).value / static_cast<double>(item.glyph.units_per_em);
                     placed.line_index = next_line; placed.glyph_index = next_glyph++; placed.word_index = word_index; placed.cluster_index = static_cast<std::int32_t>(placed.glyph_index);
-                    placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter"; page.glyphs.push_back(std::move(placed)); x += item.advance.value;
+                    placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter";
+                    const std::int64_t placed_glyph_index = static_cast<std::int64_t>(placed.glyph_index);
+                    page.glyphs.push_back(std::move(placed));
+                    append_decoration(page, item, x, baseline, placed_glyph_index, word_index, paragraph.source_element_id);
+                    x += item.advance.value;
                 }
             }
             ++next_line; ++page.line_count; cursor_y += height;

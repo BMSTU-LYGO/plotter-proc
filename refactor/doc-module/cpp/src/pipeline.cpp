@@ -62,17 +62,22 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     first_paragraph_on_page = false;
                     paragraph.alignment = alignment(item.alignment);
                     paragraph.space_before = item.space_before.value_or(Millimetres{});
-                    paragraph.space_after = item.space_after.value_or(Millimetres{});
+                    paragraph.space_after = item.space_after.value_or(Millimetres{2.5});
                     paragraph.first_line_indent = item.first_line_indent.value_or(Millimetres{});
                     paragraph.hanging_indent = item.hanging_indent.value_or(Millimetres{});
                     paragraph.left_indent = item.left_indent.value_or(Millimetres{});
                     paragraph.right_indent = item.right_indent.value_or(Millimetres{});
-                    paragraph.line_spacing = item.line_spacing;
+                    paragraph.line_spacing = item.line_spacing.value_or(1.25);
                     paragraph.tab_stops = item.tab_stops;
                     for (const TextRun& run : item.runs) {
-                        if (run.style.bold || run.style.italic || run.style.strike || run.style.underline || run.style.baseline_shift)
-                            throw std::runtime_error("rich text decorations are not implemented");
-                        paragraph.runs.push_back({run.text, {options.font_id, run.style.font_size.value_or(options.font_size), {}, {}}});
+                        if (run.style.bold || run.style.italic || run.style.baseline_shift)
+                            throw std::runtime_error("bold, italic, and baseline shift are not implemented");
+                        LayoutTextStyle style;
+                        style.font_id = options.font_id;
+                        style.font_size = run.style.font_size.value_or(options.font_size);
+                        style.underline = run.style.underline;
+                        style.strike = run.style.strike;
+                        paragraph.runs.push_back({run.text, std::move(style)});
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
                 }
@@ -218,6 +223,10 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 if (options.font_mode == FontMode::centerline)
                     paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
                 else paths = OutlinePathBuilder{options.pfc_path}.build(layout.pages[index], paths.page_width, paths.page_height);
+                for (auto stroke : layout.pages[index].graphic_strokes) {
+                    stroke.id = paths.strokes.size();
+                    paths.strokes.push_back(std::move(stroke));
+                }
             }
             if (index < source.pages.size()) {
                 const auto& input_page = source.pages[index];

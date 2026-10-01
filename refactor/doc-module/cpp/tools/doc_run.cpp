@@ -30,9 +30,9 @@ int main(int argc, char** argv) {
             else if (page != "A5") { std::cerr << "unsupported page: " << page << '\n'; return 2; }
         } else if (argument == "--size") {
             const auto size = next();
-            if (size == "small") options.font_size = {9.0};
-            else if (size == "normal") options.font_size = {12.0};
-            else if (size == "large") options.font_size = {16.0};
+            if (size == "small") options.font_size = {4.0 * 72.0 / 25.4};
+            else if (size == "normal") options.font_size = {5.0 * 72.0 / 25.4};
+            else if (size == "large") options.font_size = {6.5 * 72.0 / 25.4};
             else { std::cerr << "unsupported size: " << size << '\n'; return 2; }
         } else if (argument == "--artifact-level") {
             const auto level = next();

@@ -17,6 +17,8 @@ struct LayoutTextStyle final {
     Points font_size{12.0};
     Millimetres letter_spacing{};
     Millimetres word_spacing{};
+    std::optional<std::string> underline;
+    bool strike{};
 };
 struct LayoutTextRun final { std::string utf8; LayoutTextStyle style{}; };
 struct LayoutParagraph final {

@@ -21,7 +21,7 @@ struct PipelineOptions final {
     std::filesystem::path pfc_path;
     std::string font_id{"body"};
     std::string font_sha256;
-    Points font_size{12.0};
+    Points font_size{5.0 * 72.0 / 25.4};
     FontMode font_mode{FontMode::centerline};
     PipelineConfig config{};
     ArtifactLevel artifact_level{ArtifactLevel::normal};
