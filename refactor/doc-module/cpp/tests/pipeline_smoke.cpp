@@ -34,5 +34,30 @@ int main() {
     require(result.job.pages.front().paths.strokes.back().element_type == "page-number", "page-number stroke role missing");
     require(std::filesystem::is_regular_file(result.gcode_path), "G-code missing");
     require(std::filesystem::is_regular_file(result.artifacts.report_json), "report missing");
+    plotter::doc::Document direct;
+    direct.source_path = "<in-memory>";
+    plotter::doc::SourcePage source_page;
+    source_page.source_page = 0;
+    plotter::doc::TableElement table;
+    table.id = "table-1"; table.rows = 1; table.columns = 1;
+    table.bounds = plotter::doc::Rect{{30}, {60}, {20}, {10}};
+    plotter::doc::TableCell cell; table.cells.push_back(cell);
+    source_page.elements.push_back(table);
+    plotter::doc::MathElement math;
+    math.id = "math-1"; math.expression = "A";
+    math.source_syntax = "pdf-text-layer-heuristic";
+    math.bounds = plotter::doc::Rect{{70}, {60}, {10}, {10}};
+    source_page.elements.push_back(math);
+    direct.pages.push_back(source_page);
+    options.page_numbers = false;
+    options.output_directory = root / "out-direct";
+    const auto direct_result = plotter::doc::run_pipeline(direct, options);
+    require(direct_result.ok, "typed Document pipeline failed");
+    bool has_table = false, has_math = false;
+    for (const auto& stroke : direct_result.job.pages.front().paths.strokes) {
+        has_table |= stroke.element_type == "table";
+        has_math |= stroke.element_type == "math";
+    }
+    require(has_table && has_math, "table and math paths were not assembled");
     std::filesystem::remove_all(root);
 }

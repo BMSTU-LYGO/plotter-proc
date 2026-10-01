@@ -7,6 +7,9 @@
 #include "plotter/doc/multipage_gcode_exporter.hpp"
 #include "plotter/doc/path_optimizer.hpp"
 #include "plotter/doc/pdf_adapter.hpp"
+#include "plotter/doc/raster_path_builder.hpp"
+#include "plotter/doc/table_path_builder.hpp"
+#include "plotter/doc/math_path_builder.hpp"
 #include "plotter/doc/svg_adapter.hpp"
 #include "plotter/doc/text_adapter.hpp"
 #include "plotter/doc/text_layout.hpp"
@@ -14,6 +17,7 @@
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include <optional>
 #include <type_traits>
 #include <variant>
 
@@ -68,22 +72,26 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
                 }
-            } else if (std::holds_alternative<RasterImageElement>(source)) {
-                ++stats.raster_images;
-                throw std::runtime_error("raster image path building is not implemented");
-            } else if (std::holds_alternative<MathElement>(source)) {
+            } else if (std::holds_alternative<RasterImageElement>(source)) ++stats.raster_images;
+            else if (const auto* math = std::get_if<MathElement>(&source)) {
                 ++stats.math_elements;
-                throw std::runtime_error("math path building is not implemented");
-            } else if (std::holds_alternative<TableElement>(source)) {
-                ++stats.tables;
-                throw std::runtime_error("table layout is not implemented");
-            } else if (std::holds_alternative<VectorElement>(source)) ++stats.vector_elements;
+                if (!math->visual_image_path) needs_font = true;
+            } else if (std::holds_alternative<TableElement>(source)) ++stats.tables;
+            else if (std::holds_alternative<VectorElement>(source)) ++stats.vector_elements;
         }
     }
     return paragraphs;
 }
 
-void append_graphics(PathDocument& paths, const SourcePage& source_page) {
+void append_graphics(PathDocument& paths, const SourcePage& source_page,
+                     const FontRegistry& fonts, const PipelineOptions& options) {
+    auto append_built = [&](PathDocument built) {
+        for (auto& stroke : built.strokes) {
+            stroke.id = paths.strokes.size();
+            paths.strokes.push_back(std::move(stroke));
+        }
+        paths.warnings.insert(paths.warnings.end(), built.warnings.begin(), built.warnings.end());
+    };
     for (const SourceElement& source : source_page.elements) {
         std::visit([&](const auto& element) {
             using Type = std::decay_t<decltype(element)>;
@@ -102,6 +110,30 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page) {
                     stroke.preserve_order = vector.preserve_order;
                     stroke.z_order = vector.z_order;
                     paths.strokes.push_back(std::move(stroke));
+                }
+            } else if constexpr (std::is_same_v<Type, RasterImageElement>) {
+                append_built(RasterPathBuilder{}.build(element, paths.page_width, paths.page_height));
+            } else if constexpr (std::is_same_v<Type, TableElement>) {
+                append_built(TablePathBuilder{}.build(element, paths.page_width, paths.page_height));
+            } else if constexpr (std::is_same_v<Type, MathElement>) {
+                if (element.visual_image_path) {
+                    if (!element.bounds) throw std::runtime_error("visual math has no placement bounds");
+                    RasterImageElement visual;
+                    visual.id = element.id;
+                    visual.source_page = element.source_page;
+                    visual.image_path = *element.visual_image_path;
+                    visual.bounds = element.bounds;
+                    auto raster = RasterPathBuilder{}.build(visual, paths.page_width, paths.page_height);
+                    for (auto& stroke : raster.strokes) {
+                        stroke.element_type = "math";
+                        stroke.semantic_role = "math-visual";
+                    }
+                    append_built(std::move(raster));
+                } else {
+                    auto built = MathPathBuilder{fonts}.build(element, {options.font_id, options.font_size, paths.page_width, paths.page_height});
+                    if (const auto* error = std::get_if<MathPathBuildError>(&built))
+                        throw std::runtime_error(error->code + ": " + error->message);
+                    append_built(std::move(std::get<PathDocument>(built)));
                 }
             } else if constexpr (std::is_same_v<Type, LineElement>) {
                 Stroke stroke;
@@ -123,19 +155,21 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page) {
 }
 }  // namespace
 
-PipelineResult run_pipeline(const PipelineOptions& options) {
+PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document* provided) {
     PipelineResult result;
     try {
-        if (options.input_path.empty() || options.output_directory.empty()) throw std::invalid_argument("input and output paths are required");
+        if ((!provided && options.input_path.empty()) || options.output_directory.empty())
+            throw std::invalid_argument("input and output paths are required");
         const auto config_report = validate_config(options.config);
         if (!config_report.ok()) throw std::invalid_argument("invalid page or machine configuration: " + config_report.issues.front().code);
-        const Document source = import_document(options.input_path, options.output_directory / "assets");
+        std::optional<Document> imported;
+        if (!provided) imported = import_document(options.input_path, options.output_directory / "assets");
+        const Document& source = provided ? *provided : *imported;
         result.report.import.source_pages = static_cast<std::uint32_t>(source.pages.size());
         bool needs_font = false;
         auto paragraphs = collect_text(source, options, result.report.import, needs_font);
-        if (needs_font && result.report.import.vector_elements)
-            throw std::runtime_error("mixed text and vector placement is not implemented");
-        if (options.page_numbers && !needs_font) throw std::invalid_argument("page numbers require a text font");
+        if (options.page_numbers && paragraphs.empty())
+            throw std::invalid_argument("page numbers require text content and a font");
         FontRegistry registry;
         if (needs_font) {
             if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
@@ -143,7 +177,7 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
             registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
         }
         LayoutDocument layout;
-        if (needs_font) {
+        if (!paragraphs.empty()) {
             const auto& page = options.config.page;
             TextLayoutOptions text_options;
             text_options.page_width = page.width; text_options.page_height = page.height;
@@ -162,7 +196,7 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
             paths.page_width = options.config.page.width;
             paths.page_height = options.config.page.height;
             if (index < layout.pages.size()) paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
-            if (index < source.pages.size()) append_graphics(paths, source.pages[index]);
+            if (index < source.pages.size()) append_graphics(paths, source.pages[index], registry, options);
             if (options.optimize_geometry) paths = optimize_paths(paths);
             const auto checks = preflight(paths, options.config);
             if (!checks.ok()) throw std::runtime_error("path preflight failed on page " + std::to_string(index + 1) + ": " + checks.issues.front().code);
@@ -193,5 +227,9 @@ PipelineResult run_pipeline(const PipelineOptions& options) {
         catch (const std::exception&) { }
     }
     return result;
+}
+PipelineResult run_pipeline(const PipelineOptions& options) { return run_pipeline_impl(options, nullptr); }
+PipelineResult run_pipeline(const Document& document, const PipelineOptions& options) {
+    return run_pipeline_impl(options, &document);
 }
 }  // namespace plotter::doc

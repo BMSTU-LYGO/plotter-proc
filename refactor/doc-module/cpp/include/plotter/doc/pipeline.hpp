@@ -33,5 +33,6 @@ struct PipelineResult final {
 };
 
 [[nodiscard]] PipelineResult run_pipeline(const PipelineOptions& options);
+[[nodiscard]] PipelineResult run_pipeline(const Document& document, const PipelineOptions& options);
 
 }  // namespace plotter::doc
