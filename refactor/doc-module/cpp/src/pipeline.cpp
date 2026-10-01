@@ -45,6 +45,7 @@ TextAlignment alignment(const std::optional<std::string>& value) {
 std::vector<LayoutParagraph> collect_text(const Document& document, const PipelineOptions& options, ImportStats& stats, bool& needs_font) {
     std::vector<LayoutParagraph> paragraphs;
     for (const SourcePage& page : document.pages) {
+        bool first_paragraph_on_page = true;
         for (const SourceElement& source : page.elements) {
             if (const auto* text = std::get_if<TextElement>(&source)) {
                 ++stats.text_elements;
@@ -52,6 +53,8 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                 for (const Paragraph& item : text->paragraphs) {
                     LayoutParagraph paragraph;
                     paragraph.source_element_id = text->id;
+                    paragraph.page_break_before = page.source_page > 0 && first_paragraph_on_page;
+                    first_paragraph_on_page = false;
                     paragraph.alignment = alignment(item.alignment);
                     paragraph.space_before = item.space_before.value_or(Millimetres{});
                     paragraph.space_after = item.space_after.value_or(Millimetres{});
