@@ -25,9 +25,11 @@ int main() {
     const std::string minimal_job((std::istreambuf_iterator<char>(minimal_file)), {});
     assert(minimal_job.find("\"preview\":null") != std::string::npos);
     assert(minimal_job.find("job-warning") != std::string::npos);
-    { std::ofstream stale(output / "stale.gcode"); stale << "old"; }
+    { std::ofstream stale(output / "stale.gcode"); stale << "user file"; }
+    { std::ofstream own(output / "output.gcode"); own << "failed run"; }
     write_error_artifacts(output, "expected error");
-    assert(!std::filesystem::exists(output / "stale.gcode"));
+    assert(std::filesystem::exists(output / "stale.gcode"));
+    assert(!std::filesystem::exists(output / "output.gcode"));
     std::ifstream report_file(output / "report.json"); std::string report_json((std::istreambuf_iterator<char>(report_file)), {}); assert(report_json.find("\"status\":\"error\"") != std::string::npos);
     std::filesystem::remove_all(output, ignored);
 }

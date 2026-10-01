@@ -46,7 +46,9 @@ std::string_view artifact_level_name(ArtifactLevel level) noexcept { switch (lev
 ArtifactPaths write_artifacts(const PlotterJob& job, const PipelineReport& report, const ArtifactOptions& options) { if (options.output_directory.empty()) throw ArtifactError("artifact output directory is empty"); ArtifactPaths paths{options.output_directory / "job.json", options.output_directory / "report.json", {}, {}}; if (!job.pages.empty()) { const auto directory = options.output_directory / page_directory(job.pages.front()); paths.paths_json = directory / "paths.json"; if (options.write_preview && options.level != ArtifactLevel::minimal) paths.preview_svg = directory / "plotter-preview.svg"; } try { atomic_write(paths.job_json, job_json(job, options.level, options.write_preview)); atomic_write(paths.report_json, serialize_report_json(report)); for (const auto& page : job.pages) write_page(page, options.output_directory / page_directory(page), options.level, options.write_preview); } catch (const ArtifactError&) { throw; } catch (const std::exception& error) { throw ArtifactError(error.what()); } return paths; }
 void write_error_artifacts(const std::filesystem::path& output_directory, std::string message, ArtifactLevel level) {
     if (output_directory.empty()) throw ArtifactError("artifact output directory is empty");
-    std::error_code error; if (std::filesystem::exists(output_directory, error)) for (const auto& entry : std::filesystem::recursive_directory_iterator(output_directory, error)) { if (error) break; if (entry.is_regular_file(error) && entry.path().extension() == ".gcode") std::filesystem::remove(entry.path(), error); }
+    std::error_code error;
+    std::filesystem::remove(output_directory / "output.gcode", error);
+    if (error) throw ArtifactError("cannot remove failed run G-code: " + error.message());
     PipelineReport report; report.status = "error"; report.artifact_level = std::string(artifact_level_name(level)); report.errors.push_back(std::move(message)); atomic_write(output_directory / "report.json", serialize_report_json(report));
 }
 }  // namespace plotter::doc
