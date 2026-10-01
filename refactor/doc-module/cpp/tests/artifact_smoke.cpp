@@ -18,6 +18,13 @@ int main() {
     assert(std::filesystem::exists(paths.job_json)); assert(std::filesystem::exists(paths.report_json)); assert(std::filesystem::exists(paths.paths_json)); assert(std::filesystem::exists(paths.preview_svg));
     std::ifstream success_report_file(paths.report_json); std::string success_report((std::istreambuf_iterator<char>(success_report_file)), {}); assert(success_report.find("\"hits\":9") != std::string::npos);
     std::ifstream job_file(paths.job_json); std::string job_manifest((std::istreambuf_iterator<char>(job_file)), {}); assert(job_manifest.find("pages/page-001/paths.json") != std::string::npos); assert(job_manifest.find("tab\\tline\\n") != std::string::npos);
+    job.warnings = {"job-warning"};
+    const auto minimal = write_artifacts(job, report, {output / "minimal", ArtifactLevel::minimal, false});
+    assert(minimal.preview_svg.empty());
+    std::ifstream minimal_file(minimal.job_json);
+    const std::string minimal_job((std::istreambuf_iterator<char>(minimal_file)), {});
+    assert(minimal_job.find("\"preview\":null") != std::string::npos);
+    assert(minimal_job.find("job-warning") != std::string::npos);
     { std::ofstream stale(output / "stale.gcode"); stale << "old"; }
     write_error_artifacts(output, "expected error");
     assert(!std::filesystem::exists(output / "stale.gcode"));
