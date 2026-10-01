@@ -28,7 +28,7 @@ struct DecomposeContext final {
 
 void append(DecomposeContext& context, RawPoint point) {
     if (context.overflow) return;
-    if (!context.current.empty() && context.current.back().x == point.x && context.current.back().y == point.y) return;
+    if (!context.current.empty() && std::hypot(context.current.back().x - point.x, context.current.back().y - point.y) < 0.03) return;
     if (context.current.size() >= context.maximum_points) { context.overflow = true; return; }
     context.current.push_back(point);
 }
@@ -47,7 +47,7 @@ void append(DecomposeContext& context, RawPoint point) {
 
 void quadratic(DecomposeContext& context, RawPoint start, RawPoint control, RawPoint end, unsigned depth = 0U) {
     if (context.overflow) return;
-    if (depth >= 16U || distance_to_chord(control, start, end) <= context.tolerance) { append(context, end); return; }
+    if (depth >= 20U || distance_to_chord(control, start, end) <= context.tolerance) { append(context, end); return; }
     const RawPoint left_mid{(start.x + control.x) / 2.0, (start.y + control.y) / 2.0};
     const RawPoint right_mid{(control.x + end.x) / 2.0, (control.y + end.y) / 2.0};
     const RawPoint split{(left_mid.x + right_mid.x) / 2.0, (left_mid.y + right_mid.y) / 2.0};
@@ -57,7 +57,7 @@ void quadratic(DecomposeContext& context, RawPoint start, RawPoint control, RawP
 
 void cubic(DecomposeContext& context, RawPoint start, RawPoint first, RawPoint second, RawPoint end, unsigned depth = 0U) {
     if (context.overflow) return;
-    if (depth >= 16U || std::max(distance_to_chord(first, start, end), distance_to_chord(second, start, end)) <= context.tolerance) { append(context, end); return; }
+    if (depth >= 20U || std::max(distance_to_chord(first, start, end), distance_to_chord(second, start, end)) <= context.tolerance) { append(context, end); return; }
     const RawPoint a{(start.x + first.x) / 2.0, (start.y + first.y) / 2.0};
     const RawPoint b{(first.x + second.x) / 2.0, (first.y + second.y) / 2.0};
     const RawPoint c{(second.x + end.x) / 2.0, (second.y + end.y) / 2.0};

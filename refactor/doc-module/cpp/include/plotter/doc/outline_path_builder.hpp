@@ -10,7 +10,7 @@ namespace plotter::doc {
 
 struct OutlinePathOptions final {
     // Maximum deviation of a flattened curve from its chord in page millimetres.
-    double flattening_tolerance_mm{0.05};
+    double flattening_tolerance_mm{0.08};
     std::size_t maximum_points_per_contour{8192};
 };
 
