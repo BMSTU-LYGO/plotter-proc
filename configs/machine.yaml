@@ -28,7 +28,7 @@ workspace_mm:
   min_x: 0.0
   max_x: 220.0
   min_y: 0.0
-  max_y: 220.0
+  max_y: 350.0
 
 gcode:
   home: false
@@ -38,7 +38,7 @@ gcode:
 
 page_change:
   enabled: true
-  pause_seconds: 90
+  pause_seconds: 30
   park:
     mode: corner
     corner: top_right
