@@ -1,6 +1,8 @@
 #include "plotter/doc/multipage_gcode_exporter.hpp"
 
 #include <cmath>
+#include <array>
+#include <charconv>
 #include <iomanip>
 #include <locale>
 #include <sstream>
@@ -11,10 +13,12 @@ namespace plotter::doc {
 namespace {
 
 std::string fixed(double value, std::uint32_t decimals) {
-    std::ostringstream stream;
-    stream.imbue(std::locale::classic());
-    stream << std::fixed << std::setprecision(static_cast<int>(decimals)) << value;
-    return stream.str();
+    std::array<char, 128> buffer{};
+    const auto [end, error] = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                            value, std::chars_format::fixed,
+                                            static_cast<int>(decimals));
+    if (error != std::errc{}) throw std::invalid_argument("Cannot format G-code coordinate");
+    return {buffer.data(), end};
 }
 
 std::string seconds_text(double value) {
@@ -125,7 +129,10 @@ std::string generate_job_gcode(const PlotterJob& job, const MachineConfig& machi
     lines.emplace_back("M84");
     lines.emplace_back("; End");
     if (lines.size() > max_commands) throw std::length_error("G-code command limit exceeded");
+    std::size_t byte_count = 0;
+    for (const auto& line : lines) byte_count += line.size() + 1;
     std::string output;
+    output.reserve(byte_count);
     for (const auto& line : lines) { output += line; output += '\n'; }
     return output;
 }

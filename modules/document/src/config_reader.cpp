@@ -110,6 +110,7 @@ PipelineConfig load_pipeline_config(const std::filesystem::path& layout_yaml,
     assign(layout.scalars, "margins_mm.right", config.page.margins.right);
     assign(layout.scalars, "margins_mm.top", config.page.margins.top);
     assign(layout.scalars, "margins_mm.bottom", config.page.margins.bottom);
+    assign(layout.scalars, "line_gap_mm", config.page.line_gap);
     double clearance = 0.0;
     assign(layout.scalars, page + "hole_clearance_mm", clearance);
     if (const auto holes = layout.inline_lists.find(page + "holes"); holes != layout.inline_lists.end()) {

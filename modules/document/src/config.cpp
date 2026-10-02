@@ -16,6 +16,7 @@ bool PreflightReport::ok() const noexcept { for (const auto& issue : issues) if 
 PreflightReport validate_config(const PipelineConfig& c) {
     PreflightReport r; const auto& p = c.page; const auto& m = c.machine;
     positive(r, p.width.value, "page.width"); positive(r, p.height.value, "page.height");
+    if (!finite(p.line_gap.value) || p.line_gap.value < 0.0) add(r, PreflightSeverity::error, "page.line_gap", "must be finite and non-negative");
     for (double x : {p.margins.left.value, p.margins.right.value, p.margins.top.value, p.margins.bottom.value}) if (!finite(x) || x < 0.0) add(r, PreflightSeverity::error, "page.margin", "must be finite and non-negative");
     if (p.margins.left.value + p.margins.right.value >= p.width.value || p.margins.top.value + p.margins.bottom.value >= p.height.value) add(r, PreflightSeverity::error, "page.content_area", "margins leave no positive content area");
     const auto& w = m.workspace;

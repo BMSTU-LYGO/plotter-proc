@@ -8,14 +8,14 @@ axes:
   invert_y: true
 
 pen:
-  up_z_mm: 5.0
-  down_z_mm: 1.0
-  settle_ms: 100
+  up_z_mm: 2.5
+  down_z_mm: 0.1
+  settle_ms: 20
 
 feedrate_mm_min:
-  draw: 1000
-  travel: 3000
-  z: 500
+  draw: 2000
+  travel: 6000
+  z: 1200
 
 workspace_mm:
   min_x: 0.0

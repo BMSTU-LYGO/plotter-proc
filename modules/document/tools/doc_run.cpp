@@ -63,8 +63,10 @@ int main(int argc, char** argv) {
             options.font_size = {millimetres * 72.0 / 25.4};
         }
         else if (argument == "--join-words") options.join_words = true;
+        else if (argument == "--no-join-words") options.join_words = false;
         else if (argument == "--optimize") options.optimize_geometry = true;
         else if (argument == "--simplify") options.simplify_geometry = true;
+        else if (argument == "--no-simplify") options.simplify_geometry = false;
         else if (argument == "--page-numbers") options.page_numbers = true;
         else if (argument == "--handwriting") options.handwriting.enabled = true;
         else if (argument == "--document-layout") {
@@ -77,7 +79,7 @@ int main(int argc, char** argv) {
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--size-mm 1..20] [--join-words] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--size-mm 1..20] [--join-words|--no-join-words] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify|--no-simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

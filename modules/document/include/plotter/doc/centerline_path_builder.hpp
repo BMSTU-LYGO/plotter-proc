@@ -9,8 +9,8 @@ namespace plotter::doc {
 // Materializes PFC centerlines at the positions already computed by layout.
 // A LayoutPage may contain page-number glyphs; those are retained as a
 // separate provenance role when PositionedGlyph::text_role is "page-number".
-// With join_words enabled, all text contours within each word become one
-// continuous pen-down path; page numbers and different words stay separate.
+// With join_words enabled, only safe neighboring main strokes are joined.
+// Secondary contours and unsafe gaps remain separate pen-down paths.
 class CenterlinePathBuilder final {
 public:
     explicit CenterlinePathBuilder(const FontRegistry& fonts) : fonts_(fonts) {}

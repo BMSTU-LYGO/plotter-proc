@@ -24,8 +24,8 @@ struct RoutingResult {
 
 [[nodiscard]] RoutingResult route_graph(
     const SkeletonGraph& graph,
-    float max_retrace_ratio = 0.25F,
-    std::size_t exact_matching_max_odd_vertices = 16
+    float max_retrace_ratio = 0.45F,
+    std::size_t exact_matching_max_odd_vertices = 20
 );
 
 }  // namespace fontc

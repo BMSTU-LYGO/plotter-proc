@@ -16,6 +16,7 @@
 #include <atomic>
 #include <cstdint>
 #include <exception>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -77,6 +78,78 @@ constexpr std::uint32_t kFallbackCodepoint = static_cast<std::uint32_t>('?');
 }
 
 
+[[nodiscard]] bool letter_codepoint(std::uint32_t codepoint) {
+    return (codepoint >= 'A' && codepoint <= 'Z') ||
+           (codepoint >= 'a' && codepoint <= 'z') ||
+           (codepoint >= 0x0400U && codepoint <= 0x04FFU);
+}
+
+[[nodiscard]] double point_distance(PointFU a, PointFU b) {
+    return std::hypot(static_cast<double>(a.x) - b.x,
+                      static_cast<double>(a.y) - b.y);
+}
+
+[[nodiscard]] double cross(PointFU a, PointFU b, PointFU c) {
+    return (static_cast<double>(b.x) - a.x) * (static_cast<double>(c.y) - a.y) -
+           (static_cast<double>(b.y) - a.y) * (static_cast<double>(c.x) - a.x);
+}
+
+[[nodiscard]] bool crosses(PointFU a, PointFU b, PointFU c, PointFU d) {
+    return cross(a, b, c) * cross(a, b, d) < 0.0 &&
+           cross(c, d, a) * cross(c, d, b) < 0.0;
+}
+
+void join_disconnected_letter(CompiledGlyph& glyph, double max_connector_fu) {
+    if (!letter_codepoint(glyph.codepoint) || glyph.strokes.size() < 2) return;
+    const auto source = std::move(glyph.strokes);
+    std::vector<bool> used(source.size());
+    const auto primary = std::max_element(source.begin(), source.end(),
+        [](const CompiledStroke& a, const CompiledStroke& b) {
+            return a.points.size() < b.points.size();
+        });
+    const std::size_t first = static_cast<std::size_t>(primary - source.begin());
+    CompiledStroke joined = source[first];
+    used[first] = true;
+    if (joined.points.size() >= 2 && joined.points.front().x > joined.points.back().x)
+        std::reverse(joined.points.begin(), joined.points.end());
+    for (std::size_t remaining = source.size() - 1; remaining > 0; --remaining) {
+        const PointFU end = joined.points.back();
+        double best_score = std::numeric_limits<double>::infinity();
+        std::size_t chosen = source.size();
+        bool reverse = false;
+        for (std::size_t index = 0; index < source.size(); ++index) {
+            if (used[index] || source[index].points.empty()) continue;
+            for (bool backwards : {false, true}) {
+                const PointFU start = backwards ? source[index].points.back() : source[index].points.front();
+                double score = point_distance(end, start);
+                for (const auto& obstacle : source)
+                    for (std::size_t segment = 1; segment < obstacle.points.size(); ++segment)
+                        if (crosses(end, start, obstacle.points[segment - 1], obstacle.points[segment]))
+                            score += 1000.0;
+                if (score < best_score) {
+                    best_score = score;
+                    chosen = index;
+                    reverse = backwards;
+                }
+            }
+        }
+        if (chosen == source.size() || best_score > max_connector_fu) {
+            glyph.strokes = source;
+            return;
+        }
+        used[chosen] = true;
+        const auto& points = source[chosen].points;
+        if (reverse) {
+            for (auto it = points.rbegin(); it != points.rend(); ++it)
+                if (joined.points.empty() || *it != joined.points.back()) joined.points.push_back(*it);
+        } else {
+            for (PointFU point : points)
+                if (joined.points.empty() || point != joined.points.back()) joined.points.push_back(point);
+        }
+    }
+    glyph.strokes = {std::move(joined)};
+}
+
 [[nodiscard]] std::optional<CompiledGlyph> compile_one(
     FontFace& face,
     std::uint32_t codepoint,
@@ -99,6 +172,12 @@ constexpr std::uint32_t kFallbackCodepoint = static_cast<std::uint32_t>('?');
         CompiledStroke compiled = compile_routed_stroke(stroke, raster);
         if (!compiled.points.empty()) glyph.strokes.push_back(std::move(compiled));
     }
+    // The source Ж/ж skeleton has several short pieces of one visible form.
+    // Keep deliberately detached accents and stems as separate components.
+    const bool fragmented_zhe = codepoint == 0x0416U || codepoint == 0x0436U;
+    join_disconnected_letter(glyph, fragmented_zhe
+        ? std::numeric_limits<double>::infinity()
+        : static_cast<double>(face.metrics().units_per_em) * 0.20);
     return glyph;
 }
 
@@ -137,7 +216,7 @@ constexpr std::uint32_t kFallbackCodepoint = static_cast<std::uint32_t>('?');
     PfcMetadata metadata;
     metadata.font_hash = stable_hash(read_bytes(options.font_path));
     const std::string config = "resolution=" + std::to_string(options.resolution) +
-        ";mask_threshold=160;spur_divisor=128;simplify_fu=1;chaikin=1;algorithm=1";
+        ";mask_threshold=160;spur_divisor=128;simplify_fu=1;chaikin=1;algorithm=5";
     const std::vector<std::uint8_t> config_bytes(config.begin(), config.end());
     metadata.config_hash = stable_hash(config_bytes);
     return metadata;

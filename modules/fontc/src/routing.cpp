@@ -275,11 +275,32 @@ RoutingResult route_graph(
                 paths[right][left] = paths[left][right];
             }
         }
-        const auto pairs = match_odd_vertices(odd, paths, exact_matching_max_odd_vertices);
+        // Keep two odd vertices as the writing entry and exit. Pairing every
+        // odd vertex forces a closed tour and retraces more ink than the old
+        // Python open Euler route, often splitting one letter into many lifts.
+        std::size_t start_index = 0, end_index = 1;
+        for (std::size_t left = 0; left < odd.size(); ++left) {
+            for (std::size_t right = left + 1; right < odd.size(); ++right) {
+                if (paths[left][right].length > paths[start_index][end_index].length) {
+                    start_index = left;
+                    end_index = right;
+                }
+            }
+        }
+        std::vector<std::uint32_t> remaining;
+        for (std::size_t index = 0; index < odd.size(); ++index)
+            if (index != start_index && index != end_index) remaining.push_back(index);
+        std::vector<std::vector<ShortestPath>> remaining_paths(
+            remaining.size(), std::vector<ShortestPath>(remaining.size()));
+        for (std::size_t left = 0; left < remaining.size(); ++left)
+            for (std::size_t right = 0; right < remaining.size(); ++right)
+                remaining_paths[left][right] = paths[remaining[left]][remaining[right]];
+        const auto pairs = match_odd_vertices(remaining, remaining_paths, exact_matching_max_odd_vertices);
         float duplicated_length = 0.0F;
         for (const auto& [left, right] : pairs) {
-            duplicated_length += paths[left][right].length;
-            for (const std::uint32_t edge_id : paths[left][right].edges) {
+            const ShortestPath& path = paths[remaining[left]][remaining[right]];
+            duplicated_length += path.length;
+            for (const std::uint32_t edge_id : path.edges) {
                 const Edge& edge = graph.edges[edge_id];
                 occurrences.push_back({edge.id, edge.a, edge.b, true});
             }
@@ -289,7 +310,7 @@ RoutingResult route_graph(
         if (duplicated_length / component_length <= max_retrace_ratio) {
             result.retraced_length += duplicated_length;
             result.strokes.push_back(assemble(graph, occurrences,
-                hierholzer(occurrences, component_nodes.front(), graph.nodes.size())));
+                hierholzer(occurrences, odd[start_index], graph.nodes.size())));
         } else {
             occurrences.resize(component.size());
             const std::uint32_t virtual_node = static_cast<std::uint32_t>(graph.nodes.size());

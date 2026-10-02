@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <array>
+#include <charconv>
 #include <fstream>
 #include <iomanip>
 #include <locale>
@@ -13,10 +15,12 @@ namespace plotter::doc {
 namespace {
 
 std::string fixed(double value, std::uint32_t decimals) {
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << std::fixed << std::setprecision(static_cast<int>(decimals)) << value;
-    return out.str();
+    std::array<char, 128> buffer{};
+    const auto [end, error] = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                            value, std::chars_format::fixed,
+                                            static_cast<int>(decimals));
+    if (error != std::errc{}) throw std::invalid_argument("Cannot format G-code coordinate");
+    return {buffer.data(), end};
 }
 
 double rounded(double value, std::uint32_t decimals) {
@@ -121,7 +125,10 @@ std::string generate_gcode(const PathDocument& document, const MachineConfig& ma
     lines.emplace_back("M84");
     lines.emplace_back("; End");
     if (lines.size() > max_commands) throw std::length_error("G-code command limit exceeded");
+    std::size_t byte_count = 0;
+    for (const auto& line : lines) byte_count += line.size() + 1;
     std::string output;
+    output.reserve(byte_count);
     for (const auto& line : lines) { output += line; output += '\n'; }
     return output;
 }

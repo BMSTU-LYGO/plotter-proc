@@ -170,8 +170,9 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
             const Line& line = lines[line_number];
             const double base_height = paragraph.line_height ? paragraph.line_height->value : std::max(line.height.value, fallback_height);
             if (paragraph.line_spacing && *paragraph.line_spacing <= 0.0) throw std::invalid_argument("paragraph line spacing must be positive");
-            const double height = line.words.empty() ? blank_line_height
+            const double ink_height = line.words.empty() ? blank_line_height
                 : (paragraph.line_spacing ? base_height * *paragraph.line_spacing : base_height);
+            const double height = ink_height + options.line_gap.value;
             require_vertical(height);
             const double line_left = line_number == 0 ? first_left : paragraph_left;
             const double line_available = paragraph_right - line_left;
@@ -180,7 +181,7 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
             double x = line_left;
             if (paragraph.alignment == TextAlignment::center) x += std::max(0.0, (line_available - line.width.value) / 2.0);
             else if (paragraph.alignment == TextAlignment::right) x += std::max(0.0, line_available - line.width.value);
-            const double baseline = cursor_y + std::min(line.ascender.value, height);
+            const double baseline = cursor_y + std::min(line.ascender.value, ink_height);
             LayoutPage& page = document.pages.back(); add_source(page, paragraph.source_element_id);
             page.line_boxes.push_back({{x}, {cursor_y}, {justify ? line_available : line.width.value}, {height}});
             for (std::size_t word_position = 0; word_position < line.words.size(); ++word_position) {

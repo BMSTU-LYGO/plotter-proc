@@ -45,6 +45,7 @@ struct TextLayoutOptions final {
     Millimetres margin_left{15.0}, margin_top{15.0}, margin_right{15.0}, margin_bottom{15.0};
     // Reserved at the bottom of every page; footer drawing is a later stage.
     Millimetres footer_reserve{};
+    Millimetres line_gap{5.0};
 };
 
 class TextLayoutEngine final {

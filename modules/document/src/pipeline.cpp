@@ -369,6 +369,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             text_options.page_width = page.width; text_options.page_height = page.height;
             text_options.margin_left = page.margins.left; text_options.margin_right = page.margins.right;
             text_options.margin_top = page.margins.top; text_options.margin_bottom = page.margins.bottom;
+            text_options.line_gap = page.line_gap;
             if (options.page_numbers) text_options.footer_reserve = {8.0};
             layout = TextLayoutEngine{registry}.layout(paragraphs, text_options);
         }
