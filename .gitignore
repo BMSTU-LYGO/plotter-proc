@@ -2,6 +2,8 @@
 # User-provided fonts
 assets/*.ttf
 assets/*.otf
+fonts/*.ttf
+fonts/*.otf
 
 /build/
 /cmake-build-*/

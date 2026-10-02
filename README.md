@@ -25,6 +25,20 @@ ctest --test-dir build --output-on-failure
 
 ## Запуск
 
+Поместите шрифт в `fonts/`, а документ в `docs/`. Запуск через Make сам собирает нужную программу:
+
+```bash
+make font имя_шрифта.ttf
+make doc имя_документа.md
+```
+
+Готовый шрифт находится в `font-cache/имя_шрифта/имя_шрифта.pfc`, а результат документа — в `build/имя_документа/`. Для формата А4 укажите `PAGE=A4`. Если готовых шрифтов несколько, укажите нужный: `make doc имя_документа.md FONT=имя_шрифта`.
+
+Можно передать имя без расширения. Поддерживаются шрифты `.ttf` и `.otf`, документы `.md`, `.txt`, `.docx` и `.svg`.
+
+Ручной запуск:
+
+```bash
 ```bash
 build/modules/fontc/fontc <path/to/font.ttf> \
   --chars-file assets/font-cache-corpus.txt --output build/font.pfc
