@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
         if (argument == "--input") options.input_path = next();
         else if (argument == "--output") options.output_directory = next();
         else if (argument == "--font") options.pfc_path = next();
+        else if (argument == "--fallback-font") options.fallback_font_path = next();
         else if (argument == "--font-mode") {
             const auto mode = next();
             if (mode == "centerline") options.font_mode = FontMode::centerline;
@@ -54,13 +55,15 @@ int main(int argc, char** argv) {
         else if (argument == "--handwriting") options.handwriting.enabled = true;
         else if (argument == "--document-layout") {
             const auto mode = next();
-            if (mode == "preserve") options.document_layout = SourcePageTransformMode::preserve;
+            if (mode == "auto") options.document_layout = SourcePageTransformMode::automatic;
+            else if (mode == "hybrid") options.document_layout = SourcePageTransformMode::hybrid;
+            else if (mode == "preserve") options.document_layout = SourcePageTransformMode::preserve;
             else if (mode == "contain") options.document_layout = SourcePageTransformMode::contain;
             else if (mode == "reflow") options.document_layout = SourcePageTransformMode::reflow;
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

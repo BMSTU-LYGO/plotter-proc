@@ -53,6 +53,12 @@ bool FontRegistry::contains(std::string_view id) const noexcept { return entries
 
 const FontRegistration& FontRegistry::font(std::string_view id) const { return entry(id).registration; }
 
+const std::filesystem::path& FontRegistry::outline_font_path(std::string_view id) const {
+    const Entry& selected = entry(id);
+    if (!selected.outline) throw std::runtime_error("registered font has no outline source");
+    return selected.registration.pfc_path;
+}
+
 const FontRegistry::Entry& FontRegistry::entry(std::string_view id) const {
     const auto found = entries_.find(id);
     if (found == entries_.end()) throw std::out_of_range("requested font is not registered");

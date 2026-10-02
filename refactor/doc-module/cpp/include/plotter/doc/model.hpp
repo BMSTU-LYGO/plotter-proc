@@ -66,8 +66,7 @@ struct TableElement final { std::string id; std::uint32_t source_order{}, source
 
 using SourceElement = std::variant<TextElement, RasterImageElement, VectorElement, MathElement, LineElement, ArrowElement, TableElement>;
 
-// Reader adapters normalize source coordinates to millimetres. In particular,
-// PDF points are converted at the adapter boundary before constructing a page.
+// Reader adapters normalize source coordinates to millimetres before constructing a page.
 struct SourcePage final { std::uint32_t source_page{}; std::optional<Millimetres> width, height; std::vector<SourceElement> elements; std::optional<Rect> content_bounds; };
 struct DocumentMetadata final { std::string source_format{"unknown"}; std::optional<std::string> title; std::vector<std::pair<std::string, std::string>> properties; };
 struct Document final { std::string source_path; std::vector<SourcePage> pages; std::vector<std::string> warnings; DocumentMetadata metadata{}; std::uint32_t schema_version{1}; };

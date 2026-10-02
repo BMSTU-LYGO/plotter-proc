@@ -1,6 +1,5 @@
 #include "plotter/doc/docx_adapter.hpp"
 #include "plotter/doc/ir.hpp"
-#include "plotter/doc/pdf_adapter.hpp"
 #include "plotter/doc/svg_adapter.hpp"
 #include "plotter/doc/text_adapter.hpp"
 
@@ -28,8 +27,6 @@ int main(int argc, char** argv) {
             result = read_text_document(input);
         else if (extension == ".docx")
             result = read_docx_document(input);
-        else if (extension == ".pdf")
-            result = read_pdf_document(input);
         else if (extension == ".svg") {
             auto svg = read_svg_document(input);
             if (const auto* error = std::get_if<SvgAdapterError>(&svg)) {

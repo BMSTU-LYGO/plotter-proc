@@ -53,7 +53,7 @@ struct RawStroke final { std::vector<RawPoint> points; std::size_t character_ind
 
 [[nodiscard]] bool is_linear_source(const MathElement& element) {
     if (element.source_syntax.empty() || element.source_syntax == "omml" ||
-        element.source_syntax == "pdf-text-layer-heuristic" || element.source_syntax == "plain") {
+        element.source_syntax == "plain") {
         return element.expression.find_first_of("\\^_{}") == std::string::npos;
     }
     return false;

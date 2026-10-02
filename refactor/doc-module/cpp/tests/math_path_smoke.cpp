@@ -22,9 +22,9 @@ int main() {
     fonts.register_pfc({"math", "math-hash", path});
     plotter::doc::MathElement element;
     element.id = "page-2-math-3"; element.source_page = 1; element.expression = "x+1";
-    element.source_syntax = "pdf-text-layer-heuristic"; element.bounds = {{20}, {30}, {30}, {10}};
+    element.source_syntax = "plain"; element.bounds = {{20}, {30}, {30}, {10}};
     const auto result = plotter::doc::MathPathBuilder(fonts).build(element, {"math", {12}, {210}, {297}});
-    require(std::holds_alternative<plotter::doc::PathDocument>(result), "linear PDF math must produce paths");
+    require(std::holds_alternative<plotter::doc::PathDocument>(result), "linear math must produce paths");
     const auto& paths = std::get<plotter::doc::PathDocument>(result);
     require(paths.strokes.size() == 3, "each linear glyph contour must be materialized");
     for (const auto& stroke : paths.strokes) {

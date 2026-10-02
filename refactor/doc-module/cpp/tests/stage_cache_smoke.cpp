@@ -39,9 +39,9 @@ int main() {
     require(fingerprint != plotter::doc::StageCache::fingerprint("layout", "input-sha", "layout-v3", "{\"font\":\"abc\"}"), "fingerprint must bind declared stage inputs");
     const auto source = root / "source.txt";
     { std::ofstream output(source, std::ios::binary); output << "source bytes"; }
-    const auto import_key = plotter::doc::StageCache::import_fingerprint(source, "import-v1", "{\"pdf_math\":false}");
-    require(import_key == plotter::doc::StageCache::import_fingerprint(source, "import-v1", "{\"pdf_math\":false}"), "import key must derive from source and config");
-    require(import_key != plotter::doc::StageCache::import_fingerprint(source, "import-v2", "{\"pdf_math\":false}"), "import key must bind importer version");
+    const auto import_key = plotter::doc::StageCache::import_fingerprint(source, "import-v1", "{\"import_mode\":\"default\"}");
+    require(import_key == plotter::doc::StageCache::import_fingerprint(source, "import-v1", "{\"import_mode\":\"default\"}"), "import key must derive from source and config");
+    require(import_key != plotter::doc::StageCache::import_fingerprint(source, "import-v2", "{\"import_mode\":\"default\"}"), "import key must bind importer version");
 
     plotter::doc::Document document;
     document.source_path = "input.txt";

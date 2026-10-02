@@ -10,7 +10,7 @@ namespace plotter::doc {
 // Reflow only translates already-materialized source geometry to the target
 // content origin. Text rewrapping belongs to layout and is intentionally not
 // inferred from PathDocument strokes.
-enum class SourcePageTransformMode { reflow, preserve, contain };
+enum class SourcePageTransformMode { automatic, reflow, hybrid, preserve, contain };
 
 struct SourcePageTransformOptions final {
     SourcePageTransformMode mode{SourcePageTransformMode::contain};

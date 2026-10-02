@@ -20,6 +20,7 @@ struct PipelineOptions final {
     std::filesystem::path input_path;
     std::filesystem::path output_directory;
     std::filesystem::path pfc_path;
+    std::filesystem::path fallback_font_path;
     std::filesystem::path cache_directory;
     bool use_cache{true};
     std::string font_id{"body"};
@@ -33,7 +34,7 @@ struct PipelineOptions final {
     bool simplify_geometry{};
     bool page_numbers{};
     HandwritingOptions handwriting{};
-    SourcePageTransformMode document_layout{SourcePageTransformMode::preserve};
+    SourcePageTransformMode document_layout{SourcePageTransformMode::automatic};
     double preserve_max_upscale{1.10};
 };
 

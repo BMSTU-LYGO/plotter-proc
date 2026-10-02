@@ -51,7 +51,7 @@ int main() {
     source_page.elements.push_back(table);
     plotter::doc::MathElement math;
     math.id = "math-1"; math.expression = "A";
-    math.source_syntax = "pdf-text-layer-heuristic";
+    math.source_syntax = "plain";
     math.bounds = plotter::doc::Rect{{70}, {60}, {10}, {10}};
     source_page.elements.push_back(math);
     direct.pages.push_back(source_page);

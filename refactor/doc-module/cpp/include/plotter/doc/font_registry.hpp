@@ -49,6 +49,7 @@ public:
 
     [[nodiscard]] bool contains(std::string_view id) const noexcept;
     [[nodiscard]] const FontRegistration& font(std::string_view id) const;
+    [[nodiscard]] const std::filesystem::path& outline_font_path(std::string_view id) const;
     // Selects the requested font when it contains the glyph, then the registry
     // fallback, then the requested font's required '?' glyph.
     [[nodiscard]] ResolvedGlyph resolve(std::string_view requested_font_id,

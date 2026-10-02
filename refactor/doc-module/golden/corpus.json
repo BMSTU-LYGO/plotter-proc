@@ -36,15 +36,6 @@
       "golden": false
     },
     {
-      "id": "pdf-layout",
-      "input": "tests/fixtures/layout/mixed_layout_demo.pdf",
-      "format": "pdf",
-      "page": "A4",
-      "font_mode": "outline",
-      "golden": true,
-      "machine_config": "refactor/doc-module/fixtures/machine-a4.yaml"
-    },
-    {
       "id": "svg-vector",
       "input": "tests/fixtures/update_18/vector_diagram.svg",
       "format": "svg",

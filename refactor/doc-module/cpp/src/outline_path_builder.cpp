@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -108,21 +110,33 @@ private:
 
 }  // namespace
 
+static void validate_options(const OutlinePathOptions& options) {
+    if (!(options.flattening_tolerance_mm > 0.0) || !std::isfinite(options.flattening_tolerance_mm)) throw std::invalid_argument("outline flattening tolerance must be positive");
+    if (options.maximum_points_per_contour < 3U) throw std::invalid_argument("outline contour point bound must be at least three");
+}
+
 OutlinePathBuilder::OutlinePathBuilder(std::filesystem::path font_path, OutlinePathOptions options)
     : font_path_(std::move(font_path)), options_(options) {
     if (font_path_.empty()) throw std::invalid_argument("outline font path is empty");
-    if (!(options_.flattening_tolerance_mm > 0.0) || !std::isfinite(options_.flattening_tolerance_mm)) throw std::invalid_argument("outline flattening tolerance must be positive");
-    if (options_.maximum_points_per_contour < 3U) throw std::invalid_argument("outline contour point bound must be at least three");
+    validate_options(options_);
 }
+
+OutlinePathBuilder::OutlinePathBuilder(const FontRegistry& fonts, OutlinePathOptions options)
+    : fonts_(&fonts), options_(options) { validate_options(options_); }
 
 PathDocument OutlinePathBuilder::build(const LayoutPage& page, Millimetres page_width, Millimetres page_height) const {
     if (!(page_width.value > 0.0) || !(page_height.value > 0.0)) throw std::invalid_argument("page dimensions must be positive");
-    Face font(font_path_);
+    std::map<std::filesystem::path, std::unique_ptr<Face>> faces;
     PathDocument result; result.page_width = page_width; result.page_height = page_height;
     result.metadata = {{"coordinate_system", "page-mm-top-left"}, {"pipeline", "freetype-outline"}};
     const std::optional<std::string> element_id = page.source_element_ids.size() == 1U ? std::optional<std::string>{page.source_element_ids.front()} : std::nullopt;
     FT_Outline_Funcs callbacks{move_to, line_to, conic_to, cubic_to, 0, 0};
     for (const PositionedGlyph& glyph : page.glyphs) {
+        const std::filesystem::path& selected_path = fonts_ != nullptr && glyph.font_id ? fonts_->outline_font_path(*glyph.font_id) : font_path_;
+        if (selected_path.empty()) throw std::invalid_argument("positioned glyph has no outline font source");
+        auto [face_entry, inserted] = faces.try_emplace(selected_path);
+        if (inserted) face_entry->second = std::make_unique<Face>(selected_path);
+        Face& font = *face_entry->second;
         if (!(glyph.scale_mm_per_font_unit > 0.0) || !std::isfinite(glyph.scale_mm_per_font_unit)) throw std::invalid_argument("positioned glyph has invalid outline scale");
         const FT_UInt glyph_index = FT_Get_Char_Index(font.get(), static_cast<FT_ULong>(glyph.codepoint));
         if (glyph_index == 0U) throw std::runtime_error("outline font is missing positioned glyph");
@@ -142,7 +156,7 @@ PathDocument OutlinePathBuilder::build(const LayoutPage& page, Millimetres page_
             stroke.glyph_index = static_cast<std::int64_t>(glyph.glyph_index); stroke.word_index = static_cast<std::int64_t>(glyph.word_index);
             stroke.source_page_index = static_cast<std::int64_t>(page.page_index); stroke.character = glyph.character; stroke.element_id = element_id;
             stroke.element_type = glyph.text_role == "page-number" ? "page-number" : "text"; stroke.font_role = glyph.text_role == "page-number" ? "page-number" : "body";
-            stroke.font_sha256 = glyph.font_sha256; stroke.source_path = font_path_.string(); stroke.source_glyph_indices = {static_cast<std::int64_t>(glyph.glyph_index)};
+            stroke.font_sha256 = glyph.font_sha256; stroke.source_path = selected_path.string(); stroke.source_glyph_indices = {static_cast<std::int64_t>(glyph.glyph_index)};
             stroke.source_characters = glyph.character; stroke.segment_types = {"outline-glyph"}; stroke.closed = true;
             for (const RawPoint point : points) stroke.points.push_back({{point.x}, {point.y}});
             result.strokes.push_back(std::move(stroke));

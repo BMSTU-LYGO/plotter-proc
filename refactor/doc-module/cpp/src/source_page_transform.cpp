@@ -35,7 +35,9 @@ namespace {
 
 [[nodiscard]] const char* mode_name(SourcePageTransformMode mode) {
     switch (mode) {
+        case SourcePageTransformMode::automatic: return "auto";
         case SourcePageTransformMode::reflow: return "reflow";
+        case SourcePageTransformMode::hybrid: return "hybrid";
         case SourcePageTransformMode::preserve: return "preserve";
         case SourcePageTransformMode::contain: return "contain";
     }
@@ -78,6 +80,8 @@ SourcePageTransformResult transform_source_page_paths(
     transform.source_content = options.source_content;
     transform.target_content = options.target_content;
     switch (options.mode) {
+        case SourcePageTransformMode::automatic:
+            return error("unresolved_layout_mode", "auto mode must be resolved before page transform");
         case SourcePageTransformMode::reflow:
             if (options.source_content.width.value > options.target_content.width.value ||
                 options.source_content.height.value > options.target_content.height.value)
@@ -91,6 +95,7 @@ SourcePageTransformResult transform_source_page_paths(
             transform.offset_x = {};
             transform.offset_y = {};
             break;
+        case SourcePageTransformMode::hybrid:
         case SourcePageTransformMode::contain: {
             const double scale_x = options.target_content.width.value / options.source_content.width.value;
             const double scale_y = options.target_content.height.value / options.source_content.height.value;

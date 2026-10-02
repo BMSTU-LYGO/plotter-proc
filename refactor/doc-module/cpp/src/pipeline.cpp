@@ -9,7 +9,6 @@
 #include "plotter/doc/gcode_analyzer.hpp"
 #include "plotter/doc/multipage_gcode_exporter.hpp"
 #include "plotter/doc/path_optimizer.hpp"
-#include "plotter/doc/pdf_adapter.hpp"
 #include "plotter/doc/raster_path_builder.hpp"
 #include "plotter/doc/table_path_builder.hpp"
 #include "plotter/doc/math_path_builder.hpp"
@@ -20,6 +19,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <sys/resource.h>
 #include <cctype>
 #include <stdexcept>
@@ -35,7 +36,6 @@ Document import_document(const std::filesystem::path& source, const std::filesys
     ImportResult result;
     if (extension == ".txt" || extension == ".md" || extension == ".markdown") result = read_text_document(source);
     else if (extension == ".docx") result = read_docx_document(source, assets);
-    else if (extension == ".pdf") result = read_pdf_document(source);
     else if (extension == ".svg") {
         auto svg = read_svg_document(source);
         if (const auto* error = std::get_if<SvgAdapterError>(&svg)) throw std::runtime_error(error->message);
@@ -218,6 +218,38 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
         }, source);
     }
 }
+void position_hybrid_vectors(PathDocument& mapped, const PathDocument& original,
+                             const SourcePage& source_page, const PageTransform& transform,
+                             const Rect& target_content) {
+    for (const SourceElement& element : source_page.elements) {
+        const auto* vector = std::get_if<VectorElement>(&element);
+        if (!vector || vector->paths.empty()) continue;
+        double min_x = std::numeric_limits<double>::infinity(), min_y = min_x;
+        double max_x = -min_x, max_y = -min_x;
+        for (const auto& path : vector->paths) for (const auto point : path.points) {
+            min_x = std::min(min_x, point.x.value); min_y = std::min(min_y, point.y.value);
+            max_x = std::max(max_x, point.x.value); max_y = std::max(max_y, point.y.value);
+        }
+        if (!std::isfinite(min_x) || max_x <= min_x || max_y <= min_y) continue;
+        const double width = (max_x - min_x) * transform.scale;
+        const double height = (max_y - min_y) * transform.scale;
+        const Rect bounds = vector->bounds.value_or(Rect{{min_x}, {min_y}, {max_x - min_x}, {max_y - min_y}});
+        const double desired_x = transform.offset_x.value + bounds.x.value * transform.scale;
+        const double desired_y = transform.offset_y.value + bounds.y.value * transform.scale;
+        const double left = std::clamp(desired_x, target_content.x.value, target_content.right().value - width);
+        const double top = std::clamp(desired_y, target_content.y.value, target_content.bottom().value - height);
+        for (std::size_t index = 0; index < mapped.strokes.size(); ++index) {
+            Stroke& stroke = mapped.strokes[index];
+            if (stroke.element_type != "vector" || stroke.element_id != vector->id) continue;
+            const Stroke& input = original.strokes[index];
+            for (std::size_t point = 0; point < stroke.points.size(); ++point) {
+                stroke.points[point].x = {left + (input.points[point].x.value - min_x) * transform.scale};
+                stroke.points[point].y = {top + (input.points[point].y.value - min_y) * transform.scale};
+            }
+        }
+    }
+}
+
 }  // namespace
 
 PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document* provided) {
@@ -271,11 +303,24 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
                     throw std::invalid_argument("centerline mode requires a compiled .pfc font");
                 registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
+                if (!options.fallback_font_path.empty()) {
+                    if (options.fallback_font_path.extension() != ".pfc")
+                        throw std::invalid_argument("centerline fallback font must be .pfc");
+                    registry.register_pfc({"fallback", {}, options.fallback_font_path});
+                    registry.set_fallback_font("fallback");
+                }
             } else {
                 const auto extension = options.pfc_path.extension().string();
                 if (extension != ".ttf" && extension != ".otf")
                     throw std::invalid_argument("outline mode requires a .ttf or .otf font");
                 registry.register_outline_font({options.font_id, options.font_sha256, options.pfc_path});
+                if (!options.fallback_font_path.empty()) {
+                    const auto fallback_extension = options.fallback_font_path.extension().string();
+                    if (fallback_extension != ".ttf" && fallback_extension != ".otf")
+                        throw std::invalid_argument("outline fallback font must be .ttf or .otf");
+                    registry.register_outline_font({"fallback", {}, options.fallback_font_path});
+                    registry.set_fallback_font("fallback");
+                }
             }
         }
         LayoutDocument layout;
@@ -297,6 +342,10 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 options.config.page.height, {4.5}, {9.0}, options.font_id});
         }
         const auto layout_at = std::chrono::steady_clock::now();
+        const SourcePageTransformMode layout_mode = options.document_layout == SourcePageTransformMode::automatic
+            ? ((source.metadata.source_format == "txt" || source.metadata.source_format == "markdown")
+                ? SourcePageTransformMode::reflow : SourcePageTransformMode::hybrid)
+            : options.document_layout;
         const std::size_t page_count = std::max(source.pages.size(), layout.pages.size());
         result.job.page_width = options.config.page.width;
         result.job.page_height = options.config.page.height;
@@ -308,7 +357,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             if (index < layout.pages.size()) {
                 if (options.font_mode == FontMode::centerline)
                     paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
-                else paths = OutlinePathBuilder{options.pfc_path}.build(layout.pages[index], paths.page_width, paths.page_height);
+                else paths = OutlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
                 if (!layout.pages[index].math_glyphs.empty()) {
                     LayoutPage math_page;
                     math_page.page_index = static_cast<std::uint32_t>(index);
@@ -316,7 +365,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                     PathDocument math_paths;
                     if (options.font_mode == FontMode::centerline)
                         math_paths = CenterlinePathBuilder{registry}.build(math_page, paths.page_width, paths.page_height);
-                    else math_paths = OutlinePathBuilder{options.pfc_path}.build(math_page, paths.page_width, paths.page_height);
+                    else math_paths = OutlinePathBuilder{registry}.build(math_page, paths.page_width, paths.page_height);
                     for (auto& stroke : math_paths.strokes) {
                         const auto glyph = std::find_if(math_page.glyphs.begin(), math_page.glyphs.end(),
                             [&](const PositionedGlyph& item) { return static_cast<std::int64_t>(item.glyph_index) == stroke.glyph_index; });
@@ -345,15 +394,18 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                     const auto& paper = options.config.page;
                     const Rect target_content{paper.margins.left, paper.margins.top,
                         {paper.width.value - paper.margins.left.value - paper.margins.right.value},
-                        {paper.height.value - paper.margins.top.value - paper.margins.bottom.value}};
+                        {paper.height.value - paper.margins.top.value - paper.margins.bottom.value - (options.page_numbers ? 8.0 : 0.0)}};
+                    const Rect source_content = input_page.content_bounds.value_or(Rect{{0.0}, {0.0}, source_width, source_height});
                     const SourcePageTransformOptions transform_options{
-                        options.document_layout, source_width, source_height,
-                        {{0.0}, {0.0}, source_width, source_height}, paper.width, paper.height,
+                        layout_mode, source_width, source_height, source_content, paper.width, paper.height,
                         target_content, options.preserve_max_upscale, false};
                     auto mapped = transform_source_page_paths(graphics, transform_options);
                     if (const auto* error = std::get_if<SourcePageTransformError>(&mapped))
                         throw std::runtime_error(error->code + ": " + error->message);
-                    graphics = std::move(std::get<TransformedSourcePage>(mapped).paths);
+                    auto transformed = std::move(std::get<TransformedSourcePage>(mapped));
+                    if (layout_mode == SourcePageTransformMode::hybrid)
+                        position_hybrid_vectors(transformed.paths, graphics, input_page, transformed.transform, target_content);
+                    graphics = std::move(transformed.paths);
                     for (auto& stroke : graphics.strokes) {
                         stroke.id = paths.strokes.size();
                         paths.strokes.push_back(std::move(stroke));
