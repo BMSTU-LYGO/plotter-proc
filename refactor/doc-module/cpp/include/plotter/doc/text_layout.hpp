@@ -35,6 +35,7 @@ struct LayoutParagraph final {
     std::optional<double> line_spacing;
     std::vector<TabStop> tab_stops;
     bool page_break_before{};
+    bool display_math{};
     std::optional<std::string> source_element_id;
 };
 struct TextLayoutOptions final {

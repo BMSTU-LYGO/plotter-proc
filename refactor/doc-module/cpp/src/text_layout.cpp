@@ -102,7 +102,7 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
     auto require_vertical = [&](double height) { if (height <= 0.0 || height > bottom - options.margin_top.value) throw std::invalid_argument("line does not fit in page content area"); if (cursor_y + height > bottom) new_page(); };
 
     for (const LayoutParagraph& paragraph : paragraphs) {
-        if (paragraph.page_break_before && (cursor_y != options.margin_top.value || !document.pages.back().glyphs.empty())) new_page();
+        if (paragraph.page_break_before && (cursor_y != options.margin_top.value || !document.pages.back().glyphs.empty() || !document.pages.back().math_glyphs.empty())) new_page();
         cursor_y += paragraph.space_before.value; if (cursor_y > bottom) new_page();
         std::vector<Token> tokens; Word word; Millimetres pending_space{}; bool pending_tab{};
         auto flush_word = [&]() { if (!word.characters.empty()) { tokens.push_back({std::move(word), pending_space, false, pending_tab}); word = {}; pending_space = {}; pending_tab = false; } };
@@ -169,11 +169,13 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
                     PositionedGlyph placed; placed.character = item.character.utf8; placed.glyph_name = "U+" + std::to_string(item.glyph.glyph_codepoint); placed.codepoint = item.glyph.glyph_codepoint;
                     placed.x = {x}; placed.baseline_y = {baseline + baseline_shift_mm(item.character.style)}; placed.advance = item.advance; placed.scale_mm_per_font_unit = to_millimetres(item.character.style.font_size).value / static_cast<double>(item.glyph.units_per_em);
                     placed.line_index = next_line; placed.glyph_index = next_glyph++; placed.word_index = word_index; placed.cluster_index = static_cast<std::int32_t>(placed.glyph_index);
-                    placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter";
+                    placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter"; placed.source_element_id = paragraph.source_element_id;
                     placed.bold = item.character.style.bold; placed.italic = item.character.style.italic; placed.baseline_shift = item.character.style.baseline_shift;
                     const std::int64_t placed_glyph_index = static_cast<std::int64_t>(placed.glyph_index);
-                    page.glyphs.push_back(std::move(placed));
-                    append_decoration(page, item, x, page.glyphs.back().baseline_y.value, placed_glyph_index, word_index, paragraph.source_element_id);
+                    const double placed_baseline = placed.baseline_y.value;
+                    if (paragraph.display_math) page.math_glyphs.push_back(std::move(placed));
+                    else page.glyphs.push_back(std::move(placed));
+                    append_decoration(page, item, x, placed_baseline, placed_glyph_index, word_index, paragraph.source_element_id);
                     x += item.advance.value;
                 }
             }

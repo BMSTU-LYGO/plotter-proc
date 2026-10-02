@@ -15,6 +15,8 @@ void append_page_numbers(LayoutDocument& layout, const FontRegistry& fonts,
     for (const auto& page : layout.pages) {
         for (const auto& glyph : page.glyphs)
             if (glyph.glyph_index >= next_glyph_index) next_glyph_index = glyph.glyph_index + 1;
+        for (const auto& glyph : page.math_glyphs)
+            if (glyph.glyph_index >= next_glyph_index) next_glyph_index = glyph.glyph_index + 1;
     }
     for (std::size_t page_index = 0; page_index < layout.pages.size(); ++page_index) {
         auto& page = layout.pages[page_index];

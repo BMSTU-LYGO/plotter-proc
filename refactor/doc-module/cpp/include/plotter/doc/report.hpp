@@ -30,6 +30,11 @@ struct MotionStats final {
 
 struct CacheStats final { std::uint64_t hits{}, misses{}; };
 
+struct StageTimings final {
+    double import_ms{}, layout_ms{}, path_and_geometry_ms{}, gcode_ms{};
+    std::uint64_t peak_rss_kib{};
+};
+
 struct PageReport final {
     std::uint32_t page_index{}, page_number{};
     GeometryStats geometry{};
@@ -45,6 +50,7 @@ struct PipelineReport final {
     GeometryStats geometry{};
     MotionStats motion{};
     CacheStats cache{};
+    StageTimings timings{};
     std::vector<PageReport> pages;
     std::vector<std::string> warnings;
     std::vector<std::string> errors;

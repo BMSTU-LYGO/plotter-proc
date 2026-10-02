@@ -19,6 +19,8 @@
 #include "plotter/doc/thread_pool.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <sys/resource.h>
 #include <cctype>
 #include <stdexcept>
 #include <optional>
@@ -84,6 +86,42 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                         style.italic = run.style.italic;
                         style.baseline_shift = run.style.baseline_shift;
                         paragraph.runs.push_back({run.text, std::move(style)});
+                    }
+                    if (paragraph.runs.size() == 1U) {
+                        const std::string& raw = paragraph.runs.front().utf8;
+                        if (raw.size() >= 4U && raw.starts_with("$$") && raw.ends_with("$$")) {
+                            paragraph.display_math = true;
+                            const LayoutTextStyle base = paragraph.runs.front().style;
+                            const std::string expression = raw.substr(2U, raw.size() - 4U);
+                            paragraph.runs.clear();
+                            std::string normal;
+                            const auto flush = [&]() {
+                                if (!normal.empty()) { paragraph.runs.push_back({std::move(normal), base}); normal.clear(); }
+                            };
+                            for (std::size_t offset = 0; offset < expression.size();) {
+                                const char character = expression[offset];
+                                if (character == '\\') throw std::runtime_error("display math command needs a structural renderer");
+                                if (character == '^' || character == '_') {
+                                    flush();
+                                    const bool superscript = character == '^';
+                                    ++offset;
+                                    if (offset == expression.size()) throw std::runtime_error("display math shift has no operand");
+                                    std::string operand;
+                                    if (expression[offset] == '{') {
+                                        const auto end = expression.find('}', offset + 1U);
+                                        if (end == std::string::npos || expression.find('{', offset + 1U) < end)
+                                            throw std::runtime_error("nested display math grouping is unsupported");
+                                        operand = expression.substr(offset + 1U, end - offset - 1U);
+                                        offset = end + 1U;
+                                    } else operand = expression.substr(offset++, 1U);
+                                    LayoutTextStyle shifted = base;
+                                    shifted.font_size.value *= 0.65;
+                                    shifted.baseline_shift = superscript ? "superscript" : "subscript";
+                                    paragraph.runs.push_back({std::move(operand), std::move(shifted)});
+                                } else { normal += character; ++offset; }
+                            }
+                            flush();
+                        }
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
                 }
@@ -185,6 +223,8 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
 PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document* provided) {
     PipelineResult result;
     try {
+        const auto pipeline_start = std::chrono::steady_clock::now();
+        auto elapsed_ms = [](auto begin, auto end) { return std::chrono::duration<double, std::milli>(end - begin).count(); };
         if ((!provided && options.input_path.empty()) || options.output_directory.empty())
             throw std::invalid_argument("input and output paths are required");
         const auto config_report = validate_config(options.config);
@@ -219,6 +259,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 }
             }
         }
+        const auto imported_at = std::chrono::steady_clock::now();
         const Document& source = provided ? *provided : *imported;
         result.report.import.source_pages = static_cast<std::uint32_t>(source.pages.size());
         bool needs_font = false;
@@ -255,6 +296,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             append_page_numbers(layout, registry, {true, options.config.page.width,
                 options.config.page.height, {4.5}, {9.0}, options.font_id});
         }
+        const auto layout_at = std::chrono::steady_clock::now();
         const std::size_t page_count = std::max(source.pages.size(), layout.pages.size());
         result.job.page_width = options.config.page.width;
         result.job.page_height = options.config.page.height;
@@ -267,6 +309,25 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 if (options.font_mode == FontMode::centerline)
                     paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
                 else paths = OutlinePathBuilder{options.pfc_path}.build(layout.pages[index], paths.page_width, paths.page_height);
+                if (!layout.pages[index].math_glyphs.empty()) {
+                    LayoutPage math_page;
+                    math_page.page_index = static_cast<std::uint32_t>(index);
+                    math_page.glyphs = layout.pages[index].math_glyphs;
+                    PathDocument math_paths;
+                    if (options.font_mode == FontMode::centerline)
+                        math_paths = CenterlinePathBuilder{registry}.build(math_page, paths.page_width, paths.page_height);
+                    else math_paths = OutlinePathBuilder{options.pfc_path}.build(math_page, paths.page_width, paths.page_height);
+                    for (auto& stroke : math_paths.strokes) {
+                        const auto glyph = std::find_if(math_page.glyphs.begin(), math_page.glyphs.end(),
+                            [&](const PositionedGlyph& item) { return static_cast<std::int64_t>(item.glyph_index) == stroke.glyph_index; });
+                        if (glyph != math_page.glyphs.end()) stroke.element_id = glyph->source_element_id;
+                        stroke.id = paths.strokes.size();
+                        stroke.element_type = "math";
+                        stroke.semantic_role = "display-math";
+                        stroke.segment_types = {"display-math"};
+                        paths.strokes.push_back(std::move(stroke));
+                    }
+                }
                 for (auto stroke : layout.pages[index].graphic_strokes) {
                     stroke.id = paths.strokes.size();
                     paths.strokes.push_back(std::move(stroke));
@@ -333,10 +394,14 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         } else {
             for (std::size_t index = 0; index < page_count; ++index) result.job.pages.push_back(build_page(index));
         }
+        const auto paths_at = std::chrono::steady_clock::now();
         const ImportStats import_stats = result.report.import;
         result.report = make_pipeline_report(result.job, std::string(artifact_level_name(options.artifact_level)));
         result.report.import = import_stats;
         result.report.cache = cache_stats;
+        result.report.timings.import_ms = elapsed_ms(pipeline_start, imported_at);
+        result.report.timings.layout_ms = elapsed_ms(imported_at, layout_at);
+        result.report.timings.path_and_geometry_ms = elapsed_ms(layout_at, paths_at);
         result.report.layout.pages = static_cast<std::uint32_t>(layout.pages.size());
         for (const auto& page : layout.pages) {
             result.report.layout.lines += page.line_count;
@@ -346,6 +411,9 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         static_cast<void>(analyze_gcode(gcode, options.config.machine));
         result.gcode_path = options.output_directory / "output.gcode";
         write_gcode_atomic(gcode, result.gcode_path);
+        result.report.timings.gcode_ms = elapsed_ms(paths_at, std::chrono::steady_clock::now());
+        struct rusage usage{};
+        if (::getrusage(RUSAGE_SELF, &usage) == 0) result.report.timings.peak_rss_kib = static_cast<std::uint64_t>(usage.ru_maxrss);
         result.artifacts = write_artifacts(result.job, result.report, {options.output_directory, options.artifact_level, true});
         result.ok = true;
     } catch (const std::exception& error) {

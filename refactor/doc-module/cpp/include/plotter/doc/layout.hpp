@@ -16,7 +16,7 @@ struct PositionedGlyph final {
     double scale_mm_per_font_unit{};
     std::uint32_t line_index{}, glyph_index{};
     std::int32_t word_index{-1}, cluster_index{};
-    std::optional<std::string> font_id, font_sha256;
+    std::optional<std::string> font_id, font_sha256, source_element_id;
     FontUnits x_offset{}, y_offset{};
     std::string text_role{"letter"};
     bool bold{};
@@ -29,6 +29,7 @@ struct TableFragment final { std::string table_id; std::uint32_t source_row_star
 struct LayoutPage final {
     std::uint32_t page_index{};
     std::vector<PositionedGlyph> glyphs;
+    std::vector<PositionedGlyph> math_glyphs;
     std::vector<Stroke> graphic_strokes;
     std::vector<std::string> source_element_ids, warnings;
     std::vector<SourcePlacement> placements;
