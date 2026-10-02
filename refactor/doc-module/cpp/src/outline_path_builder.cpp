@@ -158,6 +158,13 @@ PathDocument OutlinePathBuilder::build(const LayoutPage& page, Millimetres page_
             stroke.element_type = glyph.text_role == "page-number" ? "page-number" : "text"; stroke.font_role = glyph.text_role == "page-number" ? "page-number" : "body";
             stroke.font_sha256 = glyph.font_sha256; stroke.source_path = selected_path.string(); stroke.source_glyph_indices = {static_cast<std::int64_t>(glyph.glyph_index)};
             stroke.source_characters = glyph.character; stroke.segment_types = {"outline-glyph"}; stroke.closed = true;
+            if (glyph.text_role == "page-number") {
+                const std::string number = std::to_string(page.page_index + 1U);
+                stroke.element_id = "page-" + std::string(number.size() < 3U ? 3U - number.size() : 0U, '0') + number + "-number";
+                stroke.glyph_index.reset();
+                stroke.source_page_index.reset();
+                stroke.source_path.reset();
+            }
             for (const RawPoint point : points) stroke.points.push_back({{point.x}, {point.y}});
             result.strokes.push_back(std::move(stroke));
         }

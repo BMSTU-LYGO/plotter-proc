@@ -98,10 +98,21 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
     LayoutDocument document; document.pages.push_back(make_page(0));
     double cursor_y = options.margin_top.value;
     std::uint32_t next_glyph = 0, next_line = 0; std::int32_t next_word = 0;
-    auto new_page = [&]() { document.pages.push_back(make_page(static_cast<std::uint32_t>(document.pages.size()))); cursor_y = options.margin_top.value; };
+    auto new_page = [&]() { document.pages.push_back(make_page(static_cast<std::uint32_t>(document.pages.size()))); cursor_y = options.margin_top.value; next_glyph = 0; };
     auto require_vertical = [&](double height) { if (height <= 0.0 || height > bottom - options.margin_top.value) throw std::invalid_argument("line does not fit in page content area"); if (cursor_y + height > bottom) new_page(); };
 
     for (const LayoutParagraph& paragraph : paragraphs) {
+        if (paragraph.flow_image) {
+            constexpr double spacing_before = 2.0, spacing_after = 2.0;
+            const FlowImage& image = *paragraph.flow_image;
+            require_vertical(spacing_before + image.height.value);
+            cursor_y += spacing_before;
+            const Rect bounds{{(options.page_width.value - image.width.value) / 2.0},
+                              {cursor_y}, image.width, image.height};
+            document.pages.back().flow_images.emplace_back(image.element_id, bounds);
+            cursor_y += image.height.value + spacing_after;
+            continue;
+        }
         if (paragraph.page_break_before && (cursor_y != options.margin_top.value || !document.pages.back().glyphs.empty() || !document.pages.back().math_glyphs.empty())) new_page();
         cursor_y += paragraph.space_before.value; if (cursor_y > bottom) new_page();
         std::vector<Token> tokens; Word word; Millimetres pending_space{}; bool pending_tab{};
@@ -144,13 +155,23 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
             }
             if (!part.characters.empty()) append(std::move(part), {});
         }
-        if (!current.words.empty() || lines.empty()) finish();
-        const double fallback_height = paragraph.runs.empty() ? to_millimetres(Points{12.0}).value * 1.2 : to_millimetres(paragraph.runs.front().style.font_size).value * 1.2;
+        if (!current.words.empty() || lines.empty() || (!tokens.empty() && tokens.back().forced_break)) finish();
+        double blank_line_height = to_millimetres(Points{12.0}).value * 1.25;
+        if (!paragraph.runs.empty()) {
+            const auto& style = paragraph.runs.front().style;
+            const auto glyph = fonts_.resolve(style.font_id, 'M');
+            blank_line_height = to_millimetres(style.font_size).value *
+                static_cast<double>(glyph.ascender - glyph.descender) /
+                static_cast<double>(glyph.units_per_em) * 1.25;
+        }
+        const double fallback_height = paragraph.runs.empty() ? blank_line_height
+            : measure(Character{'M', "M", paragraph.runs.front().style, false, false}, fonts_).natural_height.value;
         for (std::size_t line_number = 0; line_number < lines.size(); ++line_number) {
             const Line& line = lines[line_number];
             const double base_height = paragraph.line_height ? paragraph.line_height->value : std::max(line.height.value, fallback_height);
             if (paragraph.line_spacing && *paragraph.line_spacing <= 0.0) throw std::invalid_argument("paragraph line spacing must be positive");
-            const double height = paragraph.line_spacing ? base_height * *paragraph.line_spacing : base_height;
+            const double height = line.words.empty() ? blank_line_height
+                : (paragraph.line_spacing ? base_height * *paragraph.line_spacing : base_height);
             require_vertical(height);
             const double line_left = line_number == 0 ? first_left : paragraph_left;
             const double line_available = paragraph_right - line_left;
@@ -168,7 +189,9 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
                 for (const auto& item : line.words[word_position].characters) {
                     PositionedGlyph placed; placed.character = item.character.utf8; placed.glyph_name = "U+" + std::to_string(item.glyph.glyph_codepoint); placed.codepoint = item.glyph.glyph_codepoint;
                     placed.x = {x}; placed.baseline_y = {baseline + baseline_shift_mm(item.character.style)}; placed.advance = item.advance; placed.scale_mm_per_font_unit = to_millimetres(item.character.style.font_size).value / static_cast<double>(item.glyph.units_per_em);
-                    placed.line_index = next_line; placed.glyph_index = next_glyph++; placed.word_index = word_index; placed.cluster_index = static_cast<std::int32_t>(placed.glyph_index);
+                    placed.line_index = next_line; placed.glyph_index = paragraph.display_math
+                        ? static_cast<std::uint32_t>(page.math_glyphs.size()) : next_glyph++;
+                    placed.word_index = word_index; placed.cluster_index = static_cast<std::int32_t>(placed.glyph_index);
                     placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter"; placed.source_element_id = paragraph.source_element_id;
                     placed.bold = item.character.style.bold; placed.italic = item.character.style.italic; placed.baseline_shift = item.character.style.baseline_shift;
                     const std::int64_t placed_glyph_index = static_cast<std::int64_t>(placed.glyph_index);
@@ -181,7 +204,12 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
             }
             ++next_line; ++page.line_count; cursor_y += height;
         }
-        cursor_y += paragraph.space_after.value; if (cursor_y > bottom) new_page();
+        const bool blank_paragraph = std::all_of(paragraph.runs.begin(), paragraph.runs.end(),
+            [](const LayoutTextRun& run) {
+                return run.utf8.find_first_not_of(" \t\r\n") == std::string::npos;
+            });
+        if (!blank_paragraph) cursor_y += paragraph.space_after.value;
+        if (cursor_y > bottom) new_page();
     }
     return document;
 }

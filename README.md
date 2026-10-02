@@ -1,234 +1,43 @@
-# Plotter Processor
+# Конвейеры плоттера
 
-Plotter Processor преобразует TXT, DOCX, PDF и SVG-документы в векторные
-траектории, preview и безопасный G-code для плоттера. Конвейер поддерживает
-обычный и однолинейный текст, изображения, таблицы, диаграммы, LaTeX/OMML и
-визуальные формулы из PDF.
+Новые модули находятся в `refactor`. Прежний конвейер на Питоне сохранён; [его подробное описание](docs/старый-конвейер.md).
 
-Основной запуск выполняется командой:
+## Сборка
 
-```bash
-plotter-processor run <input> --font <font.ttf> [флаги]
-```
-
-`<input>` — исходный документ. Обязательный `--font` задаёт TTF-шрифт для
-текста, а `--output-dir` — каталог результата. Булевы флаги применяются без
-значения. Для первого запуска обычно достаточно указать входной файл, шрифт и
-каталог сборки; параметры ниже позволяют отдельно управлять качеством,
-разметкой, математикой, изображениями, диагностикой и G-code.
-
-## Готовые профили Makefile
-
-Три базовых сценария хранят все профильные флаги в
-`configs/run_conf.yaml`. В Makefile остаются только короткие команды; входной
-файл, шрифт и корневой каталог сборки можно переопределить переменными `INPUT`,
-`FONT` и `BUILD`:
+Нужны компилятор С++20, система сборки и библиотеки шрифтов и сжатия.
 
 ```bash
-make run-fast INPUT=document.docx FONT=assets/1.ttf
-make run-balanced INPUT=document.docx FONT=assets/1.ttf
-make run-quality INPUT=document.docx FONT=assets/1.ttf
+cmake -S refactor/extraction_module/cpp/fontc -B build/fontc
+cmake --build build/fontc -j
+cmake -S refactor/doc-module/cpp -B build/doc -DPLOTTER_DOC_BUILD_TESTS=OFF
+cmake --build build/doc -j
 ```
 
-- `run-fast` — максимально быстрая печать с motion profile `fast`,
-  `aggressive`-соединениями, объединением букв и минимальными артефактами.
-- `run-balanced` — повседневная печать с безопасными соединениями и балансом
-  скорости/качества.
-- `run-quality` — строгая обработка формул, таблиц и диаграмм с audit-артефактами.
+## Запуск
 
-Результаты сохраняются соответственно в `build/super-fast`,
-`build/balanced` и `build/quality`. Менять состав профилей следует в
-`configs/run_conf.yaml`, а не в рецептах Makefile.
+Обычный шрифт — обводка букв:
 
-## Флаги команды `run`
+```bash
+build/doc/plotter-doc --input examples/benchmark_50_words.txt --output build/result --font assets/1.ttf --font-mode outline
+```
 
-### --help
+Однолинейный шрифт сначала компилируется, затем передаётся конвейеру:
 
-- без значения
+```bash
+build/fontc/fontc assets/1.ttf --chars-file assets/font-cache-corpus.txt --output build/font.pfc
+build/doc/plotter-doc --input examples/benchmark_50_words.txt --output build/result --font build/font.pfc --font-mode centerline
+```
 
-### --font
+Отдельная команда разбирает документ и выводит его промежуточное представление:
 
-- `<путь к TTF>`
+```bash
+build/doc/plotter-doc-import refactor/doc-module/fixtures/basic.md > build/document.json
+```
 
-### --page
+## Возможности
 
-- `A4`
-- `A5`
-
-### --size
-
-- `small`
-- `normal`
-- `large`
-
-### --layout-config
-
-- `<путь к YAML-конфигурации разметки>`
-
-### --machine-config
-
-- `<путь к YAML-конфигурации плоттера>`
-
-### --output-dir
-
-- `<путь к каталогу>`
-
-### --preset
-
-- `fast`
-- `quality`
-- `debug`
-
-### --no-optimize-travel
-
-- без значения
-
-### --font-mode
-
-- `outline`
-- `centerline`
-
-### --centerline-cache
-
-- `<путь к JSON>`
-
-### --stage-cache
-
-- `<путь к каталогу кэша этапов>`
-
-### --force-centerline-rebuild
-
-- без значения
-
-### --strict-centerline-quality
-
-- без значения
-
-### --motion-profile
-
-- `safe`
-- `balanced`
-- `fast`
-
-### --join-writing
-
-- без значения
-
-### --layout-engine
-
-- `legacy`
-- `harfbuzz`
-
-### --connections
-
-- `off`
-- `safe`
-- `aggressive`
-
-### --connection-debug
-
-- без значения
-
-### --images
-
-- `auto`
-- `outline`
-- `centerline`
-- `hatching`
-- `off`
-
-### --image-debug
-
-- без значения
-
-### --pdf-layout
-
-- `reflow`
-- `preserve`
-
-### --document-layout
-
-- `reflow`
-- `hybrid`
-- `preserve`
-
-### --layout-debug
-
-- без значения
-
-### --semantic-debug
-
-- без значения
-
-### --paginate
-
-- без значения
-
-### --no-paginate
-
-- без значения
-
-### --page-numbers
-
-- без значения
-
-### --no-page-numbers
-
-- без значения
-
-### --page-pause-seconds
-
-- `<неотрицательное число>`
-
-### --park-corner
-
-- `top_left`
-- `top_right`
-- `bottom_left`
-- `bottom_right`
-
-### --latex
-
-- `auto`
-- `mathtext`
-- `off`
-
-### --latex-debug
-
-- без значения
-
-### --latex-stroke-mode
-
-- `centerline`
-- `outline`
-
-### --strict-latex-quality
-
-- без значения
-
-### --pdf-math
-
-- `auto`
-- `visual`
-- `off`
-
-### --math-debug
-
-- без значения
-
-### --workers
-
-- `auto`
-- `<положительное целое число>`
-
-### --centerline-workers
-
-- `auto`
-- `<положительное целое число>`
-
-### --artifacts
-
-- `minimal`
-- `normal`
-- `debug`
-- `audit`
+- Компилятор шрифтов готовит файл однолинейных букв для повторного использования.
+- Документный конвейер читает `.txt`, `.md`, `.docx` и `.svg`; строит разметку страниц и траектории пера.
+- Поддерживаются обводка букв, однолинейное письмо, переносы, номера страниц, простые таблицы и формулы, настройки листа и плоттера, кэширование этапов.
+- Результат: управляющие команды плоттера, отчёт и промежуточные файлы в каталоге, указанном через `--output`.
+- Новый конвейер пока экспериментальный: точное совпадение геометрии и происхождения штрихов с прежним конвейером ещё проверяется. Картинки пока исключены из этой работы.

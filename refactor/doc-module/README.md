@@ -17,4 +17,4 @@ The old Python implementation has not been changed or removed. The complete migr
 
 ## Current frozen corpus comparison
 
-`tools/compare_cpp_python_parity.py` checks four frozen cases. Page counts and G-code safety pass in all four. TXT, Markdown, and SVG also match glyph and stroke counts. DOCX has 2062 strokes versus 2050 and 1207 glyphs versus 1197. Stroke bounds and provenance still differ. These are quality gaps, so the Python production path remains intact.
+`tools/compare_cpp_python_parity.py` checks four frozen cases. Page counts and G-code safety pass in all four. TXT, Markdown, and SVG also match glyph and stroke counts. DOCX has 2049 strokes versus 2050 and matches 1197 glyphs. Exact stroke bounds and provenance still differ; raster-image parity is deferred. These are quality gaps, so the Python production path remains intact.

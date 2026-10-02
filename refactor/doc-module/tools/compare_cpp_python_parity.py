@@ -102,8 +102,30 @@ def bbox_signature(strokes: list[dict[str, Any]]) -> Counter[tuple[float, float,
 
 
 def provenance(strokes: list[dict[str, Any]]) -> Counter[tuple[Any, ...]]:
-    fields = ("element_id", "element_type", "source_page_index", "semantic_role", "source_path", "glyph_index", "character")
-    return Counter(tuple(stroke.get(field) for field in fields) for stroke in strokes)
+    """Compare stable source identity across the two artifact schemas.
+
+    Native text strokes retain extra source fields that the frozen Python paths
+    omit. Asset paths also refer to different temporary directories. Compare
+    text by page, glyph and character; compare structural strokes by their
+    source element and role, and asset paths by presence.
+    """
+    signatures: Counter[tuple[Any, ...]] = Counter()
+    for stroke in strokes:
+        page = stroke.get("_page_index")
+        kind = stroke.get("element_type")
+        character = stroke.get("char", stroke.get("character"))
+        if kind in (None, "text"):
+            signature = (page, "text", stroke.get("glyph_index"), character)
+        else:
+            signature = (
+                page, kind, stroke.get("element_id"),
+                stroke.get("source_page_index") if kind == "latex" else None,
+                stroke.get("semantic_role") if kind == "latex" else None,
+                character if kind == "page-number" else None,
+                bool(stroke.get("source_path")) if kind == "raster-image" else None,
+            )
+        signatures[signature] += 1
+    return signatures
 
 
 def golden_paths(case_id: str) -> list[dict[str, Any]]:
@@ -240,8 +262,8 @@ def compare(case: dict[str, Any], cpp_dir: Path, tolerance: float) -> dict[str, 
     native_job = load(native_job_path).get("job", {})
     frozen_job = load(MODULE / "golden" / case["id"] / "job.json").get("job", {})
     checks.append(metric("page_count", frozen_job.get("page_count"), native_job.get("page_count")))
-    frozen_strokes = [stroke for page in golden_paths(case["id"]) for stroke in strokes_from(page)]
-    cpp_strokes = [stroke for page in native_paths(cpp_dir) for stroke in strokes_from(page)]
+    frozen_strokes = [dict(stroke, _page_index=index) for index, page in enumerate(golden_paths(case["id"])) for stroke in strokes_from(page)]
+    cpp_strokes = [dict(stroke, _page_index=index) for index, page in enumerate(native_paths(cpp_dir)) for stroke in strokes_from(page)]
     checks.append(metric("stroke_count", len(frozen_strokes), len(cpp_strokes)))
     checks.append(metric("stroke_bounding_boxes", bbox_signature(frozen_strokes), bbox_signature(cpp_strokes)))
     has_frozen_provenance = any(any(value is not None for value in item) for item in provenance(frozen_strokes))

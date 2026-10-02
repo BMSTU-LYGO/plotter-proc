@@ -25,6 +25,7 @@
 #include <cctype>
 #include <stdexcept>
 #include <optional>
+#include <unordered_set>
 #include <type_traits>
 #include <variant>
 
@@ -74,12 +75,32 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     paragraph.right_indent = item.right_indent.value_or(Millimetres{});
                     paragraph.line_spacing = item.line_spacing.value_or(1.25);
                     paragraph.tab_stops = item.tab_stops;
+                    double semantic_scale = 1.0;
+                    if (item.semantic_role == "title") semantic_scale = 1.35;
+                    else if (item.semantic_role == "heading_1") semantic_scale = 1.25;
+                    else if (item.semantic_role == "heading_2") semantic_scale = 1.15;
+                    else if (item.semantic_role == "heading_3") semantic_scale = 1.08;
+                    double source_size_total = 0.0;
+                    std::size_t source_size_count = 0;
+                    if (document.metadata.source_format == "docx") {
+                        for (const TextRun& run : item.runs) {
+                            if (run.style.font_size && run.text.find_first_not_of(" \t\r\n") != std::string::npos) {
+                                source_size_total += run.style.font_size->value;
+                                ++source_size_count;
+                            }
+                        }
+                        if (source_size_count)
+                            semantic_scale = source_size_total / static_cast<double>(source_size_count) / 12.0;
+                        semantic_scale = std::clamp(semantic_scale, 0.8, 1.6);
+                    }
                     for (const TextRun& run : item.runs) {
                         if (options.font_mode == FontMode::centerline && (run.style.bold || run.style.italic))
                             throw std::runtime_error("bold and italic need outline font mode");
                         LayoutTextStyle style;
                         style.font_id = options.font_id;
-                        style.font_size = run.style.font_size.value_or(options.font_size);
+                        style.font_size = document.metadata.source_format == "docx"
+                            ? Points{options.font_size.value * semantic_scale}
+                            : run.style.font_size.value_or(options.font_size);
                         style.underline = run.style.underline;
                         style.strike = run.style.strike;
                         style.bold = run.style.bold;
@@ -125,7 +146,23 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
                 }
-            } else if (std::holds_alternative<RasterImageElement>(source)) ++stats.raster_images;
+            } else if (const auto* image = std::get_if<RasterImageElement>(&source)) {
+                ++stats.raster_images;
+                if (document.metadata.source_format == "docx" && image->anchor_type == "flow" && !image->bounds) {
+                    const auto& paper = options.config.page;
+                    const Rect content = page.content_bounds.value_or(Rect{{0.0}, {0.0},
+                        page.width.value_or(paper.width), page.height.value_or(paper.height)});
+                    const double target_width = paper.width.value - paper.margins.left.value - paper.margins.right.value;
+                    const double target_height = paper.height.value - paper.margins.top.value - paper.margins.bottom.value - (options.page_numbers ? 8.0 : 0.0);
+                    const double scale = std::min({target_width / content.width.value,
+                        target_height / content.height.value, options.preserve_max_upscale});
+                    const double width = image->displayed_width.value_or(Millimetres{image->width.value * 25.4 / 96.0}).value * scale;
+                    const double height = image->displayed_height.value_or(Millimetres{image->height.value * 25.4 / 96.0}).value * scale;
+                    LayoutParagraph marker;
+                    marker.flow_image = FlowImage{image->id, {width}, {height}};
+                    paragraphs.push_back(std::move(marker));
+                }
+            }
             else if (const auto* math = std::get_if<MathElement>(&source)) {
                 ++stats.math_elements;
                 if (!math->visual_image_path) needs_font = true;
@@ -143,7 +180,8 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
 }
 
 void append_graphics(PathDocument& paths, const SourcePage& source_page,
-                     const FontRegistry& fonts, const PipelineOptions& options) {
+                     const FontRegistry& fonts, const PipelineOptions& options,
+                     const std::unordered_set<std::string>& placed_flow_images) {
     auto append_built = [&](PathDocument built) {
         for (auto& stroke : built.strokes) {
             stroke.id = paths.strokes.size();
@@ -171,6 +209,7 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
                     paths.strokes.push_back(std::move(stroke));
                 }
             } else if constexpr (std::is_same_v<Type, RasterImageElement>) {
+                if (placed_flow_images.contains(element.id)) return;
                 RasterPathOptions raster_options; raster_options.mode = RasterTraceMode::outline;
                 raster_options.maximum_strokes = 10000U;
                 append_built(RasterPathBuilder{raster_options}.build(element, paths.page_width, paths.page_height));
@@ -344,8 +383,12 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         const auto layout_at = std::chrono::steady_clock::now();
         const SourcePageTransformMode layout_mode = options.document_layout == SourcePageTransformMode::automatic
             ? ((source.metadata.source_format == "txt" || source.metadata.source_format == "markdown")
-                ? SourcePageTransformMode::reflow : SourcePageTransformMode::hybrid)
+                ? SourcePageTransformMode::reflow
+                : (source.metadata.source_format == "docx" ? SourcePageTransformMode::preserve : SourcePageTransformMode::hybrid))
             : options.document_layout;
+        std::unordered_set<std::string> placed_flow_images;
+        for (const LayoutPage& page : layout.pages)
+            for (const auto& placement : page.flow_images) placed_flow_images.insert(placement.first);
         const std::size_t page_count = std::max(source.pages.size(), layout.pages.size());
         result.job.page_width = options.config.page.width;
         result.job.page_height = options.config.page.height;
@@ -369,10 +412,14 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                     for (auto& stroke : math_paths.strokes) {
                         const auto glyph = std::find_if(math_page.glyphs.begin(), math_page.glyphs.end(),
                             [&](const PositionedGlyph& item) { return static_cast<std::int64_t>(item.glyph_index) == stroke.glyph_index; });
-                        if (glyph != math_page.glyphs.end()) stroke.element_id = glyph->source_element_id;
+                        if (glyph != math_page.glyphs.end() && glyph->source_element_id)
+                            stroke.element_id = *glyph->source_element_id + "-formula-001";
                         stroke.id = paths.strokes.size();
-                        stroke.element_type = "math";
-                        stroke.semantic_role = "display-math";
+                        stroke.element_type = "latex";
+                        stroke.semantic_role = "latex-centerline";
+                        stroke.glyph_index.reset();
+                        stroke.character.reset();
+                        stroke.source_path.reset();
                         stroke.segment_types = {"display-math"};
                         paths.strokes.push_back(std::move(stroke));
                     }
@@ -380,6 +427,26 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 for (auto stroke : layout.pages[index].graphic_strokes) {
                     stroke.id = paths.strokes.size();
                     paths.strokes.push_back(std::move(stroke));
+                }
+                for (const auto& [image_id, bounds] : layout.pages[index].flow_images) {
+                    for (const SourcePage& source_page : source.pages) {
+                        const auto found = std::find_if(source_page.elements.begin(), source_page.elements.end(),
+                            [&](const SourceElement& item) {
+                                const auto* image = std::get_if<RasterImageElement>(&item);
+                                return image && image->id == image_id;
+                            });
+                        if (found == source_page.elements.end()) continue;
+                        RasterImageElement image = std::get<RasterImageElement>(*found);
+                        image.bounds = bounds;
+                        RasterPathOptions raster_options; raster_options.mode = RasterTraceMode::outline;
+                        raster_options.maximum_strokes = 10000U;
+                        auto raster = RasterPathBuilder{raster_options}.build(image, paths.page_width, paths.page_height);
+                        for (auto& stroke : raster.strokes) {
+                            stroke.id = paths.strokes.size();
+                            paths.strokes.push_back(std::move(stroke));
+                        }
+                        break;
+                    }
                 }
             }
             if (index < source.pages.size()) {
@@ -389,7 +456,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 PathDocument graphics;
                 graphics.page_width = source_width;
                 graphics.page_height = source_height;
-                append_graphics(graphics, input_page, registry, options);
+                append_graphics(graphics, input_page, registry, options, placed_flow_images);
                 if (!graphics.strokes.empty()) {
                     const auto& paper = options.config.page;
                     const Rect target_content{paper.margins.left, paper.margins.top,

@@ -26,6 +26,7 @@ struct LayoutTextStyle final {
     std::optional<std::string> baseline_shift;
 };
 struct LayoutTextRun final { std::string utf8; LayoutTextStyle style{}; };
+struct FlowImage final { std::string element_id; Millimetres width{}, height{}; };
 struct LayoutParagraph final {
     std::vector<LayoutTextRun> runs;
     TextAlignment alignment{TextAlignment::left};
@@ -36,6 +37,7 @@ struct LayoutParagraph final {
     std::vector<TabStop> tab_stops;
     bool page_break_before{};
     bool display_math{};
+    std::optional<FlowImage> flow_image;
     std::optional<std::string> source_element_id;
 };
 struct TextLayoutOptions final {
