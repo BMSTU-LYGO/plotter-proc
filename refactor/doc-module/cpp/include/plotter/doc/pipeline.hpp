@@ -20,6 +20,8 @@ struct PipelineOptions final {
     std::filesystem::path input_path;
     std::filesystem::path output_directory;
     std::filesystem::path pfc_path;
+    std::filesystem::path cache_directory;
+    bool use_cache{true};
     std::string font_id{"body"};
     std::string font_sha256;
     Points font_size{5.0 * 72.0 / 25.4};

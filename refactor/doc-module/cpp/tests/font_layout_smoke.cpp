@@ -82,5 +82,17 @@ int main() {
     const auto later_line_decoration = std::find_if(decoration_page.graphic_strokes.begin(), decoration_page.graphic_strokes.end(), [&](const plotter::doc::Stroke &stroke) { return std::any_of(decoration_page.glyphs.begin(), decoration_page.glyphs.end(), [&](const plotter::doc::PositionedGlyph &glyph) { return glyph.glyph_index == *stroke.glyph_index && glyph.line_index != decoration_page.glyphs.front().line_index; }); });
     require(later_line_decoration != decoration_page.graphic_strokes.end(), "decorations must continue after text wraps");
 
+    plotter::doc::LayoutTextStyle super_style;
+    super_style.font_id = "main"; super_style.font_size = {12}; super_style.bold = true; super_style.italic = true; super_style.baseline_shift = "superscript";
+    plotter::doc::LayoutTextStyle sub_style = super_style;
+    sub_style.baseline_shift = "subscript";
+    plotter::doc::LayoutParagraph shifted;
+    shifted.runs = {{"A", super_style}, {"A", sub_style}};
+    const auto shifted_result = engine.layout({shifted}, rich_options);
+    const auto& shifted_glyphs = shifted_result.pages.front().glyphs;
+    require(shifted_glyphs.size() == 2, "styled runs must produce positioned glyphs");
+    require(shifted_glyphs[0].bold && shifted_glyphs[0].italic && shifted_glyphs[0].baseline_shift == std::optional<std::string>{"superscript"}, "bold, italic, and baseline-shift provenance must reach glyphs");
+    require(shifted_glyphs[0].baseline_y.value < shifted_glyphs[1].baseline_y.value, "superscript and subscript must shift baselines in opposite directions");
+
     std::filesystem::remove(path);
 }

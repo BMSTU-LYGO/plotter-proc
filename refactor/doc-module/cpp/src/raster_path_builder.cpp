@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <unordered_map>
+#include <numeric>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -156,6 +158,112 @@ struct DecodedPng final {
     return alpha != 0U && luminance / 1000U <= threshold;
 }
 
+struct BoundaryEdge final { std::uint64_t from{}, to{}; std::uint8_t direction{}; bool used{}; };
+[[nodiscard]] double point_distance(Point a, Point b) { return std::hypot(a.x.value - b.x.value, a.y.value - b.y.value); }
+[[nodiscard]] double chord_distance(Point point, Point first, Point last) {
+    const double dx = last.x.value - first.x.value, dy = last.y.value - first.y.value;
+    const double length = std::hypot(dx, dy);
+    if (length == 0.0) return point_distance(point, first);
+    return std::abs(dy * point.x.value - dx * point.y.value + last.x.value * first.y.value - last.y.value * first.x.value) / length;
+}
+void simplify_between(const std::vector<Point>& input, std::vector<bool>& keep,
+                      std::size_t first, std::size_t last, double tolerance) {
+    std::vector<std::pair<std::size_t, std::size_t>> pending{{first, last}};
+    std::uint64_t work{};
+    while (!pending.empty()) {
+        const auto [left, right] = pending.back(); pending.pop_back();
+        if (right <= left + 1U) continue;
+        work += right - left;
+        if (work > 50000000ULL) throw std::runtime_error("raster contour simplification exceeds work limit");
+        double maximum = tolerance; std::size_t pivot = left;
+        for (std::size_t index = left + 1U; index < right; ++index) {
+            const double distance = chord_distance(input[index], input[left], input[right]);
+            if (distance > maximum) { maximum = distance; pivot = index; }
+        }
+        if (pivot != left) {
+            keep[pivot] = true;
+            pending.emplace_back(left, pivot);
+            pending.emplace_back(pivot, right);
+        }
+    }
+}
+[[nodiscard]] std::vector<Point> simplify_contour(const std::vector<Point>& input, double tolerance) {
+    if (input.size() < 4U) return input;
+    std::vector<bool> keep(input.size()); keep.front() = true; keep.back() = true;
+    simplify_between(input, keep, 0U, input.size() - 1U, tolerance);
+    std::vector<Point> output; output.reserve(input.size());
+    for (std::size_t i = 0; i < input.size(); ++i) if (keep[i]) output.push_back(input[i]);
+    return output;
+}
+[[nodiscard]] PathDocument trace_outline(const DecodedPng& png, const RasterImageElement& image,
+                                          Rect box, Millimetres page_width, Millimetres page_height,
+                                          const RasterPathOptions& options) {
+    PathDocument result; result.page_width = page_width; result.page_height = page_height;
+    result.metadata = {{"coordinate_system", "page-mm-top-left"}, {"pipeline", "png-binary-outline"}};
+    const std::uint64_t width = png.width, height = png.height;
+    const std::size_t count = static_cast<std::size_t>(width * height);
+    std::vector<std::uint8_t> mask(count);
+    for (std::size_t index = 0; index < count; ++index) mask[index] = dark(png, index, options.darkness_threshold) ? 1U : 0U;
+    const auto active = [&](std::uint64_t x, std::uint64_t y) { return mask[static_cast<std::size_t>(y * width + x)] != 0U; };
+    const auto vertex = [width](std::uint64_t x, std::uint64_t y) { return y * (width + 1U) + x; };
+    std::vector<BoundaryEdge> edges;
+    std::unordered_map<std::uint64_t, std::vector<std::size_t>> outgoing;
+    const auto add_edge = [&](std::uint64_t x0, std::uint64_t y0, std::uint64_t x1, std::uint64_t y1, std::uint8_t direction) {
+        const auto from = vertex(x0, y0);
+        outgoing[from].push_back(edges.size());
+        edges.push_back({from, vertex(x1, y1), direction, false});
+        if (edges.size() > options.maximum_points * 32U) throw std::runtime_error("raster boundary exceeds complexity limit");
+    };
+    for (std::uint64_t y = 0; y < height; ++y) for (std::uint64_t x = 0; x < width; ++x) {
+        if (!active(x,y)) continue;
+        if (y == 0U || !active(x,y-1U)) add_edge(x,y,x+1U,y,0U);
+        if (x+1U == width || !active(x+1U,y)) add_edge(x+1U,y,x+1U,y+1U,1U);
+        if (y+1U == height || !active(x,y+1U)) add_edge(x+1U,y+1U,x,y+1U,2U);
+        if (x == 0U || !active(x-1U,y)) add_edge(x,y+1U,x,y,3U);
+    }
+    const double sx = box.width.value / static_cast<double>(width), sy = box.height.value / static_cast<double>(height);
+    std::size_t point_total{};
+    for (std::size_t start = 0; start < edges.size(); ++start) {
+        if (edges[start].used) continue;
+        std::vector<Point> points;
+        std::size_t edge_index = start;
+        while (true) {
+            BoundaryEdge& edge = edges[edge_index];
+            if (edge.used) break;
+            edge.used = true;
+            const std::uint64_t vx = edge.from % (width + 1U), vy = edge.from / (width + 1U);
+            points.push_back({{box.x.value + static_cast<double>(vx) * sx}, {box.y.value + static_cast<double>(vy) * sy}});
+            if (edge.to == edges[start].from) break;
+            const auto found = outgoing.find(edge.to);
+            if (found == outgoing.end()) break;
+            std::size_t next = edges.size();
+            for (std::uint8_t turn : {std::uint8_t{1}, std::uint8_t{0}, std::uint8_t{3}, std::uint8_t{2}}) {
+                const std::uint8_t direction = static_cast<std::uint8_t>((edge.direction + turn) & 3U);
+                for (const auto candidate : found->second)
+                    if (!edges[candidate].used && edges[candidate].direction == direction) { next = candidate; break; }
+                if (next != edges.size()) break;
+            }
+            if (next == edges.size()) break;
+            edge_index = next;
+        }
+        if (points.size() < 3U) continue;
+        points.push_back(points.front());
+        points = simplify_contour(points, options.simplify_tolerance_mm);
+        if (points.size() < 4U) continue;
+        double length{}; for (std::size_t i = 1; i < points.size(); ++i) length += point_distance(points[i-1], points[i]);
+        if (length < options.minimum_stroke_length_mm) continue;
+        Stroke stroke; stroke.id = result.strokes.size(); stroke.points = std::move(points); stroke.closed = true;
+        stroke.element_id = image.id; stroke.element_type = "raster-image"; stroke.source_page_index = static_cast<std::int64_t>(image.source_page);
+        stroke.source_path = image.image_path; stroke.semantic_role = "raster-image"; stroke.segment_types = {"raster-outline"};
+        stroke.preserve_order = true; stroke.z_order = image.z_order;
+        point_total += stroke.points.size();
+        if (result.strokes.size() >= options.maximum_strokes || point_total > options.maximum_points)
+            throw std::runtime_error("raster outline exceeds configured stroke or point bound");
+        result.strokes.push_back(std::move(stroke));
+    }
+    return result;
+}
+
 [[nodiscard]] Rect placement(const RasterImageElement& image, const RasterPathOptions& options) {
     if (image.bounds) {
         if (!image.bounds->has_positive_area()) throw std::invalid_argument("raster image bounds must have positive area");
@@ -174,6 +282,8 @@ PathDocument RasterPathBuilder::build(const RasterImageElement& image, Millimetr
     if (!(page_width.value > 0.0) || !(page_height.value > 0.0)) throw std::invalid_argument("page dimensions must be positive");
     const DecodedPng png = decode_png(image.image_path, options_);
     const Rect box = placement(image, options_);
+    if (options_.mode == RasterTraceMode::outline)
+        return trace_outline(png, image, box, page_width, page_height, options_);
     PathDocument result;
     result.page_width = page_width; result.page_height = page_height;
     result.metadata.emplace_back("coordinate_system", "page-mm-top-left");

@@ -3,6 +3,8 @@
 #include "plotter/doc/centerline_path_builder.hpp"
 #include "plotter/doc/outline_path_builder.hpp"
 #include "plotter/doc/docx_adapter.hpp"
+#include "plotter/doc/document_codec.hpp"
+#include "plotter/doc/stage_cache.hpp"
 #include "plotter/doc/gcode_exporter.hpp"
 #include "plotter/doc/gcode_analyzer.hpp"
 #include "plotter/doc/multipage_gcode_exporter.hpp"
@@ -71,13 +73,16 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     paragraph.line_spacing = item.line_spacing.value_or(1.25);
                     paragraph.tab_stops = item.tab_stops;
                     for (const TextRun& run : item.runs) {
-                        if (run.style.bold || run.style.italic || run.style.baseline_shift)
-                            throw std::runtime_error("bold, italic, and baseline shift are not implemented");
+                        if (options.font_mode == FontMode::centerline && (run.style.bold || run.style.italic))
+                            throw std::runtime_error("bold and italic need outline font mode");
                         LayoutTextStyle style;
                         style.font_id = options.font_id;
                         style.font_size = run.style.font_size.value_or(options.font_size);
                         style.underline = run.style.underline;
                         style.strike = run.style.strike;
+                        style.bold = run.style.bold;
+                        style.italic = run.style.italic;
+                        style.baseline_shift = run.style.baseline_shift;
                         paragraph.runs.push_back({run.text, std::move(style)});
                     }
                     if (!paragraph.runs.empty()) paragraphs.push_back(std::move(paragraph));
@@ -128,7 +133,9 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
                     paths.strokes.push_back(std::move(stroke));
                 }
             } else if constexpr (std::is_same_v<Type, RasterImageElement>) {
-                append_built(RasterPathBuilder{}.build(element, paths.page_width, paths.page_height));
+                RasterPathOptions raster_options; raster_options.mode = RasterTraceMode::outline;
+                raster_options.maximum_strokes = 10000U;
+                append_built(RasterPathBuilder{raster_options}.build(element, paths.page_width, paths.page_height));
             } else if constexpr (std::is_same_v<Type, TableElement>) {
                 if (fonts.contains(options.font_id))
                     append_built(TablePathBuilder{fonts, options.font_id, options.font_size}.build(element, paths.page_width, paths.page_height));
@@ -141,7 +148,9 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
                     visual.source_page = element.source_page;
                     visual.image_path = *element.visual_image_path;
                     visual.bounds = element.bounds;
-                    auto raster = RasterPathBuilder{}.build(visual, paths.page_width, paths.page_height);
+                    RasterPathOptions raster_options; raster_options.mode = RasterTraceMode::outline;
+                    raster_options.maximum_strokes = 10000U;
+                    auto raster = RasterPathBuilder{raster_options}.build(visual, paths.page_width, paths.page_height);
                     for (auto& stroke : raster.strokes) {
                         stroke.element_type = "math";
                         stroke.semantic_role = "math-visual";
@@ -181,13 +190,40 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         const auto config_report = validate_config(options.config);
         if (!config_report.ok()) throw std::invalid_argument("invalid page or machine configuration: " + config_report.issues.front().code);
         std::optional<Document> imported;
-        if (!provided) imported = import_document(options.input_path, options.output_directory / "assets");
+        CacheStats cache_stats;
+        if (!provided) {
+            std::optional<StageCache> cache;
+            std::string cache_key;
+            if (options.use_cache) {
+                try {
+                    const auto cache_root = options.cache_directory.empty()
+                        ? options.output_directory / ".cppdoc-cache" : options.cache_directory;
+                    cache.emplace(StageCacheOptions{cache_root});
+                    const std::string settings = options.input_path.extension().string();
+                    cache_key = StageCache::import_fingerprint(options.input_path, "document-import-v1", settings);
+                    auto cached = cache->load_typed<Document, DocumentCodec>("read_document", cache_key);
+                    if (cached.hit) {
+                        imported = std::move(cached.value);
+                        imported->source_path = options.input_path.string();
+                        ++cache_stats.hits;
+                    } else ++cache_stats.misses;
+                } catch (const std::exception&) {
+                    cache.reset();
+                }
+            }
+            if (!imported) {
+                imported = import_document(options.input_path, options.output_directory / "assets");
+                if (cache && DocumentCodec::cacheable(*imported)) {
+                    try { cache->store_typed<Document, DocumentCodec>("read_document", cache_key, *imported); }
+                    catch (const std::exception&) { /* cache write never invalidates a successful import */ }
+                }
+            }
+        }
         const Document& source = provided ? *provided : *imported;
         result.report.import.source_pages = static_cast<std::uint32_t>(source.pages.size());
         bool needs_font = false;
         auto paragraphs = collect_text(source, options, result.report.import, needs_font);
-        if (options.page_numbers && paragraphs.empty())
-            throw std::invalid_argument("page numbers require text content and a font");
+        if (options.page_numbers) needs_font = true;
         FontRegistry registry;
         if (needs_font) {
             if (options.font_mode == FontMode::centerline) {
@@ -210,7 +246,14 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             text_options.margin_top = page.margins.top; text_options.margin_bottom = page.margins.bottom;
             if (options.page_numbers) text_options.footer_reserve = {8.0};
             layout = TextLayoutEngine{registry}.layout(paragraphs, text_options);
-            append_page_numbers(layout, registry, {options.page_numbers, page.width, page.height, {4.5}, {9.0}, options.font_id});
+        }
+        if (options.page_numbers) {
+            const auto old_size = layout.pages.size();
+            layout.pages.resize(std::max(layout.pages.size(), source.pages.size()));
+            for (std::size_t index = old_size; index < layout.pages.size(); ++index)
+                layout.pages[index].page_index = static_cast<std::uint32_t>(index);
+            append_page_numbers(layout, registry, {true, options.config.page.width,
+                options.config.page.height, {4.5}, {9.0}, options.font_id});
         }
         const std::size_t page_count = std::max(source.pages.size(), layout.pages.size());
         result.job.page_width = options.config.page.width;
@@ -293,6 +336,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         const ImportStats import_stats = result.report.import;
         result.report = make_pipeline_report(result.job, std::string(artifact_level_name(options.artifact_level)));
         result.report.import = import_stats;
+        result.report.cache = cache_stats;
         result.report.layout.pages = static_cast<std::uint32_t>(layout.pages.size());
         for (const auto& page : layout.pages) {
             result.report.layout.lines += page.line_count;

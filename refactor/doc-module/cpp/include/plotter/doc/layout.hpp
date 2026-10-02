@@ -19,6 +19,9 @@ struct PositionedGlyph final {
     std::optional<std::string> font_id, font_sha256;
     FontUnits x_offset{}, y_offset{};
     std::string text_role{"letter"};
+    bool bold{};
+    bool italic{};
+    std::optional<std::string> baseline_shift;
 };
 struct SourcePlacement final { std::uint32_t source_page{}; std::optional<Rect> source_bounds, target_bounds; std::string anchor, wrap_mode; std::int32_t z_order{}; };
 struct AnchoredPlacement final { std::string element_id; std::uint32_t source_order{}; Rect target_rect{}; std::optional<Rect> mapped_rect; std::string wrap_mode, anchor_type; std::vector<std::string> warnings; bool active{}; };

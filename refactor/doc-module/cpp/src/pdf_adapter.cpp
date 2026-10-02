@@ -219,6 +219,7 @@ void append_page_text(SourcePage& output, std::vector<Word> words) {
 
 [[nodiscard]] CommandResult run_pdftocairo_svg(const std::filesystem::path&, std::uint32_t);
 [[nodiscard]] std::filesystem::path render_pdf_page(const std::filesystem::path&, std::uint32_t);
+[[nodiscard]] std::filesystem::path render_pdf_math_region(const std::filesystem::path&, std::uint32_t, std::uint32_t, const Rect&);
 void append_vectors(SourcePage&, const std::string&, std::uint32_t&);
 void append_math(SourcePage&, const std::vector<Word>&, std::uint32_t&);
 void append_grid_table(SourcePage&, std::uint32_t&);
@@ -258,6 +259,14 @@ ImportResult read_pdf_document(const std::filesystem::path& source_path) {
             RasterImageElement image; image.id = "page-" + std::to_string(page_index + 1) + "-raster-1"; image.source_order = visual_order++; image.source_page = static_cast<std::uint32_t>(page_index); image.image_path = rendered.string(); image.width = Pixels{static_cast<double>(std::llround(input_page.width * 150.0 / 72.0))}; image.height = Pixels{static_cast<double>(std::llround(input_page.height * 150.0 / 72.0))}; image.displayed_width = page.width; image.displayed_height = page.height; image.bounds = Rect{{0.0}, {0.0}, *page.width, *page.height}; image.anchor_type = "absolute"; image.behind_text = true; page.elements.emplace_back(std::move(image));
         } else { document.warnings.push_back("pdf_image_page_raster_not_imported: pdftocairo PNG conversion failed on page " + std::to_string(page_index + 1)); }
         append_math(page, input_page.words, visual_order);
+        std::uint32_t math_region_index{};
+        for (SourceElement& element : page.elements) {
+            auto* math = std::get_if<MathElement>(&element);
+            if (!math || !math->bounds) continue;
+            const auto cropped = render_pdf_math_region(source_path, static_cast<std::uint32_t>(page_index + 1), ++math_region_index, *math->bounds);
+            if (!cropped.empty()) math->visual_image_path = cropped.string();
+            else document.warnings.push_back("pdf_math_visual_not_rendered:" + math->id);
+        }
         std::uint32_t source_order = 0;
         const auto renumber = [&](SourceElement& element) {
             std::visit([&](auto& value) {
@@ -340,6 +349,34 @@ ImportResult read_pdf_document(const std::filesystem::path& source_path) {
     int status{}; while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
     const auto file = prefix.string() + ".png";
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 && std::filesystem::is_regular_file(file) ? std::filesystem::path{file} : std::filesystem::path{};
+}
+
+[[nodiscard]] std::filesystem::path render_pdf_math_region(const std::filesystem::path& source_path,
+    std::uint32_t page, std::uint32_t region_index, const Rect& bounds) {
+    if (!bounds.has_positive_area()) return {};
+    std::error_code error;
+    const auto directory = std::filesystem::temp_directory_path(error) / "plotter-pdf-renders";
+    if (error || (!std::filesystem::create_directories(directory, error) && error)) return {};
+    const auto prefix = directory / ("math-" + std::to_string(::getpid()) + "-" + std::to_string(page) + "-" + std::to_string(region_index));
+    constexpr double pixels_per_mm = 150.0 / 25.4;
+    const int x = std::max(0, static_cast<int>(std::floor(bounds.x.value * pixels_per_mm)));
+    const int y = std::max(0, static_cast<int>(std::floor(bounds.y.value * pixels_per_mm)));
+    const int width = std::max(1, static_cast<int>(std::ceil(bounds.right().value * pixels_per_mm)) - x);
+    const int height = std::max(1, static_cast<int>(std::ceil(bounds.bottom().value * pixels_per_mm)) - y);
+    const std::string input = source_path.string(), output = prefix.string();
+    const std::string page_text = std::to_string(page), x_text = std::to_string(x), y_text = std::to_string(y);
+    const std::string width_text = std::to_string(width), height_text = std::to_string(height);
+    const pid_t child = ::fork(); if (child < 0) return {};
+    if (child == 0) {
+        const char* const args[] = {"pdftocairo", "-png", "-singlefile", "-r", "150", "-f", page_text.c_str(),
+            "-l", page_text.c_str(), "-x", x_text.c_str(), "-y", y_text.c_str(), "-W", width_text.c_str(),
+            "-H", height_text.c_str(), input.c_str(), output.c_str(), nullptr};
+        ::execv("/usr/bin/pdftocairo", const_cast<char* const*>(args)); _exit(127);
+    }
+    int status{}; while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+    const auto file = prefix.string() + ".png";
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0 && std::filesystem::is_regular_file(file)
+        ? std::filesystem::path{file} : std::filesystem::path{};
 }
 
 [[nodiscard]] std::vector<Point> svg_line_points(const std::string& d, const std::string& transform) {

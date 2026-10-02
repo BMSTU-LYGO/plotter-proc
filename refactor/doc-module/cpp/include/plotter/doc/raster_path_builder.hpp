@@ -8,13 +8,16 @@
 
 namespace plotter::doc {
 
-// PNG raster images are represented as horizontal runs of dark, visible pixels.
-// This is deliberately simple and deterministic: it preserves binary artwork but
-// does not attempt skeletonization or photographic image tracing.
+// PNG raster art can be traced as bounded contours or legacy horizontal runs.
+enum class RasterTraceMode { scanline, outline };
 struct RasterPathOptions final {
     std::uint8_t darkness_threshold{127};
+    RasterTraceMode mode{RasterTraceMode::scanline};
+    double simplify_tolerance_mm{0.08};
+    double minimum_stroke_length_mm{0.35};
     std::size_t maximum_decoded_bytes{64U * 1024U * 1024U};
     std::size_t maximum_strokes{1U * 1024U * 1024U};
+    std::size_t maximum_points{100000U};
     double fallback_pixels_per_mm{96.0 / 25.4};
 };
 

@@ -19,6 +19,11 @@ struct LayoutTextStyle final {
     Millimetres word_spacing{};
     std::optional<std::string> underline;
     bool strike{};
+    bool bold{};
+    bool italic{};
+    // DOCX w:vertAlign value. Kept verbatim so unsupported values cannot be
+    // silently normalized away before rendering.
+    std::optional<std::string> baseline_shift;
 };
 struct LayoutTextRun final { std::string utf8; LayoutTextStyle style{}; };
 struct LayoutParagraph final {

@@ -13,6 +13,16 @@ struct Word final { std::vector<MeasuredCharacter> characters; Millimetres width
 struct Token final { Word word; Millimetres preceding_space{}; bool forced_break{}; bool tab_before{}; };
 struct Line final { std::vector<Word> words; std::vector<Millimetres> gaps; Millimetres width{}, height{}, ascender{}; bool forced_break{}; };
 
+[[nodiscard]] double baseline_shift_mm(const LayoutTextStyle& style) {
+    if (!style.baseline_shift) return 0.0;
+    const double size = to_millimetres(style.font_size).value;
+    // WordprocessingML uses these two values for w:vertAlign. Page coordinates
+    // grow downward, hence superscript moves the baseline upward.
+    if (*style.baseline_shift == "superscript" || *style.baseline_shift == "super") return -size * 0.33;
+    if (*style.baseline_shift == "subscript" || *style.baseline_shift == "sub") return size * 0.20;
+    throw std::invalid_argument("unsupported text baseline shift: " + *style.baseline_shift);
+}
+
 std::vector<Character> decode(const LayoutTextRun& run) {
     std::vector<Character> result;
     for (std::size_t i = 0; i < run.utf8.size();) {
@@ -35,7 +45,12 @@ MeasuredCharacter measure(const Character& character, const FontRegistry& fonts)
     Millimetres advance = font_units_to_millimetres(glyph.advance, size, glyph.units_per_em);
     advance = advance + (character.whitespace ? character.style.word_spacing : character.style.letter_spacing);
     const double vertical = static_cast<double>(glyph.ascender) - static_cast<double>(glyph.descender) + static_cast<double>(glyph.line_gap);
-    return {character, glyph, advance, {std::max(size.value, size.value * vertical / static_cast<double>(glyph.units_per_em))}, font_units_to_millimetres({static_cast<double>(glyph.ascender)}, size, glyph.units_per_em)};
+    const double natural_height = std::max(size.value, size.value * vertical / static_cast<double>(glyph.units_per_em));
+    const double shift = baseline_shift_mm(character.style);
+    const double ascender = font_units_to_millimetres({static_cast<double>(glyph.ascender)}, size, glyph.units_per_em).value;
+    // Reserve room above or below the line so a shifted run cannot overlap an
+    // adjacent line solely because its vertical alignment was preserved.
+    return {character, glyph, advance, {natural_height + std::abs(shift)}, {ascender + std::max(0.0, -shift)}};
 }
 
 void measure_line(Line& line) {
@@ -151,13 +166,14 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
                 if (word_position != 0) x += line.gaps[word_position - 1].value + extra;
                 const std::int32_t word_index = next_word++;
                 for (const auto& item : line.words[word_position].characters) {
-                    PositionedGlyph placed; placed.character = item.character.utf8; placed.glyph_name = "U+" + std::to_string(item.glyph.glyph_codepoint); placed.codepoint = item.character.codepoint;
-                    placed.x = {x}; placed.baseline_y = {baseline}; placed.advance = item.advance; placed.scale_mm_per_font_unit = to_millimetres(item.character.style.font_size).value / static_cast<double>(item.glyph.units_per_em);
+                    PositionedGlyph placed; placed.character = item.character.utf8; placed.glyph_name = "U+" + std::to_string(item.glyph.glyph_codepoint); placed.codepoint = item.glyph.glyph_codepoint;
+                    placed.x = {x}; placed.baseline_y = {baseline + baseline_shift_mm(item.character.style)}; placed.advance = item.advance; placed.scale_mm_per_font_unit = to_millimetres(item.character.style.font_size).value / static_cast<double>(item.glyph.units_per_em);
                     placed.line_index = next_line; placed.glyph_index = next_glyph++; placed.word_index = word_index; placed.cluster_index = static_cast<std::int32_t>(placed.glyph_index);
                     placed.font_id = item.glyph.font_id; placed.font_sha256 = item.glyph.font_sha256; placed.text_role = "letter";
+                    placed.bold = item.character.style.bold; placed.italic = item.character.style.italic; placed.baseline_shift = item.character.style.baseline_shift;
                     const std::int64_t placed_glyph_index = static_cast<std::int64_t>(placed.glyph_index);
                     page.glyphs.push_back(std::move(placed));
-                    append_decoration(page, item, x, baseline, placed_glyph_index, word_index, paragraph.source_element_id);
+                    append_decoration(page, item, x, page.glyphs.back().baseline_y.value, placed_glyph_index, word_index, paragraph.source_element_id);
                     x += item.advance.value;
                 }
             }

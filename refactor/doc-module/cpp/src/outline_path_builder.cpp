@@ -12,6 +12,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
+#include FT_SYNTHESIS_H
 
 namespace plotter::doc {
 namespace {
@@ -21,6 +22,7 @@ struct DecomposeContext final {
     std::vector<std::vector<RawPoint>> contours;
     std::vector<RawPoint> current;
     double origin_x{}, baseline_y{}, scale{};
+    bool italic{};
     double tolerance{};
     std::size_t maximum_points{};
     bool overflow{};
@@ -34,7 +36,11 @@ void append(DecomposeContext& context, RawPoint point) {
 }
 
 [[nodiscard]] RawPoint transform(const FT_Vector& point, const DecomposeContext& context) {
-    return {context.origin_x + static_cast<double>(point.x) * context.scale,
+    // FreeType's synthetic oblique is a shear in font space.
+    // Applying it here keeps the positioned glyph's page-space origin intact.
+    constexpr double kItalicShear = 0.2125565616700221;
+    const double oblique_x = static_cast<double>(point.x) + (context.italic ? static_cast<double>(point.y) * kItalicShear : 0.0);
+    return {context.origin_x + oblique_x * context.scale,
             context.baseline_y - static_cast<double>(point.y) * context.scale};
 }
 
@@ -122,8 +128,9 @@ PathDocument OutlinePathBuilder::build(const LayoutPage& page, Millimetres page_
         if (glyph_index == 0U) throw std::runtime_error("outline font is missing positioned glyph");
         if (FT_Load_Glyph(font.get(), glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP) != 0) throw std::runtime_error("cannot load outline glyph");
         const FT_GlyphSlot slot = font.get()->glyph;
+        if (glyph.bold) FT_GlyphSlot_Embolden(slot);
         if (slot->format != FT_GLYPH_FORMAT_OUTLINE) continue;
-        DecomposeContext context{{}, {}, glyph.x.value, glyph.baseline_y.value, glyph.scale_mm_per_font_unit, options_.flattening_tolerance_mm, options_.maximum_points_per_contour, false};
+        DecomposeContext context{{}, {}, glyph.x.value, glyph.baseline_y.value, glyph.scale_mm_per_font_unit, glyph.italic, options_.flattening_tolerance_mm, options_.maximum_points_per_contour, false};
         if (FT_Outline_Decompose(&slot->outline, &callbacks, &context) != 0 || context.overflow) throw std::runtime_error("cannot safely decompose outline glyph");
         if (context.current.size() >= 2U) context.contours.push_back(std::move(context.current));
         for (std::size_t contour = 0; contour < context.contours.size(); ++contour) {
