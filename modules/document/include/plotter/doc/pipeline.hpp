@@ -33,6 +33,7 @@ struct PipelineOptions final {
     std::size_t thread_count{1};
     bool optimize_geometry{};
     bool simplify_geometry{};
+    bool join_words{};
     bool page_numbers{};
     HandwritingOptions handwriting{};
     SourcePageTransformMode document_layout{SourcePageTransformMode::automatic};

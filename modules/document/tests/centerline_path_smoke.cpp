@@ -14,6 +14,7 @@ int main() {
     font.glyphs = {
         {'?', 500, {}},
         {'A', 600, {fontc::CompiledStroke{{{0, 0}, {100, 100}}}}},
+        {'B', 600, {fontc::CompiledStroke{{{0, 0}, {100, 100}}}, fontc::CompiledStroke{{{50, 100}, {50, 150}}}}},
         {'1', 500, {fontc::CompiledStroke{{{10, 0}, {10, 100}}}}},
     };
     fontc::write_pfc(path, font);
@@ -38,5 +39,19 @@ int main() {
     require(first.glyph_index == 7 && first.word_index == 3 && first.character == "A" && first.font_sha256 == "font-hash", "glyph provenance must be preserved");
     require(first.element_id == "source-text" && first.source_page_index == 4, "source provenance must be preserved when available");
     require(paths.strokes[1].element_type == "page-number" && paths.strokes[1].font_role == "page-number", "page-number provenance must be retained");
+    plotter::doc::LayoutPage joined_page;
+    joined_page.source_element_ids = {"source-text"};
+    auto first_letter = letter; first_letter.glyph_index = 1; first_letter.word_index = 0;
+    auto second_letter = letter; second_letter.character = "B"; second_letter.codepoint = 'B';
+    second_letter.x = {20}; second_letter.glyph_index = 2; second_letter.word_index = 0;
+    auto next_word = letter; next_word.x = {40}; next_word.glyph_index = 3; next_word.word_index = 1;
+    joined_page.glyphs = {first_letter, second_letter, next_word};
+    const auto joined = plotter::doc::CenterlinePathBuilder(fonts).build(joined_page, {210}, {297}, true);
+    require(joined.strokes.size() == 2, "each word must have exactly one pen-down stroke");
+    require(joined.strokes.front().source_characters == "AB" &&
+            joined.strokes.front().source_glyph_indices == std::vector<std::int64_t>{1, 2},
+            "joined word must retain glyph provenance");
+    require(joined.strokes.front().word_index == 0 && joined.strokes.back().word_index == 1,
+            "joining must stop at the word boundary");
     std::filesystem::remove(path);
 }

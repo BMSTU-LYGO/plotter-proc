@@ -11,6 +11,8 @@ CXXFLAGS += -std=c++20 -O2 -pthread -MMD -MP
 LDLIBS += -l:libfreetype.so.6 -lz -pthread -lstdc++
 JOBS ?= 2
 CHARS ?= examples/centerline_glyph_corpus.txt
+SIZE_MM ?= 8
+JOIN_WORDS ?= 1
 
 FONT_SOURCES := $(wildcard modules/fontc/src/*.cpp)
 DOC_SOURCES := $(wildcard modules/document/src/*.cpp) modules/document/tools/doc_run.cpp
@@ -50,6 +52,8 @@ help:
 	@echo 'Если шрифтов несколько: make doc имя FONT=имя_шрифта'
 	@echo 'Для формата А5: make doc имя PAGE=A5'
 	@echo 'С предпросмотром: make doc имя PREVIEW=1'
+	@echo 'Размер букв: make doc имя SIZE_MM=8'
+	@echo 'Без соединения слов: make doc имя JOIN_WORDS=0'
 
 font:
 	@set -eu; \
@@ -96,6 +100,8 @@ doc:
 	fi; \
 	preview='$(or $(PREVIEW),0)'; \
 	case "$$preview" in 0) preview_arg='--no-preview';; 1) preview_arg='';; *) echo 'PREVIEW должен быть 0 или 1' >&2; exit 2;; esac; \
+	join_words='$(JOIN_WORDS)'; \
+	case "$$join_words" in 0) join_arg='';; 1) join_arg='--join-words';; *) echo 'JOIN_WORDS должен быть 0 или 1' >&2; exit 2;; esac; \
 	page='$(or $(PAGE),A4)'; \
 	case "$$page" in A5) machine='configs/machine.yaml';; A4) machine='configs/machine-a4.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
 	$(MAKE) --no-print-directory -j$(JOBS) build/modules/document/plotter-doc; \
@@ -103,5 +109,5 @@ doc:
 	  --input "$$input" --output "build/$$stem" \
 	  --font "$$font_file" --font-mode centerline --page "$$page" \
 	  --layout-config configs/layout.yaml --machine-config "$$machine" \
-	  --artifact-level normal --simplify --optimize $$preview_arg; \
+	  --artifact-level normal --size-mm "$(SIZE_MM)" --simplify --optimize $$join_arg $$preview_arg; \
 	if [ "$$preview" = 1 ]; then echo "Предпросмотр: build/$$stem/pages/page-001/plotter-preview.svg"; fi

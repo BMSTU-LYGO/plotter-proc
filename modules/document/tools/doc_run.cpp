@@ -2,6 +2,8 @@
 #include "plotter/doc/config_reader.hpp"
 #include "plotter/doc/thread_pool.hpp"
 
+#include <charconv>
+#include <cmath>
 #include <iostream>
 #include <string_view>
 
@@ -50,6 +52,17 @@ int main(int argc, char** argv) {
             try { options.thread_count = ThreadPool::thread_count_from_string(next()); }
             catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 2; }
         }
+        else if (argument == "--size-mm") {
+            const auto value = next();
+            double millimetres{};
+            const auto parsed = std::from_chars(value.data(), value.data() + value.size(), millimetres);
+            if (value.empty() || parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() ||
+                !std::isfinite(millimetres) || millimetres < 1.0 || millimetres > 20.0) {
+                std::cerr << "--size-mm must be between 1 and 20\n"; return 2;
+            }
+            options.font_size = {millimetres * 72.0 / 25.4};
+        }
+        else if (argument == "--join-words") options.join_words = true;
         else if (argument == "--optimize") options.optimize_geometry = true;
         else if (argument == "--simplify") options.simplify_geometry = true;
         else if (argument == "--page-numbers") options.page_numbers = true;
@@ -64,7 +77,7 @@ int main(int argc, char** argv) {
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--size-mm 1..20] [--join-words] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

@@ -399,7 +399,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             paths.page_height = options.config.page.height;
             if (index < layout.pages.size()) {
                 if (options.font_mode == FontMode::centerline)
-                    paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
+                    paths = CenterlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height, options.join_words);
                 else paths = OutlinePathBuilder{registry}.build(layout.pages[index], paths.page_width, paths.page_height);
                 if (!layout.pages[index].math_glyphs.empty()) {
                     LayoutPage math_page;
