@@ -14,6 +14,7 @@
 #include "plotter/doc/svg_adapter.hpp"
 #include "plotter/doc/text_adapter.hpp"
 #include "plotter/doc/text_layout.hpp"
+#include "plotter/doc/thread_pool.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -215,7 +216,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         result.job.page_width = options.config.page.width;
         result.job.page_height = options.config.page.height;
         result.job.pages.reserve(page_count);
-        for (std::size_t index = 0; index < page_count; ++index) {
+        const auto build_page = [&](std::size_t index) -> PageJob {
             PathDocument paths;
             paths.page_width = options.config.page.width;
             paths.page_height = options.config.page.height;
@@ -277,7 +278,17 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             page.page_number = static_cast<std::uint32_t>(index + 1);
             page.paths = std::move(paths);
             if (index < layout.pages.size()) page.source_element_ids = layout.pages[index].source_element_ids;
-            result.job.pages.push_back(std::move(page));
+            return page;
+        };
+        bool independent_pages = options.font_mode == FontMode::outline;
+        if (independent_pages) for (const SourcePage& page : source.pages)
+            for (const SourceElement& element : page.elements)
+                if (std::holds_alternative<TableElement>(element) || std::holds_alternative<MathElement>(element)) independent_pages = false;
+        if (independent_pages && page_count > 1 && ThreadPool::resolve_thread_count(options.thread_count) > 1) {
+            ThreadPool pool{{options.thread_count, 1024}};
+            result.job.pages = pool.map_indexed(page_count, build_page);
+        } else {
+            for (std::size_t index = 0; index < page_count; ++index) result.job.pages.push_back(build_page(index));
         }
         const ImportStats import_stats = result.report.import;
         result.report = make_pipeline_report(result.job, std::string(artifact_level_name(options.artifact_level)));

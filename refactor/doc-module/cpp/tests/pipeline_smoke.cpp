@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 
@@ -65,5 +66,32 @@ int main() {
         has_math |= stroke.element_type == "math";
     }
     require(has_table && has_table_text && has_math, "table cell text and math paths were not assembled");
+    plotter::doc::Document vector_pages;
+    for (std::uint32_t index = 0; index < 2; ++index) {
+        plotter::doc::SourcePage page; page.source_page = index;
+        plotter::doc::VectorElement vector; vector.id = "vector-" + std::to_string(index);
+        vector.source_page = index;
+        plotter::doc::VectorPath path;
+        path.points = {{{20.0 + index}, {20.0}}, {{30.0 + index}, {30.0}}};
+        vector.paths.push_back(path); page.elements.push_back(vector);
+        vector_pages.pages.push_back(page);
+    }
+    options.font_mode = plotter::doc::FontMode::outline;
+    options.config.machine.page_change.enabled = true;
+    options.config.machine.page_change.pause_seconds = 1.0;
+    options.thread_count = 1;
+    options.output_directory = root / "out-sequential";
+    const auto sequential = plotter::doc::run_pipeline(vector_pages, options);
+    if (!sequential.ok) throw std::runtime_error("sequential multipage pipeline failed: " + sequential.error);
+    options.thread_count = 2;
+    options.output_directory = root / "out-parallel";
+    const auto parallel = plotter::doc::run_pipeline(vector_pages, options);
+    if (!parallel.ok) throw std::runtime_error("parallel multipage pipeline failed: " + parallel.error);
+    require(parallel.job.pages.size() == 2, "parallel page count failed");
+    const auto read_file = [](const std::filesystem::path& path) {
+        std::ifstream stream(path, std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+    };
+    require(read_file(sequential.gcode_path) == read_file(parallel.gcode_path), "parallel G-code order differs");
     std::filesystem::remove_all(root);
 }

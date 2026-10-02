@@ -1,5 +1,6 @@
 #include "plotter/doc/pipeline.hpp"
 #include "plotter/doc/config_reader.hpp"
+#include "plotter/doc/thread_pool.hpp"
 
 #include <iostream>
 #include <string_view>
@@ -53,7 +54,7 @@ int main(int argc, char** argv) {
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

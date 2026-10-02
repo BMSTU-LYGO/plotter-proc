@@ -9,6 +9,7 @@
 #include "plotter/doc/path_simplifier.hpp"
 
 #include <filesystem>
+#include <cstddef>
 #include <string>
 
 namespace plotter::doc {
@@ -25,6 +26,7 @@ struct PipelineOptions final {
     FontMode font_mode{FontMode::centerline};
     PipelineConfig config{};
     ArtifactLevel artifact_level{ArtifactLevel::normal};
+    std::size_t thread_count{1};
     bool optimize_geometry{};
     bool simplify_geometry{};
     bool page_numbers{};
