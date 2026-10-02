@@ -97,7 +97,7 @@ doc:
 	preview='$(or $(PREVIEW),0)'; \
 	case "$$preview" in 0) preview_arg='--no-preview';; 1) preview_arg='';; *) echo 'PREVIEW должен быть 0 или 1' >&2; exit 2;; esac; \
 	page='$(or $(PAGE),A4)'; \
-	case "$$page" in A5) machine='configs/machine.yaml';; A4) machine='modules/document/fixtures/machine-a4.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
+	case "$$page" in A5) machine='configs/machine.yaml';; A4) machine='configs/machine-a4.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
 	$(MAKE) --no-print-directory -j$(JOBS) build/modules/document/plotter-doc; \
 	build/modules/document/plotter-doc \
 	  --input "$$input" --output "build/$$stem" \

@@ -1,14 +1,7 @@
+# Поля листа А4 по 10 мм заданы в configs/layout.yaml.
 page_origin_mm:
-  x: 10.0
-  y: 10.0
-
-page_position_profiles:
-  A5:
-    origin_x_mm: 10.0
-    origin_y_mm: 10.0
-  A4:
-    origin_x_mm: 5.0
-    origin_y_mm: 5.0
+  x: 5.0
+  y: 55.0
 
 axes:
   invert_x: false
@@ -26,9 +19,9 @@ feedrate_mm_min:
 
 workspace_mm:
   min_x: 0.0
-  max_x: 220.0
-  min_y: 0.0
-  max_y: 320.0
+  max_x: 225.0
+  min_y: 55.0
+  max_y: 355.0
 
 gcode:
   home: false

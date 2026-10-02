@@ -62,7 +62,7 @@ make doc 1.md FONT=почерк PAGE=A5
 
 ## Настройки и ручной запуск
 
-Параметры листа находятся в `configs/layout.yaml`, параметры плоттера — в `configs/machine.yaml`. Команда `make doc` использует настройки А4 из `modules/document/fixtures/machine-a4.yaml`; для А5 — `configs/machine.yaml`.
+Параметры листа находятся в `configs/layout.yaml`, параметры плоттера — в `configs/machine.yaml`. Команда `make doc` использует настройки А4 из `configs/machine-a4.yaml`; для А5 — `configs/machine.yaml`. У А4 рабочая область: X от 0 до 225 мм, Y от 55 до 355 мм; начало листа — X=5, Y=55 мм, поля — по 10 мм.
 
 Команды Make собирают только нужную программу. Для ручной сборки без CMake:
 
