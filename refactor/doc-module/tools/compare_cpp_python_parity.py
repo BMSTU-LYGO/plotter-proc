@@ -22,6 +22,7 @@ from typing import Any, Iterable
 MODULE = Path(__file__).resolve().parents[1]
 ROOT = MODULE.parents[1]
 CORPUS = MODULE / "golden" / "corpus.json"
+CPP_TIMING_FIELDS = ("import_ms", "layout_ms", "path_and_geometry_ms", "gcode_ms", "peak_rss_kib")
 
 
 def args() -> argparse.Namespace:
@@ -183,15 +184,52 @@ def python_command(case: dict[str, Any], output: Path, python_executable: Path, 
     return command
 
 
-def cpp_command(case: dict[str, Any], output: Path, executable: Path, font: Path) -> list[str]:
+def cpp_command(case: dict[str, Any], output: Path, executable: Path, font: Path, cache_dir: Path | None = None) -> list[str]:
     command = [str(executable), "--input", str(ROOT / case["input"]), "--output", str(output), "--font", str(font), "--page", case["page"], "--font-mode", case["font_mode"], "--layout-config", str(ROOT / "configs/layout.yaml"), "--artifact-level", "normal"]
     # The frozen corpus predates an explicit field and includes page numbers.
     # New cases can opt out without changing the command-line harness.
     if case.get("page_numbers", True):
         command.append("--page-numbers")
+    if cache_dir is not None:
+        command.extend(("--cache-dir", str(cache_dir)))
     if machine := case.get("machine_config"):
         command.extend(("--machine-config", str(ROOT / machine)))
     return command
+
+
+def unavailable(reason: str) -> dict[str, str]:
+    return {"status": "unavailable", "reason": reason}
+
+
+def native_benchmark_sample(output: Path, wall_seconds: float, cache_state: str) -> dict[str, Any]:
+    """Read metrics emitted by a single native process without guessing values."""
+    report_path = output / "report.json"
+    native_report = load(report_path).get("report", {}) if report_path.is_file() else {}
+    timings = native_report.get("timings", {})
+    stage_timings: dict[str, Any] = {}
+    for field in CPP_TIMING_FIELDS:
+        value = timings.get(field)
+        stage_timings[field] = round(value, 6) if isinstance(value, (int, float)) else unavailable("native report did not expose this field")
+    cache = native_report.get("cache", {})
+    cache_metrics = {
+        field: cache[field] if isinstance(cache.get(field), int) else unavailable("native report did not expose this field")
+        for field in ("hits", "misses")
+    }
+    return {
+        "cache_state": cache_state,
+        "wall_seconds": round(wall_seconds, 6),
+        "stage_timings": stage_timings,
+        "cache": cache_metrics,
+    }
+
+
+def python_benchmark_sample(wall_seconds: float) -> dict[str, Any]:
+    reason = "Python capture does not emit stage timings or peak RSS in this harness"
+    return {
+        "wall_seconds": round(wall_seconds, 6),
+        "stage_timings": {field: unavailable(reason) for field in CPP_TIMING_FIELDS},
+        "cache": unavailable("Python cache statistics are not comparable to native StageCache"),
+    }
 
 
 def compare(case: dict[str, Any], cpp_dir: Path, tolerance: float) -> dict[str, Any]:
@@ -240,7 +278,8 @@ def main() -> int:
         case_dir = output / case["id"]
         shutil.rmtree(case_dir, ignore_errors=True)
         cpp_dir = case_dir / "cpp"
-        code, seconds, text = run(cpp_command(case, cpp_dir, executable, options.font.resolve()), ROOT)
+        cache_dir = case_dir / "cpp-cache" if options.benchmark else None
+        code, seconds, text = run(cpp_command(case, cpp_dir, executable, options.font.resolve(), cache_dir), ROOT)
         if code:
             result = {"case": case["id"], "status": "error", "checks": [], "native_exit": code, "native_output": text}
         else:
@@ -249,18 +288,32 @@ def main() -> int:
         report["cases"].append(result)
         if options.benchmark and code == 0:
             timings: dict[str, list[float]] = {"cpp": [seconds], "python": []}
+            cpp_samples = [native_benchmark_sample(cpp_dir, seconds, "cold")]
             for iteration in range(1, options.runs):
                 target = case_dir / "timing" / "cpp" / str(iteration)
-                timing_code, elapsed, _ = run(cpp_command(case, target, executable, options.font.resolve()), ROOT)
+                timing_code, elapsed, _ = run(cpp_command(case, target, executable, options.font.resolve(), cache_dir), ROOT)
                 if timing_code == 0:
                     timings["cpp"].append(elapsed)
+                    cpp_samples.append(native_benchmark_sample(target, elapsed, "warm"))
+            python_samples = []
             for iteration in range(options.runs):
                 target = case_dir / "timing" / "python" / str(iteration)
                 timing_code, elapsed, _ = run(python_command(case, target, options.python_executable, options.font.resolve()), ROOT)
                 if timing_code == 0:
                     timings["python"].append(elapsed)
+                    python_samples.append(python_benchmark_sample(elapsed))
             if len(timings["cpp"]) == options.runs and len(timings["python"]) == options.runs:
-                report["benchmarks"].append({"case": case["id"], "runs": options.runs, "cpp_seconds": [round(value, 6) for value in timings["cpp"]], "python_seconds": [round(value, 6) for value in timings["python"]], "cpp_median_seconds": round(sorted(timings["cpp"])[len(timings["cpp"]) // 2], 6), "python_median_seconds": round(sorted(timings["python"])[len(timings["python"]) // 2], 6)})
+                warm = cpp_samples[1:]
+                report["benchmarks"].append({
+                    "case": case["id"], "runs": options.runs,
+                    "cpp_seconds": [round(value, 6) for value in timings["cpp"]],
+                    "python_seconds": [round(value, 6) for value in timings["python"]],
+                    "cpp_median_seconds": round(sorted(timings["cpp"])[len(timings["cpp"]) // 2], 6),
+                    "python_median_seconds": round(sorted(timings["python"])[len(timings["python"]) // 2], 6),
+                    "cpp_cold_cache": cpp_samples[0],
+                    "cpp_warm_cache": warm if warm else unavailable("--runs 1 creates no warm-cache sample"),
+                    "python": python_samples,
+                })
     report_path = output / "parity-report.json"
     report_path.write_text(json.dumps(report, indent=2, default=lambda value: dict(value) if isinstance(value, Counter) else str(value)) + "\n", encoding="utf-8")
     print(report_path)
