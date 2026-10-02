@@ -2,6 +2,37 @@
 
 NAME := $(word 2,$(MAKECMDGOALS))
 
+# Сборка напрямую компилятором C++: CMake для make font/doc не нужен.
+ifeq ($(origin CXX),default)
+CXX := $(shell command -v g++ || command -v c++ || command -v gcc)
+endif
+CPPFLAGS += -Imodules/fontc/include -Imodules/document/include -Ithird_party/freetype2
+CXXFLAGS += -std=c++20 -O2 -pthread -MMD -MP
+LDLIBS += -l:libfreetype.so.6 -lz -pthread -lstdc++
+JOBS ?= 2
+CHARS ?= examples/centerline_glyph_corpus.txt
+
+FONT_SOURCES := $(wildcard modules/fontc/src/*.cpp)
+DOC_SOURCES := $(wildcard modules/document/src/*.cpp) modules/document/tools/doc_run.cpp
+DOC_FONT_SOURCES := modules/fontc/src/compiled_font.cpp modules/fontc/src/pfc.cpp modules/fontc/src/runtime_font.cpp
+FONT_OBJECTS := $(patsubst %.cpp,build/obj/%.o,$(FONT_SOURCES))
+DOC_OBJECTS := $(patsubst %.cpp,build/obj/%.o,$(DOC_SOURCES) $(DOC_FONT_SOURCES))
+ALL_OBJECTS := $(sort $(FONT_OBJECTS) $(DOC_OBJECTS))
+
+build/obj/%.o: %.cpp Makefile
+	@mkdir -p "$(@D)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c "$<" -o "$@"
+
+build/modules/fontc/fontc: $(FONT_OBJECTS)
+	@mkdir -p "$(@D)"
+	$(CXX) $^ -o "$@" $(LDLIBS)
+
+build/modules/document/plotter-doc: $(DOC_OBJECTS)
+	@mkdir -p "$(@D)"
+	$(CXX) $^ -o "$@" $(LDLIBS)
+
+-include $(ALL_OBJECTS:.o=.d)
+
 # `make font имя` и `make doc имя`: второй аргумент Make считает целью.
 ifneq ($(filter font doc,$(firstword $(MAKECMDGOALS))),)
 ifneq ($(strip $(NAME)),)
@@ -17,7 +48,7 @@ help:
 	@echo 'Шрифт:     make font имя[.ttf|.otf]'
 	@echo 'Документ:  make doc имя[.md|.txt|.docx|.svg]'
 	@echo 'Если шрифтов несколько: make doc имя FONT=имя_шрифта'
-	@echo 'Для формата А4: make doc имя PAGE=A4'
+	@echo 'Для формата А5: make doc имя PAGE=A5'
 
 font:
 	@set -eu; \
@@ -29,13 +60,13 @@ font:
 	  if [ -f "$$candidate" ]; then input="$$candidate"; break; fi; \
 	done; \
 	[ -n "$$input" ] || { echo "Шрифт $$name не найден в fonts/" >&2; exit 2; }; \
+	[ -f "$(CHARS)" ] || { echo "Список символов $(CHARS) не найден" >&2; exit 2; }; \
 	case "$$input" in *.ttf|*.otf) ;; *) echo 'Нужен файл .ttf или .otf' >&2; exit 2;; esac; \
 	stem=$${input##*/}; stem=$${stem%.*}; \
 	output="font-cache/$$stem/$$stem.pfc"; \
-	cmake -S . -B build -DBUILD_TESTING=OFF; \
-	cmake --build build --target fontc -j; \
+	$(MAKE) --no-print-directory -j$(JOBS) build/modules/fontc/fontc; \
 	mkdir -p "font-cache/$$stem"; \
-	build/modules/fontc/fontc "$$input" --chars-file assets/font-cache-corpus.txt --output "$$output" --force; \
+	build/modules/fontc/fontc "$$input" --chars-file "$(CHARS)" --output "$$output" --force; \
 	echo "Готово: $$output"
 
 doc:
@@ -62,13 +93,12 @@ doc:
 	  [ "$$#" -eq 1 ] || { echo 'Шрифтов несколько: укажите FONT=имя_шрифта' >&2; exit 2; }; \
 	  font_file="$$1"; \
 	fi; \
-	page='$(or $(PAGE),A5)'; \
+	page='$(or $(PAGE),A4)'; \
 	case "$$page" in A5) machine='configs/machine.yaml';; A4) machine='modules/document/fixtures/machine-a4.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
-	cmake -S . -B build -DBUILD_TESTING=OFF; \
-	cmake --build build --target plotter_doc_cli -j; \
+	$(MAKE) --no-print-directory -j$(JOBS) build/modules/document/plotter-doc; \
 	build/modules/document/plotter-doc \
 	  --input "$$input" --output "build/$$stem" \
 	  --font "$$font_file" --font-mode centerline --page "$$page" \
 	  --layout-config configs/layout.yaml --machine-config "$$machine" \
-	  --artifact-level normal; \
+	  --artifact-level normal --simplify --optimize; \
 	echo "Предпросмотр: build/$$stem/pages/page-001/plotter-preview.svg"
