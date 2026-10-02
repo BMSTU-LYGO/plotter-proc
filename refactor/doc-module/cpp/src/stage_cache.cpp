@@ -105,6 +105,24 @@ std::string StageCache::fingerprint(std::string_view stage, std::string_view inp
     return hex(hash.final());
 }
 
+std::string StageCache::source_fingerprint(const std::filesystem::path& source) {
+    std::ifstream input(source, std::ios::binary);
+    if (!input) throw std::runtime_error("cannot open cache source: " + source.string());
+    Sha256 hash;
+    std::array<std::uint8_t, 64U * 1024U> buffer{};
+    while (input.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size())) || input.gcount() > 0) {
+        hash.update(std::span<const std::uint8_t>{buffer.data(), static_cast<std::size_t>(input.gcount())});
+    }
+    if (!input.eof()) throw std::runtime_error("cannot read cache source: " + source.string());
+    return hex(hash.final());
+}
+
+std::string StageCache::import_fingerprint(const std::filesystem::path& source,
+                                           std::string_view algorithm_version,
+                                           std::string_view canonical_settings) {
+    return fingerprint("read_document", source_fingerprint(source), algorithm_version, canonical_settings);
+}
+
 std::filesystem::path StageCache::entry_path(std::string_view stage, std::string_view fingerprint) const {
     if (!valid_stage(stage) || !valid_fingerprint(fingerprint)) throw std::invalid_argument("invalid stage cache key");
     return options_.root / std::string(stage) / std::string(fingerprint) / "entry.bin";
