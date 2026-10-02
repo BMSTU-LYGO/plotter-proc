@@ -1,43 +1,51 @@
-# Конвейеры плоттера
+# Конвейер документов для плоттера
 
-Новые модули находятся в `refactor`. Прежний конвейер на Питоне сохранён; [его подробное описание](docs/старый-конвейер.md).
+Самодостаточный проект на C++20: `fontc` готовит `.pfc`, а `plotter-doc` строит G-code.
+Пользователь передаёт собственный шрифт TrueType или OpenType через `--font`; шрифты не хранятся в репозитории.
+
+
+## Зависимости
+
+Нужны CMake 3.20+, компилятор C++20, FreeType, Zlib и Threads.
 
 ## Сборка
 
-Нужны компилятор С++20, система сборки и библиотеки шрифтов и сжатия.
+```bash
+cmake -S . -B build -DBUILD_TESTING=OFF
+cmake --build build -j
+```
+
+Для тестов включите `BUILD_TESTING`; тесты документа контролирует `PLOTTER_DOC_BUILD_TESTS`.
 
 ```bash
-cmake -S refactor/extraction_module/cpp/fontc -B build/fontc
-cmake --build build/fontc -j
-cmake -S refactor/doc-module/cpp -B build/doc -DPLOTTER_DOC_BUILD_TESTS=OFF
-cmake --build build/doc -j
+cmake -S . -B build -DBUILD_TESTING=ON -DPLOTTER_DOC_BUILD_TESTS=ON
+cmake --build build -j
+ctest --test-dir build --output-on-failure
 ```
 
 ## Запуск
 
-Обычный шрифт — обводка букв:
-
 ```bash
-build/doc/plotter-doc --input examples/benchmark_50_words.txt --output build/result --font assets/1.ttf --font-mode outline
+build/modules/fontc/fontc <path/to/font.ttf> \
+  --chars-file assets/font-cache-corpus.txt --output build/font.pfc
+build/modules/document/plotter-doc \
+  --input examples/benchmark_50_words.txt --output build/result \
+  --font build/font.pfc --font-mode centerline
 ```
 
-Однолинейный шрифт сначала компилируется, затем передаётся конвейеру:
+Для обводки букв передайте `--font <path/to/font.ttf> --font-mode outline`.
+
+## Страницы и настройки плоттера
+
+Настройки листа находятся в `configs/layout.yaml`, а рабочая зона и перо — в `configs/machine.yaml`.
 
 ```bash
-build/fontc/fontc assets/1.ttf --chars-file assets/font-cache-corpus.txt --output build/font.pfc
-build/doc/plotter-doc --input examples/benchmark_50_words.txt --output build/result --font build/font.pfc --font-mode centerline
+build/modules/document/plotter-doc --input examples/benchmark_50_words.txt \
+  --output build/a4-document --font build/font.pfc --font-mode centerline --page A4 \
+  --layout-config configs/layout.yaml --machine-config modules/document/fixtures/machine-a4.yaml \
+  --page-numbers --optimize --simplify
 ```
 
-Отдельная команда разбирает документ и выводит его промежуточное представление:
-
-```bash
-build/doc/plotter-doc-import refactor/doc-module/fixtures/basic.md > build/document.json
-```
-
-## Возможности
-
-- Компилятор шрифтов готовит файл однолинейных букв для повторного использования.
-- Документный конвейер читает `.txt`, `.md`, `.docx` и `.svg`; строит разметку страниц и траектории пера.
-- Поддерживаются обводка букв, однолинейное письмо, переносы, номера страниц, простые таблицы и формулы, настройки листа и плоттера, кэширование этапов.
-- Результат: управляющие команды плоттера, отчёт и промежуточные файлы в каталоге, указанном через `--output`.
-- Новый конвейер пока экспериментальный: точное совпадение геометрии и происхождения штрихов с прежним конвейером ещё проверяется. Картинки пока исключены из этой работы.
+Текст разбивается на страницы. Результат включает `output.gcode`, `job.json`, `report.json` и `pages/page-XXX/paths.json`.
+SVG-предпросмотр первой страницы: `pages/page-001/plotter-preview.svg`; откройте его до отправки G-code на плоттер.
+Полный список параметров: `build/modules/document/plotter-doc --help`.

@@ -28,7 +28,7 @@ workspace_mm:
   min_x: 0.0
   max_x: 220.0
   min_y: 0.0
-  max_y: 220.0
+  max_y: 320.0
 
 gcode:
   home: false
