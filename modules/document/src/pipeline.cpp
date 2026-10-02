@@ -533,7 +533,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         result.report.timings.gcode_ms = elapsed_ms(paths_at, std::chrono::steady_clock::now());
         struct rusage usage{};
         if (::getrusage(RUSAGE_SELF, &usage) == 0) result.report.timings.peak_rss_kib = static_cast<std::uint64_t>(usage.ru_maxrss);
-        result.artifacts = write_artifacts(result.job, result.report, {options.output_directory, options.artifact_level, true});
+        result.artifacts = write_artifacts(result.job, result.report, {options.output_directory, options.artifact_level, options.write_preview});
         result.ok = true;
     } catch (const std::exception& error) {
         result.error = error.what();

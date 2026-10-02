@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
         else if (argument == "--layout-config") layout_config = next();
         else if (argument == "--cache-dir") options.cache_directory = next();
         else if (argument == "--no-cache") options.use_cache = false;
+        else if (argument == "--no-preview") options.write_preview = false;
         else if (argument == "--machine-config") machine_config = next();
         else if (argument == "--page") {
             const auto page = next();
@@ -63,7 +64,7 @@ int main(int argc, char** argv) {
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

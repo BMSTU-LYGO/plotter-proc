@@ -29,6 +29,7 @@ struct PipelineOptions final {
     FontMode font_mode{FontMode::centerline};
     PipelineConfig config{};
     ArtifactLevel artifact_level{ArtifactLevel::normal};
+    bool write_preview{true};
     std::size_t thread_count{1};
     bool optimize_geometry{};
     bool simplify_geometry{};
