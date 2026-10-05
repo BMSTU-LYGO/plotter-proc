@@ -5,6 +5,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -101,6 +103,23 @@ ResolvedGlyph FontRegistry::resolve(std::string_view requested_font_id, std::uin
 }  // namespace plotter::doc
 
 namespace plotter::doc {
+std::optional<std::pair<FontUnits, FontUnits>> FontRegistry::glyph_vertical_bounds(
+    std::string_view font_id, std::uint32_t codepoint) const {
+    const Entry& selected = entry(font_id);
+    if (!selected.runtime) return std::nullopt;
+    const auto& glyph = selected.runtime->lookup(codepoint);
+    double bottom = std::numeric_limits<double>::infinity();
+    double top = -std::numeric_limits<double>::infinity();
+    for (const auto& stroke : glyph.strokes) {
+        for (const auto& point : stroke.points) {
+            bottom = std::min(bottom, static_cast<double>(point.y));
+            top = std::max(top, static_cast<double>(point.y));
+        }
+    }
+    if (bottom > top) return std::nullopt;
+    return std::pair{FontUnits{bottom}, FontUnits{top}};
+}
+
 GlyphGeometry FontRegistry::glyph_geometry(std::string_view font_id, std::uint32_t codepoint) const {
     const Entry& selected = entry(font_id);
     if (!selected.runtime) throw std::runtime_error("centerline glyph geometry requires a PFC font");

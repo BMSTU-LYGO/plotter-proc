@@ -77,7 +77,8 @@ using TextLoadResult = std::variant<std::string, ImportError>;
 }
 
 [[nodiscard]] Document make_document(const std::filesystem::path& path, std::vector<std::string> paragraphs,
-                                     std::vector<std::string> roles, std::string source_format) {
+                                     std::vector<std::string> roles, std::string source_format,
+                                     const std::vector<bool>& paragraph_breaks = {}) {
     TextElement element;
     element.id = std::string{kTextElementId};
     element.source_order = 0;
@@ -89,6 +90,9 @@ using TextLoadResult = std::variant<std::string, ImportError>;
         run.text = std::move(paragraphs[index]);
         paragraph.runs.push_back(std::move(run));
         paragraph.semantic_role = std::move(roles[index]);
+        if (source_format == "markdown") {
+            paragraph.space_after = Millimetres{index < paragraph_breaks.size() && paragraph_breaks[index] ? 2.5 : 0.0};
+        }
         element.paragraphs.push_back(std::move(paragraph));
     }
     SourcePage page;
@@ -212,11 +216,12 @@ next_pass:;
     return line.substr(index);
 }
 
-[[nodiscard]] bool strip_heading(std::string& line) {
+[[nodiscard]] bool strip_heading(std::string& line, std::size_t* level = nullptr) {
     const auto view = ltrim_three_spaces(line);
     std::size_t hashes = 0;
     while (hashes < view.size() && view[hashes] == '#' && hashes < 6) { ++hashes; }
     if (hashes == 0 || hashes == view.size() || (view[hashes] != ' ' && view[hashes] != '\t')) { return false; }
+    if (level) *level = hashes;
     std::size_t start = hashes;
     while (start < view.size() && (view[start] == ' ' || view[start] == '\t')) { ++start; }
     line = std::string{view.substr(start)};
@@ -250,8 +255,82 @@ next_pass:;
     }
     if (marker_end >= view.size() || (view[marker_end] != ' ' && view[marker_end] != '\t')) { return false; }
     while (marker_end < view.size() && (view[marker_end] == ' ' || view[marker_end] == '\t')) { ++marker_end; }
-    line = std::string{view.substr(marker_end)};
+    const std::string prefix = std::isdigit(static_cast<unsigned char>(view.front()))
+        ? std::string{view.substr(0, marker_end)} : std::string{"- "};
+    line = prefix + std::string{view.substr(marker_end)};
     return true;
+}
+
+[[nodiscard]] bool thematic_break(std::string_view line) {
+    char marker = 0;
+    std::size_t count = 0;
+    for (char character : line) {
+        if (character == ' ' || character == '\t' || character == '\r') continue;
+        if (marker == 0) {
+            if (character != '-' && character != '*' && character != '_') return false;
+            marker = character;
+        }
+        if (character != marker) return false;
+        ++count;
+    }
+    return count >= 3;
+}
+
+[[nodiscard]] std::string trim_cell(std::string_view value) {
+    const auto first = value.find_first_not_of(" \t\r");
+    if (first == std::string_view::npos) return {};
+    const auto last = value.find_last_not_of(" \t\r");
+    return std::string{value.substr(first, last - first + 1)};
+}
+
+[[nodiscard]] std::vector<std::string> table_cells(std::string_view line) {
+    std::vector<std::string> cells;
+    std::string cell;
+    bool saw_pipe = false;
+    for (std::size_t i = 0; i < line.size(); ++i) {
+        if (line[i] == '\\' && i + 1 < line.size() && line[i + 1] == '|') { cell += '|'; ++i; continue; }
+        if (line[i] == '|') { cells.push_back(trim_cell(cell)); cell.clear(); saw_pipe = true; }
+        else cell += line[i];
+    }
+    if (!saw_pipe) return {};
+    cells.push_back(trim_cell(cell));
+    if (!cells.empty() && cells.front().empty()) cells.erase(cells.begin());
+    if (!cells.empty() && cells.back().empty()) cells.pop_back();
+    return cells;
+}
+
+[[nodiscard]] bool table_separator(std::string_view line, std::size_t columns) {
+    const auto cells = table_cells(line);
+    if (cells.size() != columns || columns == 0) return false;
+    for (const auto& cell : cells) {
+        std::size_t first = !cell.empty() && cell.front() == ':' ? 1 : 0;
+        std::size_t last = cell.size() - (!cell.empty() && cell.back() == ':' ? 1 : 0);
+        if (last < first + 3) return false;
+        for (std::size_t i = first; i < last; ++i) if (cell[i] != '-') return false;
+    }
+    return true;
+}
+
+[[nodiscard]] TableElement markdown_table(const std::vector<std::vector<std::string>>& rows, std::size_t index) {
+    TableElement table;
+    table.id = "markdown-table-" + std::to_string(index + 1);
+    table.source_kind = "markdown-table";
+    table.rows = static_cast<std::uint32_t>(rows.size());
+    table.columns = static_cast<std::uint32_t>(rows.front().size());
+    table.repeat_header_rows = 1;
+    for (std::size_t row = 0; row < rows.size(); ++row) {
+        for (std::size_t column = 0; column < rows.front().size(); ++column) {
+            TableCell cell;
+            cell.row = static_cast<std::uint32_t>(row);
+            cell.column = static_cast<std::uint32_t>(column);
+            Paragraph paragraph;
+            paragraph.semantic_role = row == 0 ? "table-header" : "table-cell";
+            paragraph.runs.push_back({column < rows[row].size() ? clean_inline_markdown(rows[row][column]) : std::string{}, {}});
+            cell.paragraphs.push_back(std::move(paragraph));
+            table.cells.push_back(std::move(cell));
+        }
+    }
+    return table;
 }
 
 }  // namespace
@@ -271,30 +350,90 @@ ImportResult read_markdown_document(const std::filesystem::path& source_path) {
     }
     auto loaded = load_utf8(source_path, "Markdown");
     if (const auto* error = std::get_if<ImportError>(&loaded)) { return *error; }
-    const auto text = std::move(std::get<std::string>(loaded));
+    const auto lines = split_lines(std::get<std::string>(loaded));
     std::vector<std::string> paragraphs;
     std::vector<std::string> roles;
+    std::vector<bool> paragraph_breaks;
+    std::vector<std::pair<std::size_t, TableElement>> tables;
     char fence_character{};
     std::size_t fence_length{};
-    for (std::string line : split_lines(text)) {
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        std::string line = lines[i];
         char marker_character{};
         std::size_t marker_length{};
         const bool marker = fence_marker(line, marker_character, marker_length);
         if (fence_length != 0) {
             if (marker && marker_character == fence_character && marker_length >= fence_length) { fence_length = 0; continue; }
-            paragraphs.push_back(std::move(line)); roles.emplace_back("code"); continue;
+            paragraphs.push_back(std::move(line)); roles.emplace_back("code");
+            paragraph_breaks.push_back(false); continue;
         }
         if (marker) { fence_character = marker_character; fence_length = marker_length; continue; }
+        if (i + 1 < lines.size()) {
+            const auto header = table_cells(line);
+            if (!header.empty() && table_separator(lines[i + 1], header.size())) {
+                std::vector<std::vector<std::string>> rows{header};
+                i += 2;
+                while (i < lines.size()) {
+                    const auto cells = table_cells(lines[i]);
+                    if (cells.empty()) break;
+                    rows.push_back(cells);
+                    ++i;
+                }
+                tables.emplace_back(paragraphs.size(), markdown_table(rows, tables.size()));
+                if (i < lines.size() && lines[i].find_first_not_of(" \t\r") == std::string::npos) {
+                    // The table itself supplies vertical separation.
+                } else if (i < lines.size()) --i;
+                continue;
+            }
+        }
+        if (line.find_first_not_of(" \t\r") == std::string::npos) {
+            if (!paragraph_breaks.empty()) paragraph_breaks.back() = true;
+            continue;
+        }
+        if (thematic_break(line)) {
+            paragraphs.emplace_back();
+            roles.emplace_back("thematic_break");
+            paragraph_breaks.push_back(false);
+            continue;
+        }
         std::string role{"body"};
-        if (strip_heading(line)) { role = "heading"; }
+        std::size_t heading_level = 0;
+        if (strip_heading(line, &heading_level)) { role = "heading_" + std::to_string(heading_level); }
         else {
             if (strip_quote(line)) { role = "blockquote"; }
             if (strip_list(line)) { role = "list"; }
         }
         paragraphs.push_back(clean_inline_markdown(std::move(line)));
         roles.push_back(std::move(role));
+        paragraph_breaks.push_back(false);
     }
-    return make_document(source_path, std::move(paragraphs), std::move(roles), "markdown");
+    Document document = make_document(source_path, std::move(paragraphs), std::move(roles), "markdown", paragraph_breaks);
+    if (tables.empty()) return document;
+    SourcePage& page = document.pages.front();
+    TextElement source = std::move(std::get<TextElement>(page.elements.front()));
+    page.elements.clear();
+    std::size_t first = 0;
+    std::uint32_t order = 0;
+    for (auto& [before, table] : tables) {
+        if (before > first) {
+            TextElement text;
+            text.id = "markdown-text-" + std::to_string(order + 1);
+            text.source_order = order++;
+            for (std::size_t j = first; j < before; ++j) text.paragraphs.push_back(std::move(source.paragraphs[j]));
+            page.elements.emplace_back(std::move(text));
+        }
+        table.source_order = order++;
+        page.elements.emplace_back(std::move(table));
+        first = before;
+    }
+    if (first < source.paragraphs.size()) {
+        TextElement text;
+        text.id = "markdown-text-" + std::to_string(order + 1);
+        text.source_order = order;
+        for (std::size_t j = first; j < source.paragraphs.size(); ++j) text.paragraphs.push_back(std::move(source.paragraphs[j]));
+        page.elements.emplace_back(std::move(text));
+    }
+    return document;
 }
 
 ImportResult read_text_document(const std::filesystem::path& source_path) {

@@ -32,6 +32,7 @@ struct LayoutPage final {
     std::vector<PositionedGlyph> math_glyphs;
     std::vector<Stroke> graphic_strokes;
     std::vector<std::pair<std::string, Rect>> flow_images;
+    std::vector<TableElement> flow_tables;
     std::vector<std::string> source_element_ids, warnings;
     std::vector<SourcePlacement> placements;
     std::vector<Rect> line_boxes;

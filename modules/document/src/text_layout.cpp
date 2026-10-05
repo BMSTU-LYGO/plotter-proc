@@ -8,10 +8,10 @@
 namespace plotter::doc {
 namespace {
 struct Character final { std::uint32_t codepoint{}; std::string utf8; LayoutTextStyle style; bool whitespace{}; bool newline{}; };
-struct MeasuredCharacter final { Character character; ResolvedGlyph glyph; Millimetres advance, natural_height, ascender; };
+struct MeasuredCharacter final { Character character; ResolvedGlyph glyph; Millimetres advance, natural_height, ascender, descender; };
 struct Word final { std::vector<MeasuredCharacter> characters; Millimetres width{}; };
 struct Token final { Word word; Millimetres preceding_space{}; bool forced_break{}; bool tab_before{}; };
-struct Line final { std::vector<Word> words; std::vector<Millimetres> gaps; Millimetres width{}, height{}, ascender{}; bool forced_break{}; };
+struct Line final { std::vector<Word> words; std::vector<Millimetres> gaps; Millimetres width{}, height{}, ascender{}, descender{}; bool forced_break{}; };
 
 [[nodiscard]] double baseline_shift_mm(const LayoutTextStyle& style) {
     if (!style.baseline_shift) return 0.0;
@@ -45,24 +45,36 @@ MeasuredCharacter measure(const Character& character, const FontRegistry& fonts)
     Millimetres advance = font_units_to_millimetres(glyph.advance, size, glyph.units_per_em);
     advance = advance + (character.whitespace ? character.style.word_spacing : character.style.letter_spacing);
     const double vertical = static_cast<double>(glyph.ascender) - static_cast<double>(glyph.descender) + static_cast<double>(glyph.line_gap);
-    const double natural_height = std::max(size.value, size.value * vertical / static_cast<double>(glyph.units_per_em));
+    double ascender = font_units_to_millimetres({static_cast<double>(glyph.ascender)}, size, glyph.units_per_em).value;
+    double descender = std::max(0.0, font_units_to_millimetres({-static_cast<double>(glyph.descender)}, size, glyph.units_per_em).value);
+    if (const auto bounds = fonts.glyph_vertical_bounds(glyph.font_id, glyph.glyph_codepoint)) {
+        ascender = std::max(0.0, font_units_to_millimetres(bounds->second, size, glyph.units_per_em).value);
+        descender = std::max(0.0, -font_units_to_millimetres(bounds->first, size, glyph.units_per_em).value);
+    } else if (character.whitespace) {
+        ascender = size.value * 0.5;
+        descender = 0.0;
+    } else {
+        const double natural_height = std::max(size.value, size.value * vertical / static_cast<double>(glyph.units_per_em));
+        ascender = std::min(ascender, natural_height);
+        descender = std::max(0.0, natural_height - ascender);
+    }
     const double shift = baseline_shift_mm(character.style);
-    const double ascender = font_units_to_millimetres({static_cast<double>(glyph.ascender)}, size, glyph.units_per_em).value;
-    // Reserve room above or below the line so a shifted run cannot overlap an
-    // adjacent line solely because its vertical alignment was preserved.
-    return {character, glyph, advance, {natural_height + std::abs(shift)}, {ascender + std::max(0.0, -shift)}};
+    ascender += std::max(0.0, -shift);
+    descender += std::max(0.0, shift);
+    return {character, glyph, advance, {ascender + descender}, {ascender}, {descender}};
 }
 
 void measure_line(Line& line) {
-    line.width = {}; line.height = {}; line.ascender = {};
+    line.width = {}; line.height = {}; line.ascender = {}; line.descender = {};
     for (std::size_t i = 0; i < line.words.size(); ++i) {
         if (i != 0) line.width = line.width + line.gaps[i - 1];
         for (const auto& character : line.words[i].characters) {
             line.width = line.width + character.advance;
-            line.height = {std::max(line.height.value, character.natural_height.value)};
             line.ascender = {std::max(line.ascender.value, character.ascender.value)};
+            line.descender = {std::max(line.descender.value, character.descender.value)};
         }
     }
+    line.height = line.ascender + line.descender;
 }
 
 LayoutPage make_page(std::uint32_t index) { LayoutPage page; page.page_index = index; return page; }
@@ -102,6 +114,96 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
     auto require_vertical = [&](double height) { if (height <= 0.0 || height > bottom - options.margin_top.value) throw std::invalid_argument("line does not fit in page content area"); if (cursor_y + height > bottom) new_page(); };
 
     for (const LayoutParagraph& paragraph : paragraphs) {
+        if (paragraph.flow_rule) {
+            require_vertical(6.0);
+            Stroke stroke;
+            stroke.points = {{{options.margin_left.value}, {cursor_y + 3.0}}, {{right}, {cursor_y + 3.0}}};
+            stroke.element_id = paragraph.source_element_id;
+            stroke.element_type = "markdown-rule";
+            stroke.semantic_role = "thematic-break";
+            stroke.segment_types = {"markdown-rule"};
+            stroke.preserve_order = true;
+            document.pages.back().graphic_strokes.push_back(std::move(stroke));
+            cursor_y += 6.0;
+            continue;
+        }
+        if (paragraph.flow_table) {
+            const TableElement& table = *paragraph.flow_table;
+            if (table.columns == 0 || table.rows == 0) continue;
+            const double width = right - options.margin_left.value;
+            const double cell_width = width / static_cast<double>(table.columns);
+            const double text_width = std::max(1.0, cell_width - 2.0);
+            const double line_height = std::max(5.0, to_millimetres(paragraph.flow_table_font_size).value * 1.25);
+            TableElement fragment = table;
+            fragment.cells.clear(); fragment.row_heights.clear(); fragment.rows = 0;
+            double fragment_start = cursor_y + 2.0;
+            double fragment_height = 0.0;
+            double header_height = 0.0;
+            auto flush_table = [&]() {
+                if (fragment.rows == 0) return;
+                fragment.bounds = Rect{{options.margin_left.value}, {fragment_start}, {width}, {fragment_height}};
+                document.pages.back().flow_tables.push_back(std::move(fragment));
+                cursor_y = fragment_start + fragment_height + 2.0;
+                fragment = table;
+                fragment.cells.clear(); fragment.row_heights.clear(); fragment.rows = 0;
+                fragment_height = 0.0;
+            };
+            for (std::uint32_t row = 0; row < table.rows; ++row) {
+                double row_height = line_height + 2.0;
+                for (const TableCell& cell : table.cells) {
+                    if (cell.row != row) continue;
+                    double x = 0.0;
+                    std::size_t lines = 1;
+                    for (const Paragraph& content : cell.paragraphs) {
+                        for (const TextRun& run : content.runs) {
+                            LayoutTextRun measured{run.text, {}};
+                            measured.style.font_id = paragraph.runs.empty() ? std::string{} : paragraph.runs.front().style.font_id;
+                            measured.style.font_size = paragraph.flow_table_font_size;
+                            for (const Character& character : decode(measured)) {
+                                if (character.newline) { ++lines; x = 0.0; continue; }
+                                const double advance = measure(character, fonts_).advance.value;
+                                if (x > 0.0 && x + advance > text_width) { ++lines; x = 0.0; }
+                                x += advance;
+                            }
+                        }
+                    }
+                    row_height = std::max(row_height, static_cast<double>(lines) * line_height + 2.0);
+                }
+                row_height = std::min(row_height, bottom - options.margin_top.value - 4.0);
+                if (row == 0) header_height = row_height;
+                if (fragment.rows > 0 && fragment_start + fragment_height + row_height > bottom) {
+                    flush_table();
+                    new_page();
+                    fragment_start = cursor_y + 2.0;
+                    if (table.repeat_header_rows && header_height > 0.0 &&
+                        fragment_start + header_height + row_height <= bottom) {
+                        for (const TableCell& cell : table.cells) {
+                            if (cell.row != 0) continue;
+                            TableCell header = cell;
+                            header.row = 0;
+                            fragment.cells.push_back(std::move(header));
+                        }
+                        fragment.row_heights.push_back(Millimetres{header_height});
+                        fragment.rows = 1;
+                        fragment_height = header_height;
+                    }
+                } else if (fragment.rows == 0 && fragment_start + row_height > bottom) {
+                    new_page();
+                    fragment_start = cursor_y + 2.0;
+                }
+                for (const TableCell& cell : table.cells) {
+                    if (cell.row != row) continue;
+                    TableCell placed = cell;
+                    placed.row = fragment.rows;
+                    fragment.cells.push_back(std::move(placed));
+                }
+                fragment.row_heights.push_back(Millimetres{row_height});
+                ++fragment.rows;
+                fragment_height += row_height;
+            }
+            flush_table();
+            continue;
+        }
         if (paragraph.flow_image) {
             constexpr double spacing_before = 2.0, spacing_after = 2.0;
             const FlowImage& image = *paragraph.flow_image;
@@ -166,12 +268,31 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
         }
         const double fallback_height = paragraph.runs.empty() ? blank_line_height
             : measure(Character{'M', "M", paragraph.runs.front().style, false, false}, fonts_).natural_height.value;
+        blank_line_height = fallback_height;
+        double lowercase_height = 0.0;
+        double lowercase_ascender = 0.0;
+        if (paragraph.lowercase_line_height) {
+            for (const LayoutTextRun& run : paragraph.runs) {
+                const auto reference = fonts_.resolve(run.style.font_id, 0x0430U); // а
+                if (const auto bounds = fonts_.glyph_vertical_bounds(reference.font_id, reference.glyph_codepoint)) {
+                    const double scale = to_millimetres(run.style.font_size).value /
+                        static_cast<double>(reference.units_per_em);
+                    lowercase_height = std::max(lowercase_height,
+                        (bounds->second.value - bounds->first.value) * scale);
+                    lowercase_ascender = std::max(lowercase_ascender, bounds->second.value * scale);
+                }
+            }
+        }
         for (std::size_t line_number = 0; line_number < lines.size(); ++line_number) {
             const Line& line = lines[line_number];
-            const double base_height = paragraph.line_height ? paragraph.line_height->value : std::max(line.height.value, fallback_height);
+            const double base_height = paragraph.lowercase_line_height && lowercase_height > 0.0 && !line.words.empty()
+                ? lowercase_height
+                : (paragraph.line_height ? paragraph.line_height->value
+                    : (line.words.empty() ? fallback_height : line.height.value));
             if (paragraph.line_spacing && *paragraph.line_spacing <= 0.0) throw std::invalid_argument("paragraph line spacing must be positive");
             const double ink_height = line.words.empty() ? blank_line_height
-                : (paragraph.line_spacing ? base_height * *paragraph.line_spacing : base_height);
+                : (paragraph.lowercase_line_height && lowercase_height > 0.0 ? base_height
+                    : (paragraph.line_spacing ? base_height * *paragraph.line_spacing : base_height));
             const double height = ink_height + options.line_gap.value;
             require_vertical(height);
             const double line_left = line_number == 0 ? first_left : paragraph_left;
@@ -181,7 +302,8 @@ LayoutDocument TextLayoutEngine::layout(const std::vector<LayoutParagraph>& para
             double x = line_left;
             if (paragraph.alignment == TextAlignment::center) x += std::max(0.0, (line_available - line.width.value) / 2.0);
             else if (paragraph.alignment == TextAlignment::right) x += std::max(0.0, line_available - line.width.value);
-            const double baseline = cursor_y + std::min(line.ascender.value, ink_height);
+            const double baseline = cursor_y + (paragraph.lowercase_line_height && lowercase_height > 0.0
+                ? lowercase_ascender : std::min(line.ascender.value, ink_height));
             LayoutPage& page = document.pages.back(); add_source(page, paragraph.source_element_id);
             page.line_boxes.push_back({{x}, {cursor_y}, {justify ? line_available : line.width.value}, {height}});
             for (std::size_t word_position = 0; word_position < line.words.size(); ++word_position) {

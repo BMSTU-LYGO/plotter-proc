@@ -11,7 +11,8 @@ CXXFLAGS += -std=c++20 -O2 -pthread -MMD -MP
 LDLIBS += -l:libfreetype.so.6 -lz -pthread -lstdc++
 JOBS ?= 2
 CHARS ?= examples/centerline_glyph_corpus.txt
-SIZE_MM ?= 8
+# For font 1, 9.76 mm per em makes an ordinary capital about 7 mm high.
+SIZE_MM ?= 9.76
 JOIN_WORDS ?= 1
 
 FONT_SOURCES := $(wildcard modules/fontc/src/*.cpp)

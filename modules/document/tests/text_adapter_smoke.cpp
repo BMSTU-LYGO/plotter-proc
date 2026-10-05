@@ -23,11 +23,13 @@ int main() {
     const auto markdown = read_markdown_document(markdown_path);
     assert(std::holds_alternative<Document>(markdown));
     const auto& element = std::get<TextElement>(std::get<Document>(markdown).pages[0].elements[0]);
-    assert(element.paragraphs.size() == 5);
-    assert(element.paragraphs[0].runs[0].text == "Title" && *element.paragraphs[0].semantic_role == "heading");
-    assert(element.paragraphs[2].runs[0].text == "first item" && *element.paragraphs[2].semantic_role == "list");
-    assert(element.paragraphs[3].runs[0].text == "<keep `this`>" && *element.paragraphs[3].semantic_role == "code");
-    assert(element.paragraphs[4].runs[0].text == "site & text");
+    assert(element.paragraphs.size() == 4);
+    assert(element.paragraphs[0].runs[0].text == "Title" && *element.paragraphs[0].semantic_role == "heading_1");
+    assert(element.paragraphs[0].space_after && element.paragraphs[0].space_after->value == 2.5);
+    assert(element.paragraphs[1].runs[0].text == "- first item" && *element.paragraphs[1].semantic_role == "list");
+    assert(element.paragraphs[2].runs[0].text == "<keep `this`>" && *element.paragraphs[2].semantic_role == "code");
+    assert(element.paragraphs[3].runs[0].text == "site & text");
+    assert(element.paragraphs[1].space_after && element.paragraphs[1].space_after->value == 0.0);
     const auto golden_txt_path = root / "golden.txt";
     const auto golden_markdown_path = root / "golden.md";
     { std::ofstream file(golden_txt_path, std::ios::binary); file << "\xEF\xBB\xBFМама мыла раму. Мир, шрифт, линия."; }

@@ -67,19 +67,26 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                     paragraph.page_break_before = page.source_page > 0 && first_paragraph_on_page;
                     first_paragraph_on_page = false;
                     paragraph.alignment = alignment(item.alignment);
+                    if (document.metadata.source_format == "markdown") {
+                        paragraph.lowercase_line_height = options.font_mode == FontMode::centerline;
+                        paragraph.flow_rule = item.semantic_role == "thematic_break";
+                        if (item.semantic_role == "blockquote") paragraph.left_indent = Millimetres{4.0};
+                    }
                     paragraph.space_before = item.space_before.value_or(Millimetres{});
                     paragraph.space_after = item.space_after.value_or(Millimetres{2.5});
                     paragraph.first_line_indent = item.first_line_indent.value_or(Millimetres{});
                     paragraph.hanging_indent = item.hanging_indent.value_or(Millimetres{});
-                    paragraph.left_indent = item.left_indent.value_or(Millimetres{});
+                    paragraph.left_indent = item.left_indent.value_or(paragraph.left_indent);
                     paragraph.right_indent = item.right_indent.value_or(Millimetres{});
-                    paragraph.line_spacing = item.line_spacing.value_or(1.25);
+                    paragraph.line_spacing = item.line_spacing.value_or(
+                        document.metadata.source_format == "markdown" ? 1.0 : 1.25);
                     paragraph.tab_stops = item.tab_stops;
                     double semantic_scale = 1.0;
                     if (item.semantic_role == "title") semantic_scale = 1.35;
                     else if (item.semantic_role == "heading_1") semantic_scale = 1.25;
                     else if (item.semantic_role == "heading_2") semantic_scale = 1.15;
                     else if (item.semantic_role == "heading_3") semantic_scale = 1.08;
+                    else if (item.semantic_role == "heading_4") semantic_scale = 1.04;
                     double source_size_total = 0.0;
                     std::size_t source_size_count = 0;
                     if (document.metadata.source_format == "docx") {
@@ -98,7 +105,7 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                             throw std::runtime_error("bold and italic need outline font mode");
                         LayoutTextStyle style;
                         style.font_id = options.font_id;
-                        style.font_size = document.metadata.source_format == "docx"
+                        style.font_size = document.metadata.source_format == "docx" || document.metadata.source_format == "markdown"
                             ? Points{options.font_size.value * semantic_scale}
                             : run.style.font_size.value_or(options.font_size);
                         style.underline = run.style.underline;
@@ -167,6 +174,16 @@ std::vector<LayoutParagraph> collect_text(const Document& document, const Pipeli
                 ++stats.math_elements;
                 if (!math->visual_image_path) needs_font = true;
             } else if (const auto* table = std::get_if<TableElement>(&source)) {
+                if (document.metadata.source_format == "markdown") {
+                    LayoutParagraph marker;
+                    marker.flow_table = *table;
+                    marker.flow_table_font_size = options.font_size;
+                    LayoutTextStyle table_style;
+                    table_style.font_id = options.font_id;
+                    table_style.font_size = options.font_size;
+                    marker.runs.push_back({{}, std::move(table_style)});
+                    paragraphs.push_back(std::move(marker));
+                }
                 ++stats.tables;
                 for (const auto& cell : table->cells)
                     for (const auto& paragraph : cell.paragraphs)
@@ -214,6 +231,7 @@ void append_graphics(PathDocument& paths, const SourcePage& source_page,
                 raster_options.maximum_strokes = 10000U;
                 append_built(RasterPathBuilder{raster_options}.build(element, paths.page_width, paths.page_height));
             } else if constexpr (std::is_same_v<Type, TableElement>) {
+                if (element.source_kind == "markdown-table") return;
                 if (fonts.contains(options.font_id))
                     append_built(TablePathBuilder{fonts, options.font_id, options.font_size}.build(element, paths.page_width, paths.page_height));
                 else append_built(TablePathBuilder{}.build(element, paths.page_width, paths.page_height));
@@ -311,7 +329,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                         ? options.output_directory / ".cppdoc-cache" : options.cache_directory;
                     cache.emplace(StageCacheOptions{cache_root});
                     const std::string settings = options.input_path.extension().string();
-                    cache_key = StageCache::import_fingerprint(options.input_path, "document-import-v1", settings);
+                    cache_key = StageCache::import_fingerprint(options.input_path, "document-import-v7", settings);
                     auto cached = cache->load_typed<Document, DocumentCodec>("read_document", cache_key);
                     if (cached.hit) {
                         imported = std::move(cached.value);
@@ -428,6 +446,14 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
                 for (auto stroke : layout.pages[index].graphic_strokes) {
                     stroke.id = paths.strokes.size();
                     paths.strokes.push_back(std::move(stroke));
+                }
+                for (const auto& table : layout.pages[index].flow_tables) {
+                    auto built = TablePathBuilder{registry, options.font_id, options.font_size}.build(table, paths.page_width, paths.page_height);
+                    for (auto& stroke : built.strokes) {
+                        stroke.id = paths.strokes.size();
+                        paths.strokes.push_back(std::move(stroke));
+                    }
+                    paths.warnings.insert(paths.warnings.end(), built.warnings.begin(), built.warnings.end());
                 }
                 for (const auto& [image_id, bounds] : layout.pages[index].flow_images) {
                     for (const SourcePage& source_page : source.pages) {

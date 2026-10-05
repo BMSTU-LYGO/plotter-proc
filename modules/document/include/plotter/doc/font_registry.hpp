@@ -7,6 +7,8 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -55,6 +57,8 @@ public:
     [[nodiscard]] ResolvedGlyph resolve(std::string_view requested_font_id,
                                         std::uint32_t codepoint) const;
     [[nodiscard]] GlyphGeometry glyph_geometry(std::string_view font_id, std::uint32_t codepoint) const;
+    [[nodiscard]] std::optional<std::pair<FontUnits, FontUnits>> glyph_vertical_bounds(
+        std::string_view font_id, std::uint32_t codepoint) const;
 
 private:
     struct Entry final {

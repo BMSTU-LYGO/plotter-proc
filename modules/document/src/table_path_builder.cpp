@@ -148,14 +148,34 @@ void append_cell_text(PathDocument& result, const TableElement& table, const Tab
             for (const auto& [codepoint, utf8] : decode_utf8(run.text)) {
                 if (codepoint == '\n' || codepoint == '\r') { baseline += max_line; x = clip.x.value; continue; }
                 const ResolvedGlyph glyph = fonts.resolve(font_id, codepoint); const double scale = size_mm.value / static_cast<double>(glyph.units_per_em);
+                const double advance = font_units_to_millimetres(glyph.advance, size_mm, glyph.units_per_em).value;
+                if (x > clip.x.value && x + advance > clip.right().value) { baseline += max_line; x = clip.x.value; }
+                if (baseline > clip.bottom().value + max_line) break;
                 for (const FontStroke& contour : fonts.glyph_geometry(glyph.font_id, glyph.glyph_codepoint).strokes) {
+                    Stroke stroke;
+                    stroke.glyph_index = glyph_index; stroke.source_page_index = static_cast<std::int64_t>(table.source_page);
+                    stroke.character = utf8; stroke.element_id = table.id; stroke.element_type = "table-cell-text";
+                    stroke.font_role = "table-cell"; stroke.font_sha256 = glyph.font_sha256;
+                    stroke.source_glyph_indices = {glyph_index}; stroke.source_characters = utf8;
+                    stroke.semantic_role = "table-cell-text"; stroke.layout_group = group;
+                    stroke.segment_types = {"glyph", "table-cell-text"};
+                    const auto flush = [&]() {
+                        if (stroke.points.size() < 2) return;
+                        stroke.id = result.strokes.size();
+                        result.strokes.push_back(stroke);
+                        stroke.points.clear();
+                    };
                     for (std::size_t point = 1; point < contour.points.size(); ++point) {
-                        Point first{{x + contour.points[point - 1].x.value * scale}, {baseline - contour.points[point - 1].y.value * scale}}; Point second{{x + contour.points[point].x.value * scale}, {baseline - contour.points[point].y.value * scale}};
-                        if (!clip_line(first, second, clip) || same_point(first, second)) continue;
-                        Stroke stroke; stroke.id = result.strokes.size(); stroke.points = {first, second}; stroke.glyph_index = glyph_index; stroke.source_page_index = static_cast<std::int64_t>(table.source_page); stroke.character = utf8; stroke.element_id = table.id; stroke.element_type = "table-cell-text"; stroke.font_role = "table-cell"; stroke.font_sha256 = glyph.font_sha256; stroke.source_glyph_indices = {glyph_index}; stroke.source_characters = utf8; stroke.semantic_role = "table-cell-text"; stroke.layout_group = group; stroke.segment_types = {"glyph", "table-cell-text"}; result.strokes.push_back(std::move(stroke));
+                        Point first{{x + contour.points[point - 1].x.value * scale}, {baseline - contour.points[point - 1].y.value * scale}};
+                        Point second{{x + contour.points[point].x.value * scale}, {baseline - contour.points[point].y.value * scale}};
+                        if (!clip_line(first, second, clip) || same_point(first, second)) { flush(); continue; }
+                        if (!stroke.points.empty() && !same_point(stroke.points.back(), first)) flush();
+                        if (stroke.points.empty()) stroke.points.push_back(first);
+                        stroke.points.push_back(second);
                     }
+                    flush();
                 }
-                ++glyph_index; x += font_units_to_millimetres(glyph.advance, size_mm, glyph.units_per_em).value;
+                ++glyph_index; x += advance;
             }
         }
         baseline += paragraph.space_after.value_or(Millimetres{}).value;

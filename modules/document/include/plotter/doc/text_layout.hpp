@@ -37,7 +37,11 @@ struct LayoutParagraph final {
     std::vector<TabStop> tab_stops;
     bool page_break_before{};
     bool display_math{};
+    bool lowercase_line_height{};
+    bool flow_rule{};
     std::optional<FlowImage> flow_image;
+    std::optional<TableElement> flow_table;
+    Points flow_table_font_size{12.0};
     std::optional<std::string> source_element_id;
 };
 struct TextLayoutOptions final {
