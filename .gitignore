@@ -1,14 +1,25 @@
+# CMake and build output
+# User-provided fonts
 assets/*.ttf
 assets/*.otf
+fonts/*.ttf
+fonts/*.otf
 
-build/*
-!build/.gitkeep
+/build/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/CTestTestfile.cmake
+/Testing/
+/compile_commands.json
 
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.venv/
+# Generated plotter artifacts
+*.gcode
+*.pfc
 .plotter-cache/
-1-font-cache/
+font-cache/
+
+# Local tool output
+*.log
+.idea/
+.vscode/
