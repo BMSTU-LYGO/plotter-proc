@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace plotter::doc {
 
@@ -20,7 +21,8 @@ struct PipelineOptions final {
     std::filesystem::path input_path;
     std::filesystem::path output_directory;
     std::filesystem::path pfc_path;
-    std::filesystem::path fallback_font_path;
+    std::vector<std::filesystem::path> fallback_font_paths;
+    std::filesystem::path digit_font_path;
     std::filesystem::path cache_directory;
     bool use_cache{true};
     std::string font_id{"body"};

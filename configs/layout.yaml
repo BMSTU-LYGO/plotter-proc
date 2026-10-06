@@ -12,7 +12,7 @@ pages:
       - {x_mm: 6.0, y_mm: 80.0, radius_mm: 3.0}
       - {x_mm: 6.0, y_mm: 130.0, radius_mm: 3.0}
 
-line_gap_mm: 3.0
+line_gap_mm: 2.1429
 
 margins_mm:
   left: 10.0

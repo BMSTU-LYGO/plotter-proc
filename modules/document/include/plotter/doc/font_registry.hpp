@@ -48,12 +48,14 @@ public:
     void register_pfc(FontRegistration registration);
     void register_outline_font(FontRegistration registration);
     void set_fallback_font(std::string id);
+    void add_fallback_font(std::string id);
+    void set_digit_font(std::string id);
 
     [[nodiscard]] bool contains(std::string_view id) const noexcept;
     [[nodiscard]] const FontRegistration& font(std::string_view id) const;
     [[nodiscard]] const std::filesystem::path& outline_font_path(std::string_view id) const;
-    // Selects the requested font when it contains the glyph, then the registry
-    // fallback, then the requested font's required '?' glyph.
+    // Digits may use a preferred handwriting font. Missing glyphs are searched
+    // through ordered fallbacks, then replaced by the requested font's '?'.
     [[nodiscard]] ResolvedGlyph resolve(std::string_view requested_font_id,
                                         std::uint32_t codepoint) const;
     [[nodiscard]] GlyphGeometry glyph_geometry(std::string_view font_id, std::uint32_t codepoint) const;
@@ -68,7 +70,8 @@ private:
     };
     [[nodiscard]] const Entry& entry(std::string_view id) const;
     std::map<std::string, Entry, std::less<>> entries_;
-    std::string fallback_font_id_;
+    std::vector<std::string> fallback_font_ids_;
+    std::string digit_font_id_;
 };
 
 [[nodiscard]] constexpr Millimetres font_units_to_millimetres(FontUnits value,

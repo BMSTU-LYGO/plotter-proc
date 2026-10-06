@@ -34,6 +34,13 @@ void FontRegistry::register_pfc(FontRegistration registration) {
     if (entries_.contains(registration.id)) throw std::invalid_argument("font id is already registered");
     const std::string id = registration.id;
     auto runtime = std::make_shared<fontc::RuntimeFont>(registration.pfc_path);
+    if (registration.sha256.empty()) {
+        constexpr char hex[] = "0123456789abcdef";
+        for (const std::uint8_t byte : runtime->metadata().font_hash) {
+            registration.sha256 += hex[byte >> 4U];
+            registration.sha256 += hex[byte & 0x0FU];
+        }
+    }
     entries_.emplace(id, Entry{std::move(registration), std::move(runtime), {}});
 }
 
@@ -47,8 +54,19 @@ void FontRegistry::register_outline_font(FontRegistration registration) {
 }
 
 void FontRegistry::set_fallback_font(std::string id) {
+    fallback_font_ids_.clear();
+    add_fallback_font(std::move(id));
+}
+
+void FontRegistry::add_fallback_font(std::string id) {
     if (!contains(id)) throw std::invalid_argument("fallback font is not registered");
-    fallback_font_id_ = std::move(id);
+    if (std::find(fallback_font_ids_.begin(), fallback_font_ids_.end(), id) == fallback_font_ids_.end())
+        fallback_font_ids_.push_back(std::move(id));
+}
+
+void FontRegistry::set_digit_font(std::string id) {
+    if (!contains(id)) throw std::invalid_argument("digit font is not registered");
+    digit_font_id_ = std::move(id);
 }
 
 bool FontRegistry::contains(std::string_view id) const noexcept { return entries_.contains(id); }
@@ -75,10 +93,20 @@ ResolvedGlyph FontRegistry::resolve(std::string_view requested_font_id, std::uin
     };
     const Entry* selected = &requested;
     std::uint32_t selected_codepoint = codepoint;
-    if (!contains_glyph(requested, codepoint)) {
-        if (!fallback_font_id_.empty() && contains_glyph(entry(fallback_font_id_), codepoint))
-            selected = &entry(fallback_font_id_);
-        else selected_codepoint = '?';
+    if (codepoint >= '0' && codepoint <= '9' && !digit_font_id_.empty() &&
+        contains_glyph(entry(digit_font_id_), codepoint)) {
+        selected = &entry(digit_font_id_);
+    } else if (!contains_glyph(requested, codepoint)) {
+        bool found = false;
+        for (const std::string& id : fallback_font_ids_) {
+            const Entry& candidate = entry(id);
+            if (contains_glyph(candidate, codepoint)) {
+                selected = &candidate;
+                found = true;
+                break;
+            }
+        }
+        if (!found) selected_codepoint = '?';
     }
     if (selected->runtime) {
         const auto& glyph = selected->runtime->lookup(selected_codepoint);
@@ -86,7 +114,7 @@ ResolvedGlyph FontRegistry::resolve(std::string_view requested_font_id, std::uin
         if (metrics.units_per_em <= 0) throw std::runtime_error("PFC units_per_em must be positive");
         return {selected->registration.id, selected->registration.sha256, codepoint, glyph.codepoint,
                 {static_cast<double>(glyph.advance_font_units)}, metrics.units_per_em, metrics.ascender,
-                metrics.descender, metrics.line_gap, glyph.codepoint != codepoint};
+                metrics.descender, metrics.line_gap, selected != &requested || glyph.codepoint != codepoint};
     }
     FT_Face face = selected->outline->face;
     const FT_UInt glyph_index = FT_Get_Char_Index(face, static_cast<FT_ULong>(selected_codepoint));
@@ -97,7 +125,7 @@ ResolvedGlyph FontRegistry::resolve(std::string_view requested_font_id, std::uin
     return {selected->registration.id, selected->registration.sha256, codepoint, selected_codepoint,
             {static_cast<double>(face->glyph->metrics.horiAdvance)}, units,
             static_cast<std::int32_t>(face->ascender), static_cast<std::int32_t>(face->descender),
-            static_cast<std::int32_t>(face->height - (face->ascender - face->descender)), selected_codepoint != codepoint};
+            static_cast<std::int32_t>(face->height - (face->ascender - face->descender)), selected != &requested || selected_codepoint != codepoint};
 }
 
 }  // namespace plotter::doc

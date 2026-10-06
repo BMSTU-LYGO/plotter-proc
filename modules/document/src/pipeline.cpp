@@ -356,28 +356,30 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         if (options.page_numbers) needs_font = true;
         FontRegistry registry;
         if (needs_font) {
-            if (options.font_mode == FontMode::centerline) {
-                if (options.pfc_path.empty() || options.pfc_path.extension() != ".pfc")
-                    throw std::invalid_argument("centerline mode requires a compiled .pfc font");
-                registry.register_pfc({options.font_id, options.font_sha256, options.pfc_path});
-                if (!options.fallback_font_path.empty()) {
-                    if (options.fallback_font_path.extension() != ".pfc")
-                        throw std::invalid_argument("centerline fallback font must be .pfc");
-                    registry.register_pfc({"fallback", {}, options.fallback_font_path});
-                    registry.set_fallback_font("fallback");
+            const bool centerline = options.font_mode == FontMode::centerline;
+            const auto register_font = [&](const std::string& id, const std::filesystem::path& path,
+                                           const std::string& hash = std::string{}) {
+                const std::string extension = path.extension().string();
+                if (centerline) {
+                    if (extension != ".pfc")
+                        throw std::invalid_argument("centerline fonts must be compiled .pfc files");
+                    registry.register_pfc({id, hash, path});
+                } else {
+                    if (extension != ".ttf" && extension != ".otf")
+                        throw std::invalid_argument("outline fonts must be .ttf or .otf files");
+                    registry.register_outline_font({id, hash, path});
                 }
-            } else {
-                const auto extension = options.pfc_path.extension().string();
-                if (extension != ".ttf" && extension != ".otf")
-                    throw std::invalid_argument("outline mode requires a .ttf or .otf font");
-                registry.register_outline_font({options.font_id, options.font_sha256, options.pfc_path});
-                if (!options.fallback_font_path.empty()) {
-                    const auto fallback_extension = options.fallback_font_path.extension().string();
-                    if (fallback_extension != ".ttf" && fallback_extension != ".otf")
-                        throw std::invalid_argument("outline fallback font must be .ttf or .otf");
-                    registry.register_outline_font({"fallback", {}, options.fallback_font_path});
-                    registry.set_fallback_font("fallback");
-                }
+            };
+            register_font(options.font_id, options.pfc_path, options.font_sha256);
+            if (!options.digit_font_path.empty()) {
+                register_font("digits", options.digit_font_path);
+                registry.set_digit_font("digits");
+                registry.add_fallback_font("digits");
+            }
+            for (std::size_t index = 0; index < options.fallback_font_paths.size(); ++index) {
+                const std::string id = "fallback_" + std::to_string(index);
+                register_font(id, options.fallback_font_paths[index]);
+                registry.add_fallback_font(id);
             }
         }
         LayoutDocument layout;
@@ -518,7 +520,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             }
             if (options.simplify_geometry) {
                 const PathSimplificationOptions settings{{0.001}, {0.04},
-                    {options.font_mode == FontMode::outline ? 0.05 : 0.06}};
+                    {options.font_mode == FontMode::outline ? 0.05 : 0.10}};
                 paths = simplify_path_document(paths, settings);
             }
             const auto checks = preflight(paths, options.config);

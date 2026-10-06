@@ -20,6 +20,7 @@ public:
     explicit RuntimeFont(const std::filesystem::path& pfc_path);
 
     [[nodiscard]] const FontMetrics& metrics() const noexcept { return font_.metrics(); }
+    [[nodiscard]] const PfcMetadata& metadata() const noexcept { return font_.metadata(); }
     [[nodiscard]] const CompiledGlyph& lookup(std::uint32_t codepoint) const;
     [[nodiscard]] bool contains(std::uint32_t codepoint) const noexcept {
         return font_.find(codepoint) != nullptr;
