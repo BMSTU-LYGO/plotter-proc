@@ -24,14 +24,7 @@ PreflightReport validate_config(const PipelineConfig& c) {
     if (!finite(m.page_origin.x.value) || !finite(m.page_origin.y.value)) add(r, PreflightSeverity::error, "page_origin", "must be finite");
     else if (!inside(w, m.page_origin)) add(r, PreflightSeverity::error, "page_origin.workspace", "origin is outside workspace");
     if (m.page_origin.x.value + p.width.value > w.max_x.value || m.page_origin.y.value + p.height.value > w.max_y.value) add(r, PreflightSeverity::error, "page.workspace", "configured page extends outside workspace");
-    positive(r, m.feedrate.draw_mm_min, "feedrate.draw"); positive(r, m.feedrate.draw_fast_mm_min, "feedrate.draw_fast"); positive(r, m.feedrate.travel_mm_min, "feedrate.travel"); positive(r, m.feedrate.z_mm_min, "feedrate.z");
-    positive(r, m.feedrate.curve_mm_min, "feedrate.curve"); positive(r, m.feedrate.tight_mm_min, "feedrate.tight_curve");
-    if (!finite(m.feedrate.curvature_threshold_1) || !finite(m.feedrate.curvature_threshold_2) ||
-        m.feedrate.curvature_threshold_2 < -1 || m.feedrate.curvature_threshold_1 > 1 ||
-        m.feedrate.curvature_threshold_2 >= m.feedrate.curvature_threshold_1)
-        add(r, PreflightSeverity::error, "feedrate.curvature_threshold", "thresholds must be ordered cosines in [-1,1]");
-    if (m.feedrate.draw_fast_mm_min < m.feedrate.draw_mm_min)
-        add(r, PreflightSeverity::error, "feedrate.draw_fast", "must be at least draw feedrate");
+    positive(r, m.feedrate.draw_mm_min, "feedrate.draw"); positive(r, m.feedrate.travel_mm_min, "feedrate.travel"); positive(r, m.feedrate.z_mm_min, "feedrate.z");
     if (!finite(m.pen.up_z.value) || !finite(m.pen.down_z.value) || m.pen.up_z.value <= m.pen.down_z.value) add(r, PreflightSeverity::error, "pen.z", "up height must exceed down height");
     if (m.gcode.decimals > 6U) add(r, PreflightSeverity::error, "gcode.decimals", "must be between 0 and 6");
     for (const auto& k : m.keep_out) if (!finite(k.center.x.value) || !finite(k.center.y.value) || !finite(k.radius.value) || !finite(k.clearance.value) || k.radius.value <= 0.0 || k.clearance.value < 0.0) add(r, PreflightSeverity::error, "keep_out", "needs finite center and positive radius");
