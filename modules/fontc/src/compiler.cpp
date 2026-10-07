@@ -2,6 +2,7 @@
 
 #include "fontc/binary_image.hpp"
 #include "fontc/compiled_font.hpp"
+#include "fontc/curve_fit.hpp"
 #include "fontc/geometry.hpp"
 #include "fontc/graph_cleanup.hpp"
 #include "fontc/pfc.hpp"
@@ -68,12 +69,7 @@ constexpr std::uint32_t kFallbackCodepoint = static_cast<std::uint32_t>('?');
     const RasterGlyph& raster
 ) {
     std::vector<PointFU> points = pixels_to_font_units(routed.points, raster);
-    if (points.size() < 3) return {std::move(points)};
-    const PointFU start = points.front();
-    const PointFU end = points.back();
-    points = smooth_chaikin(simplify_rdp(points, 1.0), 1);
-    points.front() = start;
-    points.back() = end;
+    points.erase(std::unique(points.begin(), points.end()), points.end());
     return {std::move(points)};
 }
 
@@ -153,16 +149,36 @@ void join_disconnected_letter(CompiledGlyph& glyph, double max_connector_fu) {
 [[nodiscard]] std::optional<CompiledGlyph> compile_one(
     FontFace& face,
     std::uint32_t codepoint,
-    int resolution
+    int resolution, const CompilerOptions& options, CompilationReport& report
 ) {
     if (!face.glyph_metrics(codepoint).has_value()) return std::nullopt;
     const RasterGlyph raster = rasterize_glyph(face, codepoint, resolution);
     const BinaryImage mask = make_binary_mask(raster);
     const BinaryImage skeleton = thin_guo_hall(mask);
-    const float min_spur_length = std::max(1.0F, static_cast<float>(resolution) / 128.0F);
-    const BinaryImage pruned = prune_short_spurs(skeleton, min_spur_length);
-    const SkeletonGraph graph = cleanup_graph(build_skeleton_graph(pruned));
+    const float pixels_per_mm = static_cast<float>(resolution / options.reference_em_mm);
+    const BinaryImage pruned = prune_short_spurs(skeleton, 0.0F);
+    const SkeletonGraph raw_graph = cleanup_graph(build_skeleton_graph(pruned));
+    SpurCleanupStats spur_stats;
+    const SkeletonGraph clean_graph = remove_short_graph_spurs(raw_graph,
+        static_cast<float>(options.spur_threshold_mm)*pixels_per_mm, &spur_stats);
+    const CurveOptions curves{static_cast<float>(options.curve_fit_tolerance_mm)*pixels_per_mm,
+        static_cast<float>(options.curve_max_error_mm)*pixels_per_mm,
+        static_cast<float>(options.min_segment_length_mm)*pixels_per_mm,
+        static_cast<float>(options.straight_segment_target_mm)*pixels_per_mm,
+        static_cast<float>(options.curve_segment_target_mm)*pixels_per_mm,
+        static_cast<float>(options.tight_curve_segment_target_mm)*pixels_per_mm};
+    CurveStats curve_stats;
+    const SkeletonGraph graph = fit_graph_edges(clean_graph, curves, &curve_stats);
     const RoutingResult routing = route_graph(graph);
+    for (const Edge& edge : raw_graph.edges) report.raw_centerline_points += edge.points.size();
+    report.clean_centerline_points = curve_stats.raw_points;
+    report.removed_spurs = spur_stats.removed_spurs;
+    report.removed_spur_length_mm = spur_stats.removed_spur_length/pixels_per_mm;
+    report.graph_nodes_before = spur_stats.graph_nodes_before;
+    report.graph_nodes_after = spur_stats.graph_nodes_after;
+    report.bezier_segment_count = curve_stats.bezier_segments;
+    report.final_path_points = curve_stats.final_points;
+    report.stroke_count = routing.stroke_count;
 
     CompiledGlyph glyph;
     glyph.codepoint = codepoint;
@@ -216,7 +232,14 @@ void join_disconnected_letter(CompiledGlyph& glyph, double max_connector_fu) {
     PfcMetadata metadata;
     metadata.font_hash = stable_hash(read_bytes(options.font_path));
     const std::string config = "resolution=" + std::to_string(options.resolution) +
-        ";mask_threshold=160;spur_divisor=128;simplify_fu=1;chaikin=1;algorithm=5";
+        ";em_mm=" + std::to_string(options.reference_em_mm) +
+        ";spur=" + std::to_string(options.spur_threshold_mm) +
+        ";fit=" + std::to_string(options.curve_fit_tolerance_mm) +
+        ";error=" + std::to_string(options.curve_max_error_mm) +
+        ";min=" + std::to_string(options.min_segment_length_mm) +
+        ";straight=" + std::to_string(options.straight_segment_target_mm) +
+        ";curve=" + std::to_string(options.curve_segment_target_mm) +
+        ";tight=" + std::to_string(options.tight_curve_segment_target_mm) + ";algorithm=6";
     const std::vector<std::uint8_t> config_bytes(config.begin(), config.end());
     metadata.config_hash = stable_hash(config_bytes);
     return metadata;
@@ -237,6 +260,13 @@ std::vector<std::uint32_t> read_codepoints_file(const std::filesystem::path& pat
 
 CompilationReport compile_font(const CompilerOptions& options) {
     if (options.resolution <= 0) throw std::invalid_argument("resolution must be positive");
+    for (double value : {options.reference_em_mm, options.curve_fit_tolerance_mm,
+                         options.curve_max_error_mm, options.min_segment_length_mm,
+                         options.straight_segment_target_mm, options.curve_segment_target_mm,
+                         options.tight_curve_segment_target_mm})
+        if (!std::isfinite(value) || value <= 0) throw std::invalid_argument("Invalid curve option");
+    if (!std::isfinite(options.spur_threshold_mm) || options.spur_threshold_mm < 0)
+        throw std::invalid_argument("Invalid spur threshold");
     if (!std::filesystem::is_regular_file(options.font_path)) {
         throw std::runtime_error("font file does not exist or is not a regular file: " + options.font_path.string());
     }
@@ -252,6 +282,7 @@ CompilationReport compile_font(const CompilerOptions& options) {
     FontFace probe(options.font_path);
     const FontMetrics metrics = probe.metrics();
     std::vector<std::optional<CompiledGlyph>> results(codepoints.size());
+    std::vector<CompilationReport> glyph_reports(codepoints.size());
     std::atomic<std::size_t> next{0};
     std::atomic<std::size_t> missing{0};
     std::atomic<bool> cancelled{false};
@@ -271,7 +302,7 @@ CompilationReport compile_font(const CompilerOptions& options) {
                 while (!cancelled.load(std::memory_order_relaxed)) {
                     const std::size_t index = next.fetch_add(1, std::memory_order_relaxed);
                     if (index >= codepoints.size()) break;
-                    results[index] = compile_one(face, codepoints[index], options.resolution);
+                    results[index] = compile_one(face, codepoints[index], options.resolution, options, glyph_reports[index]);
                     if (!results[index].has_value()) missing.fetch_add(1, std::memory_order_relaxed);
                 }
             } catch (...) {
@@ -293,7 +324,19 @@ CompilationReport compile_font(const CompilerOptions& options) {
     compiled.glyphs.reserve(codepoints.size() - missing.load(std::memory_order_relaxed));
     for (auto& glyph : results) if (glyph.has_value()) compiled.glyphs.push_back(std::move(*glyph));
     write_pfc(options.output_path, compiled, metadata_for(options));
-    return {codepoints.size(), compiled.glyphs.size(), missing.load(std::memory_order_relaxed)};
+    CompilationReport report{codepoints.size(), compiled.glyphs.size(), missing.load(std::memory_order_relaxed)};
+    for (const auto& item : glyph_reports) {
+        report.raw_centerline_points += item.raw_centerline_points;
+        report.clean_centerline_points += item.clean_centerline_points;
+        report.removed_spurs += item.removed_spurs;
+        report.removed_spur_length_mm += item.removed_spur_length_mm;
+        report.graph_nodes_before += item.graph_nodes_before;
+        report.graph_nodes_after += item.graph_nodes_after;
+        report.stroke_count += item.stroke_count;
+        report.bezier_segment_count += item.bezier_segment_count;
+        report.final_path_points += item.final_path_points;
+    }
+    return report;
 }
 
 }  // namespace fontc

@@ -15,6 +15,7 @@ add_library(fontc_core
     src/cli.cpp
     src/compiler.cpp
     src/compiled_font.cpp
+    src/curve_fit.cpp
     src/font_face.cpp
     src/binary_image.cpp
     src/graph_cleanup.cpp
@@ -42,6 +43,9 @@ target_link_libraries(fontc PRIVATE fontc_core)
 
 add_executable(fontc_benchmark tools/benchmark.cpp)
 target_link_libraries(fontc_benchmark PRIVATE fontc_core)
+
+add_executable(fontc_curve_compare tools/curve_compare.cpp)
+target_link_libraries(fontc_curve_compare PRIVATE fontc_core)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -90,6 +94,10 @@ if(BUILD_TESTING)
     target_link_libraries(fontc_graph_cleanup_test PRIVATE fontc_core)
     add_test(NAME fontc_graph_cleanup COMMAND fontc_graph_cleanup_test)
 
+    add_executable(fontc_curve_fit_test tests/curve_fit_test.cpp)
+    target_link_libraries(fontc_curve_fit_test PRIVATE fontc_core)
+    add_test(NAME fontc_curve_fit COMMAND fontc_curve_fit_test)
+
     add_executable(fontc_routing_test tests/routing_test.cpp)
     target_link_libraries(fontc_routing_test PRIVATE fontc_core)
     add_test(NAME fontc_routing COMMAND fontc_routing_test)
@@ -124,4 +132,3 @@ if(BUILD_TESTING)
         )
     endif()
 endif()
-

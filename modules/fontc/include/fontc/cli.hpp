@@ -15,6 +15,14 @@ struct CompilerOptions {
     std::size_t threads = 0;  // 0 means hardware_concurrency.
     bool force = false;
     std::optional<std::filesystem::path> debug_dir;
+    double reference_em_mm = 5.0;
+    double spur_threshold_mm = 0.04;
+    double curve_fit_tolerance_mm = 0.035;
+    double curve_max_error_mm = 0.025;
+    double min_segment_length_mm = 0.035;
+    double straight_segment_target_mm = 0.25;
+    double curve_segment_target_mm = 0.12;
+    double tight_curve_segment_target_mm = 0.06;
 };
 
 struct ParseResult {
@@ -27,4 +35,3 @@ struct ParseResult {
 [[nodiscard]] std::string usage();
 
 }  // namespace fontc
-

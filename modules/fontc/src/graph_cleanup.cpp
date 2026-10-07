@@ -142,4 +142,37 @@ SkeletonGraph cleanup_graph(const SkeletonGraph& graph, float micro_loop_length)
     return rebuild(graph, std::move(edges), removed_nodes);
 }
 
+SkeletonGraph remove_short_graph_spurs(const SkeletonGraph& graph, float threshold_pixels,
+                                       SpurCleanupStats* stats) {
+    validate_skeleton_graph(graph);
+    if (!std::isfinite(threshold_pixels) || threshold_pixels < 0)
+        throw std::invalid_argument("Spur threshold must be finite and non-negative");
+    SpurCleanupStats result{};
+    result.graph_nodes_before = graph.nodes.size();
+    std::vector<Edge> kept;
+    kept.reserve(graph.edges.size());
+    for (const Edge& edge : graph.edges) {
+        const auto a_degree = graph.nodes[edge.a].edges.size();
+        const auto b_degree = graph.nodes[edge.b].edges.size();
+        if (((a_degree == 1 && b_degree >= 3) || (b_degree == 1 && a_degree >= 3)) &&
+            edge_length(edge) < threshold_pixels) {
+            ++result.removed_spurs;
+            result.removed_spur_length += edge_length(edge);
+        } else kept.push_back(edge);
+    }
+    std::vector<std::uint8_t> removed(graph.nodes.size(), 0);
+    for (const Edge& edge : graph.edges) {
+        if (graph.nodes[edge.a].edges.size() == 1 &&
+            std::none_of(kept.begin(), kept.end(), [&](const Edge& item) { return item.id == edge.id; }))
+            removed[edge.a] = 1;
+        if (graph.nodes[edge.b].edges.size() == 1 &&
+            std::none_of(kept.begin(), kept.end(), [&](const Edge& item) { return item.id == edge.id; }))
+            removed[edge.b] = 1;
+    }
+    SkeletonGraph output = rebuild(graph, std::move(kept), removed);
+    result.graph_nodes_after = output.nodes.size();
+    if (stats) *stats = result;
+    return output;
+}
+
 }  // namespace fontc
