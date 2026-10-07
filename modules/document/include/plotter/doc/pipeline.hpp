@@ -36,6 +36,7 @@ struct PipelineOptions final {
     bool optimize_geometry{};
     bool simplify_geometry{true};
     bool join_words{true};
+    double max_word_join_distance_mm{2.0};
     bool page_numbers{};
     HandwritingOptions handwriting{};
     SourcePageTransformMode document_layout{SourcePageTransformMode::automatic};

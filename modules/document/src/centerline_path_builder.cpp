@@ -27,6 +27,16 @@ void append_unique(std::vector<Point>& output, Point value) {
     return length;
 }
 
+[[nodiscard]] bool upper_auxiliary(const Stroke& candidate, const Stroke& main) {
+    if (!candidate.character || (*candidate.character != "й" && *candidate.character != "ё" &&
+                                 *candidate.character != "Й" && *candidate.character != "Ё")) return false;
+    double candidate_bottom = -std::numeric_limits<double>::infinity();
+    double main_top = std::numeric_limits<double>::infinity();
+    for (const Point point : candidate.points) candidate_bottom = std::max(candidate_bottom, point.y.value);
+    for (const Point point : main.points) main_top = std::min(main_top, point.y.value);
+    return candidate_bottom <= main_top + 0.25;
+}
+
 [[nodiscard]] bool is_letter(const Stroke& stroke) {
     if (!stroke.character || stroke.character->empty()) return false;
     const auto first = static_cast<unsigned char>((*stroke.character)[0]);
@@ -45,28 +55,17 @@ void append_unique(std::vector<Point>& output, Point value) {
     return ab1 * ab2 < -1e-8 && cd1 * cd2 < -1e-8;
 }
 
-[[nodiscard]] std::array<Point, 4> connector_points(Point start, Point end) {
-    const Point control{{(start.x.value + end.x.value) / 2.0}, start.y};
-    std::array<Point, 4> result{start, start, start, end};
-    for (std::size_t index = 1; index < 3; ++index) {
-        const double t = static_cast<double>(index) / 3.0;
-        const double u = 1.0 - t;
-        result[index] = {{u * u * start.x.value + 2.0 * u * t * control.x.value + t * t * end.x.value},
-                         {u * u * start.y.value + 2.0 * u * t * control.y.value + t * t * end.y.value}};
-    }
-    return result;
-}
-
 [[nodiscard]] bool safe_connector(const Stroke& left, const Stroke& right,
                                   const std::vector<Stroke>& strokes,
                                   std::size_t first, std::size_t last,
+                                  double max_join_distance_mm,
                                   bool allow_entry_turn = false) {
     if (left.points.size() < 2 || right.points.size() < 2 ||
         left.closed || right.closed || !is_letter(left) || !is_letter(right) ||
         left.font_sha256 != right.font_sha256) return false;
     const Point start = left.points.back(), end = right.points.front();
     const double gap = distance(start, end);
-    if (gap > 2.5 || std::abs(end.y.value - start.y.value) > 2.0 ||
+    if (gap > max_join_distance_mm || std::abs(end.y.value - start.y.value) > 1.0 ||
         end.x.value + 0.01 < start.x.value) return false;
     if (gap > 0.08 && !allow_entry_turn) {
         // Python measured terminal tangents over 0.8 mm. The final tiny
@@ -97,7 +96,6 @@ void append_unique(std::vector<Point>& output, Point value) {
     }
     // Reject a connector that cuts through any contour in this word. Contact
     // with the two terminal segments is expected; the remaining ink is not.
-    const auto connector = connector_points(start, end);
     for (std::size_t index = first; index < last; ++index) {
         const Stroke& obstacle = strokes[index];
         for (std::size_t segment = 1; segment < obstacle.points.size(); ++segment) {
@@ -107,9 +105,6 @@ void append_unique(std::vector<Point>& output, Point value) {
             if ((obstacle.id == left.id && (distance(a, start) <= boundary_ignore_mm || distance(b, start) <= boundary_ignore_mm)) ||
                 (obstacle.id == right.id && (distance(a, end) <= boundary_ignore_mm || distance(b, end) <= boundary_ignore_mm))) continue;
             if (crosses(start, end, a, b)) return false;
-            for (std::size_t part = 1; part < connector.size(); ++part)
-                if (crosses(connector[part - 1], connector[part], a, b))
-                    return false;
         }
     }
     return true;
@@ -117,16 +112,14 @@ void append_unique(std::vector<Point>& output, Point value) {
 
 void append_connector(std::vector<Point>& output, Point end) {
     const Point start = output.back();
-    if (distance(start, end) < 1e-9) return;
-    const auto connector = connector_points(start, end);
-    for (std::size_t index = 1; index < connector.size(); ++index)
-        append_unique(output, connector[index]);
+    if (distance(start, end) >= 1e-9) append_unique(output, end);
 }
 
 [[nodiscard]] std::optional<Stroke> retraced_entry(const Stroke& previous,
                                                    const Stroke& main,
                                                    const std::vector<Stroke>& strokes,
-                                                   std::size_t first, std::size_t last) {
+                                                   std::size_t first, std::size_t last,
+                                                   double max_join_distance_mm) {
     // Enter at an interior point, trace back over existing ink to the original
     // start, then draw the whole main route. This creates no new mark inside
     // the letter and saves a lift when the original endpoint is obstructed.
@@ -140,14 +133,14 @@ void append_connector(std::vector<Point>& output, Point end) {
         if (prefix > 6.0) break;
         if (prefix - last_sample < 0.4) continue;
         last_sample = prefix;
-        if (distance(previous.points.back(), main.points[index]) > 2.5) continue;
+        if (distance(previous.points.back(), main.points[index]) > max_join_distance_mm) continue;
         ++considered;
         Stroke candidate = main;
         candidate.points.clear();
         for (std::size_t point = index + 1; point > 0; --point)
             candidate.points.push_back(main.points[point - 1]);
         candidate.points.insert(candidate.points.end(), main.points.begin() + 1, main.points.end());
-        if (!safe_connector(previous, candidate, strokes, first, last, true)) continue;
+        if (!safe_connector(previous, candidate, strokes, first, last, max_join_distance_mm, true)) continue;
         const double cost = distance(previous.points.back(), candidate.points.front()) + prefix;
         if (cost < best_cost) { best_cost = cost; best = std::move(candidate); }
     }
@@ -155,7 +148,8 @@ void append_connector(std::vector<Point>& output, Point end) {
 }
 
 void join_one_word(const std::vector<Stroke>& strokes, std::size_t first,
-                   std::size_t last, std::vector<Stroke>& output) {
+                   std::size_t last, std::vector<Stroke>& output,
+                   double max_join_distance_mm) {
     std::vector<Stroke> secondary;
     std::optional<Stroke> combined;
     std::optional<Stroke> previous_main;
@@ -178,16 +172,29 @@ void join_one_word(const std::vector<Stroke>& strokes, std::size_t first,
         // entry/exit for joining with the next letter.
         const bool has_main = main_length > 0.0 &&
             main_length / total_length >= 0.35;
-        for (std::size_t index = begin; index < end; ++index)
-            if (!has_main || index != main_index) secondary.push_back(strokes[index]);
+        for (std::size_t index = begin; index < end; ++index) {
+            if (has_main && index == main_index) continue;
+            Stroke component = strokes[index];
+            component.semantic_role = has_main && upper_auxiliary(component, strokes[main_index])
+                ? "auxiliary" : "secondary";
+            secondary.push_back(std::move(component));
+        }
         if (has_main) {
             Stroke main = strokes[main_index];
             if (main.points.front().x.value > main.points.back().x.value)
                 std::reverse(main.points.begin(), main.points.end());
             bool connected = combined && previous_main &&
-                safe_connector(*previous_main, main, strokes, first, last);
+                safe_connector(*previous_main, main, strokes, first, last, max_join_distance_mm);
             if (!connected && combined && previous_main) {
-                if (auto alternate = retraced_entry(*previous_main, main, strokes, first, last)) {
+                Stroke reversed = main;
+                std::reverse(reversed.points.begin(), reversed.points.end());
+                if (safe_connector(*previous_main, reversed, strokes, first, last, max_join_distance_mm)) {
+                    main = std::move(reversed);
+                    connected = true;
+                }
+            }
+            if (!connected && combined && previous_main) {
+                if (auto alternate = retraced_entry(*previous_main, main, strokes, first, last, max_join_distance_mm)) {
                     main = std::move(*alternate);
                     connected = true;
                 }
@@ -213,9 +220,9 @@ void join_one_word(const std::vector<Stroke>& strokes, std::size_t first,
                     Stroke exit = previous;
                     exit.points.resize(index + 1);
                     std::optional<Stroke> entry;
-                    if (safe_connector(exit, main, strokes, first, last, true))
+                    if (safe_connector(exit, main, strokes, first, last, max_join_distance_mm, true))
                         entry = main;
-                    else entry = retraced_entry(exit, main, strokes, first, last);
+                    else entry = retraced_entry(exit, main, strokes, first, last, max_join_distance_mm);
                     if (!entry) continue;
                     const double cost = suffix + distance(exit.points.back(), entry->points.front());
                     if (cost < best_cost) {
@@ -260,11 +267,35 @@ void join_one_word(const std::vector<Stroke>& strokes, std::size_t first,
         begin = end;
     }
     if (combined) output.push_back(std::move(*combined));
-    output.insert(output.end(), std::make_move_iterator(secondary.begin()),
-                  std::make_move_iterator(secondary.end()));
+    // Route disconnected contours only after the main word body. Greedy
+    // nearest-endpoint ordering reduces pen-up travel without adding ink.
+    std::optional<Point> current;
+    if (!output.empty() && !output.back().points.empty()) current = output.back().points.back();
+    while (!secondary.empty()) {
+        std::size_t best_index = 0;
+        bool best_reverse = false;
+        double best_distance = std::numeric_limits<double>::infinity();
+        for (std::size_t index = 0; index < secondary.size(); ++index) {
+            if (secondary[index].points.empty()) continue;
+            const double forward = current ? distance(*current, secondary[index].points.front()) : 0.0;
+            const double reverse = current && !secondary[index].closed
+                ? distance(*current, secondary[index].points.back()) : std::numeric_limits<double>::infinity();
+            if (std::min(forward, reverse) < best_distance) {
+                best_index = index;
+                best_reverse = reverse < forward;
+                best_distance = std::min(forward, reverse);
+            }
+        }
+        Stroke next = std::move(secondary[best_index]);
+        secondary.erase(secondary.begin() + static_cast<std::ptrdiff_t>(best_index));
+        if (best_reverse) std::reverse(next.points.begin(), next.points.end());
+        next.preserve_order = true;
+        current = next.points.back();
+        output.push_back(std::move(next));
+    }
 }
 
-void join_words(PathDocument& document) {
+void join_words(PathDocument& document, double max_join_distance_mm) {
     std::vector<Stroke> joined;
     joined.reserve(document.strokes.size());
     for (std::size_t first = 0; first < document.strokes.size();) {
@@ -275,7 +306,16 @@ void join_words(PathDocument& document) {
                    document.strokes[last].element_type == start.element_type) ++last;
         }
         const std::size_t output_start = joined.size();
-        join_one_word(document.strokes, first, last, joined);
+        if (start.word_index && *start.word_index >= 0 && start.element_type == "text") {
+            WordRoute route = build_word_route({document.strokes.begin() + static_cast<std::ptrdiff_t>(first),
+                                               document.strokes.begin() + static_cast<std::ptrdiff_t>(last)},
+                                              max_join_distance_mm);
+            for (auto& move : route.moves)
+                if (move.kind == WordMoveKind::draw) joined.push_back(std::move(move.stroke));
+        } else {
+            joined.insert(joined.end(), document.strokes.begin() + static_cast<std::ptrdiff_t>(first),
+                          document.strokes.begin() + static_cast<std::ptrdiff_t>(last));
+        }
         if (start.element_type == "text")
             for (std::size_t index = output_start; index < joined.size(); ++index)
                 joined[index].preserve_order = true;
@@ -283,12 +323,26 @@ void join_words(PathDocument& document) {
     }
     for (std::size_t index = 0; index < joined.size(); ++index) joined[index].id = index;
     document.strokes = std::move(joined);
-    document.metadata.emplace_back("word_joining", "safe-main-strokes");
+    document.metadata.emplace_back("word_joining", "word-route");
 }
 }
 
+WordRoute build_word_route(const std::vector<Stroke>& strokes, double max_word_join_distance_mm) {
+    if (!std::isfinite(max_word_join_distance_mm) || max_word_join_distance_mm < 0.0 ||
+        max_word_join_distance_mm > 2.0) throw std::invalid_argument("invalid max_word_join_distance_mm");
+    std::vector<Stroke> ordered;
+    join_one_word(strokes, 0, strokes.size(), ordered, max_word_join_distance_mm);
+    WordRoute route;
+    for (Stroke& stroke : ordered) {
+        if (!route.moves.empty()) route.moves.push_back({WordMoveKind::travel, {}});
+        route.moves.push_back({WordMoveKind::draw, std::move(stroke)});
+    }
+    return route;
+}
+
 PathDocument CenterlinePathBuilder::build(const LayoutPage& page, Millimetres page_width,
-                                          Millimetres page_height, bool join_word_strokes) const {
+                                          Millimetres page_height, bool join_word_strokes,
+                                          double max_word_join_distance_mm) const {
     PathDocument result;
     result.page_width = page_width;
     result.page_height = page_height;
@@ -329,7 +383,7 @@ PathDocument CenterlinePathBuilder::build(const LayoutPage& page, Millimetres pa
             if (stroke.points.size() >= (stroke.closed ? 3U : 2U)) result.strokes.push_back(std::move(stroke));
         }
     }
-    if (join_word_strokes) join_words(result);
+    if (join_word_strokes) join_words(result, max_word_join_distance_mm);
     return result;
 }
 }  // namespace plotter::doc

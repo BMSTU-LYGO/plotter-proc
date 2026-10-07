@@ -43,15 +43,41 @@ int main() {
     joined_page.source_element_ids = {"source-text"};
     auto first_letter = letter; first_letter.glyph_index = 1; first_letter.word_index = 0;
     auto second_letter = letter; second_letter.character = "B"; second_letter.codepoint = 'B';
-    second_letter.x = {20}; second_letter.glyph_index = 2; second_letter.word_index = 0;
+    second_letter.x = {11.5}; second_letter.glyph_index = 2; second_letter.word_index = 0;
     auto next_word = letter; next_word.x = {40}; next_word.glyph_index = 3; next_word.word_index = 1;
     joined_page.glyphs = {first_letter, second_letter, next_word};
     const auto joined = plotter::doc::CenterlinePathBuilder(fonts).build(joined_page, {210}, {297}, true);
-    require(joined.strokes.size() == 2, "each word must have exactly one pen-down stroke");
+    require(joined.strokes.size() == 3, "word body joins while disconnected contour stays separate");
     require(joined.strokes.front().source_characters == "AB" &&
             joined.strokes.front().source_glyph_indices == std::vector<std::int64_t>{1, 2},
             "joined word must retain glyph provenance");
     require(joined.strokes.front().word_index == 0 && joined.strokes.back().word_index == 1,
             "joining must stop at the word boundary");
+    require(joined.strokes[1].semantic_role == "secondary", "disconnected contour follows the word body");
+
+    plotter::doc::Stroke body;
+    body.id = 1; body.points = {{{1}, {5}}, {{2}, {5}}};
+    body.glyph_index = 1; body.character = "м"; body.font_sha256 = "font-hash";
+    auto adjacent = body;
+    adjacent.id = 2; adjacent.glyph_index = 2;
+    adjacent.points = {{{2.5}, {5}}, {{3.5}, {5}}};
+    const auto continuous = plotter::doc::build_word_route({body, adjacent});
+    require(continuous.moves.size() == 1 && continuous.moves[0].stroke.points.size() == 4,
+            "safe adjacent Cyrillic strokes should form one draw group");
+    adjacent.points = {{{5}, {5}}, {{6}, {5}}};
+    const auto separated = plotter::doc::build_word_route({body, adjacent});
+    require(separated.moves.size() == 3 && separated.moves[1].kind == plotter::doc::WordMoveKind::travel,
+            "long whitespace must require a pen-up transition");
+
+    auto dotted = body;
+    dotted.character = "ё"; dotted.id = 3; dotted.glyph_index = 3;
+    dotted.points = {{{7}, {5}}, {{8}, {5}}};
+    auto dot_a = dotted; dot_a.id = 4; dot_a.points = {{{7.2}, {4}}, {{7.3}, {4}}};
+    auto dot_b = dotted; dot_b.id = 5; dot_b.points = {{{7.7}, {4}}, {{7.8}, {4}}};
+    const auto diacritic = plotter::doc::build_word_route({dotted, dot_a, dot_b});
+    require(diacritic.moves.size() == 5 &&
+            diacritic.moves[2].stroke.semantic_role == "auxiliary" &&
+            diacritic.moves[4].stroke.semantic_role == "auxiliary",
+            "both dots of ё must remain separate auxiliary passes");
     std::filesystem::remove(path);
 }
