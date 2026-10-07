@@ -23,6 +23,10 @@ struct GcodeAnalysis final {
     double z_motion_distance_mm{};
     std::size_t draw_segment_count{}, segments_below_0_05mm{}, segments_below_0_10mm{};
     std::size_t feedrate_changes{};
+    std::size_t pen_down_count{}, pen_lift_count{}, travel_segment_count{};
+    // Effective modal feed changes across XY and Z; excludes the initial F.
+    std::size_t feedrate_change_count{};
+    double pen_up_travel_mm{};
     double draw_length_mm{}, min_segment_mm{}, median_segment_mm{}, mean_segment_mm{}, max_segment_mm{};
 };
 

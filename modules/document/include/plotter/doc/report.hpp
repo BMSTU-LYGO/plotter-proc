@@ -27,6 +27,9 @@ struct GeometryStats final {
 struct MotionStats final {
     double draw_length_mm{}, travel_length_mm{};
     std::uint64_t pen_lifts{};
+    std::uint64_t pen_down_count{}, word_count{};
+    std::uint64_t words_with_1_pen_down{}, words_with_2_pen_down{}, words_with_3plus_pen_down{};
+    double pen_lifts_per_word_avg{};
 };
 
 struct CacheStats final { std::uint64_t hits{}, misses{}; };

@@ -212,6 +212,7 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
         if (!only(values, "XYZF") || values.empty()) invalid(line_number, "motion has unsupported parameters");
         if (values.contains('F')) {
             if (values.at('F') <= 0.0) invalid(line_number, "feedrate must be positive");
+            if (feed && *feed != values.at('F')) ++result.feedrate_change_count;
             feed = values.at('F');
         }
         const bool moves_xy = has_xy(values);
@@ -219,8 +220,14 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
         if (moves_z && moves_xy) invalid(line_number, "pen transition cannot move XY");
         if (moves_z) {
             const double target_z = values.at('Z');
-            if (command == "G0" && target_z == machine.pen.up_z.value) { pen_up = true; pen_down = false; }
-            else if (command == "G1" && target_z == machine.pen.down_z.value) { pen_up = false; pen_down = true; }
+            if (command == "G0" && target_z == machine.pen.up_z.value) {
+                if (pen_down) ++result.pen_lift_count;
+                pen_up = true; pen_down = false;
+            }
+            else if (command == "G1" && target_z == machine.pen.down_z.value) {
+                if (!pen_down) ++result.pen_down_count;
+                pen_up = false; pen_down = true;
+            }
             else invalid(line_number, "unexpected pen Z transition");
         }
         if (moves_xy) {
@@ -235,6 +242,10 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
             invalid(line_number, "XY target is outside workspace");
         const double dx = next_x - x, dy = next_y - y, dz = next_z - z;
         const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (command == "G0" && moves_xy && distance > 0) {
+            ++result.travel_segment_count;
+            result.pen_up_travel_mm += std::hypot(dx, dy);
+        }
         if (command == "G1" && moves_xy && distance > 0) {
             const double segment = std::hypot(dx, dy);
             draw_segments.push_back(segment);
@@ -269,6 +280,7 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     result.ideal_total_time_seconds = round6(result.ideal_motion_time_seconds + result.dwell_time_seconds);
     result.xy_motion_distance_mm = round6(result.xy_motion_distance_mm);
     result.z_motion_distance_mm = round6(result.z_motion_distance_mm);
+    result.pen_up_travel_mm = round6(result.pen_up_travel_mm);
     result.draw_segment_count = draw_segments.size();
     if (!draw_segments.empty()) {
         std::sort(draw_segments.begin(), draw_segments.end());

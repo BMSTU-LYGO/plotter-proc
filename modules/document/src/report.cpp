@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iomanip>
 #include <locale>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -34,18 +35,65 @@ GeometryStats geometry(const PathDocument& paths) {
     return result;
 }
 MotionStats motion(const PathDocument& paths) {
-    MotionStats result; Point previous{}; bool has_previous = false;
-    for (const auto& stroke : paths.strokes) { if (stroke.points.size() < 2) continue; if (has_previous) result.travel_length_mm += distance(previous, stroke.points.front()); ++result.pen_lifts; for (std::size_t i = 1; i < stroke.points.size(); ++i) result.draw_length_mm += distance(stroke.points[i - 1], stroke.points[i]); if (stroke.closed) result.draw_length_mm += distance(stroke.points.back(), stroke.points.front()); previous = stroke.points.back(); has_previous = true; }
+    MotionStats result;
+    Point previous{};
+    bool has_previous = false;
+    std::map<std::int64_t, std::uint64_t> word_groups;
+    for (const auto& stroke : paths.strokes) {
+        if (stroke.points.size() < 2) continue;
+        if (has_previous) result.travel_length_mm += distance(previous, stroke.points.front());
+        ++result.pen_lifts;
+        ++result.pen_down_count;
+        if (stroke.word_index && *stroke.word_index >= 0) ++word_groups[*stroke.word_index];
+        for (std::size_t i = 1; i < stroke.points.size(); ++i)
+            result.draw_length_mm += distance(stroke.points[i - 1], stroke.points[i]);
+        if (stroke.closed) result.draw_length_mm += distance(stroke.points.back(), stroke.points.front());
+        previous = stroke.closed ? stroke.points.front() : stroke.points.back();
+        has_previous = true;
+    }
+    result.word_count = word_groups.size();
+    std::uint64_t word_lifts = 0;
+    for (const auto& [word, groups] : word_groups) {
+        static_cast<void>(word);
+        word_lifts += groups;
+        if (groups == 1) ++result.words_with_1_pen_down;
+        else if (groups == 2) ++result.words_with_2_pen_down;
+        else ++result.words_with_3plus_pen_down;
+    }
+    if (result.word_count) result.pen_lifts_per_word_avg = static_cast<double>(word_lifts) / result.word_count;
     return result;
 }
 void strings(Json& json, const std::vector<std::string>& values) { json.raw("["); for (std::size_t i = 0; i < values.size(); ++i) { if (i) json.raw(","); json.string(values[i]); } json.raw("]"); }
 void geometry_json(Json& json, const GeometryStats& value) { json.raw("{"); json.key("ink_length_mm"); json.number(value.ink_length_mm); json.raw(","); json.key("points"); json.integer(value.points); json.raw(","); json.key("strokes"); json.integer(value.strokes); json.raw("}"); }
-void motion_json(Json& json, const MotionStats& value) { json.raw("{"); json.key("draw_length_mm"); json.number(value.draw_length_mm); json.raw(","); json.key("pen_lifts"); json.integer(value.pen_lifts); json.raw(","); json.key("travel_length_mm"); json.number(value.travel_length_mm); json.raw("}"); }
+void motion_json(Json& json, const MotionStats& value) {
+    json.raw("{");
+    const auto count = [&](std::string_view key, std::uint64_t number) { json.key(key); json.integer(number); json.raw(","); };
+    const auto measurement = [&](std::string_view key, double number) { json.key(key); json.number(number); json.raw(","); };
+    count("word_count", value.word_count);
+    count("pen_down_count", value.pen_down_count);
+    count("pen_lift_count", value.pen_lifts);
+    count("pen_lifts", value.pen_lifts);
+    count("words_with_1_pen_down", value.words_with_1_pen_down);
+    count("words_with_2_pen_down", value.words_with_2_pen_down);
+    count("words_with_3plus_pen_down", value.words_with_3plus_pen_down);
+    measurement("pen_lifts_per_word_avg", value.pen_lifts_per_word_avg);
+    measurement("draw_length_mm", value.draw_length_mm);
+    measurement("pen_up_travel_mm", value.travel_length_mm);
+    json.key("travel_length_mm"); json.number(value.travel_length_mm);
+    json.raw("}");
+}
 void gcode_json(Json& json, const GcodeAnalysis& value) {
     json.raw("{");
     const auto count = [&](std::string_view key, std::size_t number) { json.key(key); json.integer(number); json.raw(","); };
     const auto measurement = [&](std::string_view key, double number) { json.key(key); json.number(number); json.raw(","); };
     count("draw_segment_count", value.draw_segment_count);
+    count("gcode_draw_segments", value.draw_segment_count);
+    count("travel_segment_count", value.travel_segment_count);
+    count("gcode_travel_segments", value.travel_segment_count);
+    count("pen_down_count", value.pen_down_count);
+    count("pen_lift_count", value.pen_lift_count);
+    count("feedrate_change_count", value.feedrate_change_count);
+    measurement("pen_up_travel_mm", value.pen_up_travel_mm);
     count("feedrate_changes", value.feedrate_changes);
     count("segments_below_0_05mm", value.segments_below_0_05mm);
     count("segments_below_0_10mm", value.segments_below_0_10mm);
@@ -62,7 +110,13 @@ void gcode_json(Json& json, const GcodeAnalysis& value) {
 PageReport make_page_report(const PageJob& page) { return {page.page_index, page.page_number, geometry(page.paths), motion(page.paths), page.warnings}; }
 PipelineReport make_pipeline_report(const PlotterJob& job, std::string artifact_level) {
     PipelineReport report; report.artifact_level = std::move(artifact_level); report.layout.pages = static_cast<std::uint32_t>(job.pages.size()); report.warnings = job.warnings;
-    for (const auto& page : job.pages) { auto one = make_page_report(page); report.geometry.strokes += one.geometry.strokes; report.geometry.points += one.geometry.points; report.geometry.ink_length_mm += one.geometry.ink_length_mm; report.motion.draw_length_mm += one.motion.draw_length_mm; report.motion.travel_length_mm += one.motion.travel_length_mm; report.motion.pen_lifts += one.motion.pen_lifts; report.pages.push_back(std::move(one)); }
+    for (const auto& page : job.pages) { auto one = make_page_report(page); report.geometry.strokes += one.geometry.strokes; report.geometry.points += one.geometry.points; report.geometry.ink_length_mm += one.geometry.ink_length_mm; report.motion.draw_length_mm += one.motion.draw_length_mm; report.motion.travel_length_mm += one.motion.travel_length_mm; report.motion.pen_lifts += one.motion.pen_lifts; report.motion.pen_down_count += one.motion.pen_down_count;
+        report.motion.pen_lifts_per_word_avg += one.motion.pen_lifts_per_word_avg * one.motion.word_count;
+        report.motion.word_count += one.motion.word_count;
+        report.motion.words_with_1_pen_down += one.motion.words_with_1_pen_down;
+        report.motion.words_with_2_pen_down += one.motion.words_with_2_pen_down;
+        report.motion.words_with_3plus_pen_down += one.motion.words_with_3plus_pen_down; report.pages.push_back(std::move(one)); }
+    if (report.motion.word_count) report.motion.pen_lifts_per_word_avg /= report.motion.word_count;
     return report;
 }
 std::string serialize_report_json(const PipelineReport& report) {
