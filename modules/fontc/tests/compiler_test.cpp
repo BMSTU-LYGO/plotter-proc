@@ -6,6 +6,14 @@
 #include <stdexcept>
 
 int main() {
+    std::vector<std::string> arguments{"fontc", "merge", "user.pfc", "--special-pfc", "common.pfc",
+                                       "--special-pfc", "extra.pfc", "--output", "merged.pfc"};
+    std::vector<char*> argv;
+    for (auto& argument : arguments) argv.push_back(argument.data());
+    const auto parsed = fontc::parse_command_line(static_cast<int>(argv.size()), argv.data());
+    assert(parsed.options && parsed.options->merge_only);
+    assert((parsed.options->special_pfc_paths ==
+            std::vector<std::filesystem::path>{"common.pfc", "extra.pfc"}));
     const auto path = std::filesystem::temp_directory_path() / "fontc-compiler-corpus.txt";
     {
         std::ofstream stream(path, std::ios::binary);

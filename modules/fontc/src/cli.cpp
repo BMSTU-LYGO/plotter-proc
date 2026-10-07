@@ -45,8 +45,10 @@ namespace {
 std::string usage() {
     return
         "Usage: fontc <font.ttf> --chars-file <chars.txt> --output <font.pfc> [options]\n"
+        "       fontc merge <user.pfc> --special-pfc <special.pfc> --output <merged.pfc> [options]\n"
         "\n"
         "Options:\n"
+        "  --special-pfc <path>   Add missing glyphs from this cache (repeatable, ordered)\n"
         "  --resolution <px/em>  Raster resolution (default: 1024)\n"
         "  --threads <n|auto>     Worker count (default: auto)\n"
         "  --force                Replace an existing output file\n"
@@ -71,8 +73,10 @@ ParseResult parse_command_line(int argc, char** argv) {
     }
 
     CompilerOptions options;
-    options.font_path = argv[1];
-    for (int index = 2; index < argc; ++index) {
+    options.merge_only = std::string_view(argv[1]) == "merge";
+    if (options.merge_only && argc < 3) return error("merge requires a user PFC path");
+    options.font_path = argv[options.merge_only ? 2 : 1];
+    for (int index = options.merge_only ? 3 : 2; index < argc; ++index) {
         const std::string_view argument = argv[index];
         const auto next = [&]() -> const char* {
             return ++index < argc ? argv[index] : nullptr;
@@ -86,6 +90,10 @@ ParseResult parse_command_line(int argc, char** argv) {
             const char* value = next();
             if (value == nullptr) return error("--output requires a path\n" + usage());
             options.output_path = value;
+        } else if (argument == "--special-pfc") {
+            const char* value = next();
+            if (value == nullptr) return error("--special-pfc requires a path");
+            options.special_pfc_paths.emplace_back(value);
         } else if (argument == "--resolution") {
             const char* value = next();
             if (value == nullptr || !parse_positive_int(value, options.resolution)) {
@@ -126,7 +134,7 @@ ParseResult parse_command_line(int argc, char** argv) {
     }
 
     if (options.font_path.empty()) return error("A TTF path is required");
-    if (options.chars_file.empty()) return error("--chars-file is required");
+    if (options.chars_file.empty() && !options.merge_only) return error("--chars-file is required");
     if (options.output_path.empty()) return error("--output is required");
     return {std::move(options), {}, 0};
 }

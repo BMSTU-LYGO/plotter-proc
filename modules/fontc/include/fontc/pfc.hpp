@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <stdexcept>
+#include <span>
 #include <vector>
 
 namespace fontc {
@@ -50,5 +51,25 @@ private:
 
 // Explicit runtime name for consumers that only need the compiled cache.
 using PfcReader = PfcFont;
+
+struct PfcMergeStats {
+    std::size_t user_glyphs = 0;
+    std::size_t special_glyphs_added = 0;
+    std::size_t duplicate_special_glyphs_skipped = 0;
+    std::size_t missing_codepoints = 0;
+};
+
+// Sources are visited in caller order; glyph coordinates and advances are copied exactly.
+// Required codepoints are counted by exact presence, without '?' fallback.
+[[nodiscard]] PfcMergeStats merge_special_glyphs(
+    CompiledFont& user, std::span<const PfcFont> specials,
+    std::span<const std::uint32_t> required_codepoints = {});
+
+// Offline merge: runtime loads only the resulting cache.
+[[nodiscard]] PfcMergeStats merge_pfc(
+    const std::filesystem::path& user_path,
+    std::span<const std::filesystem::path> special_paths,
+    const std::filesystem::path& output_path,
+    std::span<const std::uint32_t> required_codepoints = {});
 
 }  // namespace fontc

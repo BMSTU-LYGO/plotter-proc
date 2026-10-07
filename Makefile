@@ -19,6 +19,8 @@ MATH_PFC ?= font-cache/CambriaMath/CambriaMath.pfc
 # For font 1, 6.9714 mm per em makes an ordinary capital about 5 mm high.
 SIZE_MM ?= 6.9714
 JOIN_WORDS ?= 1
+SPECIAL_COMMON_PFC ?=
+SPECIAL_EXTRA_PFC ?=
 
 FONT_SOURCES := $(wildcard modules/fontc/src/*.cpp)
 DOC_SOURCES := $(wildcard modules/document/src/*.cpp) modules/document/tools/doc_run.cpp
@@ -77,7 +79,10 @@ font:
 	output="font-cache/$$stem/$$stem.pfc"; \
 	$(MAKE) --no-print-directory -j$(JOBS) build/modules/fontc/fontc; \
 	mkdir -p "font-cache/$$stem"; \
-	build/modules/fontc/fontc "$$input" --chars-file "$(CHARS)" --output "$$output" --force; \
+	set -- "$$input" --chars-file "$(CHARS)" --output "$$output" --force; \
+	if [ -n "$(SPECIAL_COMMON_PFC)" ]; then set -- "$$@" --special-pfc "$(SPECIAL_COMMON_PFC)"; fi; \
+	if [ -n "$(SPECIAL_EXTRA_PFC)" ]; then set -- "$$@" --special-pfc "$(SPECIAL_EXTRA_PFC)"; fi; \
+	build/modules/fontc/fontc "$$@"; \
 	echo "Готово: $$output"
 
 doc:

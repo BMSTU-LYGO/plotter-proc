@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace fontc {
 
@@ -11,6 +12,8 @@ struct CompilerOptions {
     std::filesystem::path font_path;
     std::filesystem::path chars_file;
     std::filesystem::path output_path;
+    std::vector<std::filesystem::path> special_pfc_paths;
+    bool merge_only = false;
     int resolution = 1024;
     std::size_t threads = 0;  // 0 means hardware_concurrency.
     bool force = false;

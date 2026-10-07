@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <fstream>
 #include <limits>
+#include <map>
+#include <set>
 #include <span>
 #include <string>
 #include <system_error>
@@ -236,6 +238,42 @@ const CompiledGlyph* PfcFont::find(std::uint32_t codepoint) const noexcept {
 const CompiledGlyph* PfcFont::lookup(std::uint32_t codepoint) const noexcept {
     if (const CompiledGlyph* glyph = find(codepoint)) return glyph;
     return codepoint == static_cast<std::uint32_t>('?') ? nullptr : find(static_cast<std::uint32_t>('?'));
+}
+
+PfcMergeStats merge_special_glyphs(CompiledFont& user, std::span<const PfcFont> specials,
+                                 std::span<const std::uint32_t> required_codepoints) {
+    PfcMergeStats stats;
+    stats.user_glyphs = user.glyphs.size();
+    std::map<std::uint32_t, CompiledGlyph> merged;
+    for (const auto& glyph : user.glyphs) {
+        if (!merged.emplace(glyph.codepoint, glyph).second) fail("duplicate user PFC codepoint");
+    }
+    for (const auto& special : specials) {
+        for (const auto& glyph : special.glyphs()) {
+            if (merged.emplace(glyph.codepoint, glyph).second) ++stats.special_glyphs_added;
+            else ++stats.duplicate_special_glyphs_skipped;
+        }
+    }
+    const std::set<std::uint32_t> required(required_codepoints.begin(), required_codepoints.end());
+    for (auto codepoint : required) if (!merged.contains(codepoint)) ++stats.missing_codepoints;
+    user.glyphs.clear();
+    user.glyphs.reserve(merged.size());
+    for (auto& [codepoint, glyph] : merged) user.glyphs.push_back(std::move(glyph));
+    return stats;
+}
+
+PfcMergeStats merge_pfc(const std::filesystem::path& user_path,
+                       std::span<const std::filesystem::path> special_paths,
+                       const std::filesystem::path& output_path,
+                       std::span<const std::uint32_t> required_codepoints) {
+    const auto source = PfcFont::load(user_path);
+    CompiledFont merged{source.metrics(), source.glyphs()};
+    std::vector<PfcFont> specials;
+    specials.reserve(special_paths.size());
+    for (const auto& path : special_paths) specials.push_back(PfcFont::load(path));
+    const auto stats = merge_special_glyphs(merged, specials, required_codepoints);
+    write_pfc(output_path, merged, source.metadata());
+    return stats;
 }
 
 }  // namespace fontc

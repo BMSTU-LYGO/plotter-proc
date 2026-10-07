@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fontc/cli.hpp"
+#include "fontc/pfc.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,7 @@ struct CompilationReport {
     std::size_t removed_spurs = 0, graph_nodes_before = 0, graph_nodes_after = 0;
     double removed_spur_length_mm = 0;
     std::size_t stroke_count = 0, bezier_segment_count = 0, final_path_points = 0;
+    PfcMergeStats merge_stats;
 };
 
 // Decodes a UTF-8 corpus, sorts the result, and always includes the fallback '?'.

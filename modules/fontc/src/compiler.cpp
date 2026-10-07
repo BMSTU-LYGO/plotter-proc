@@ -315,16 +315,22 @@ CompilationReport compile_font(const CompilerOptions& options) {
     for (std::thread& worker : workers) worker.join();
     if (failure != nullptr) std::rethrow_exception(failure);
 
-    const auto fallback = std::lower_bound(codepoints.begin(), codepoints.end(), kFallbackCodepoint);
-    if (fallback == codepoints.end() || !results[static_cast<std::size_t>(fallback - codepoints.begin())].has_value()) {
-        throw std::runtime_error("font is missing required fallback glyph '?'");
-    }
     CompiledFont compiled;
     compiled.metrics = metrics;
     compiled.glyphs.reserve(codepoints.size() - missing.load(std::memory_order_relaxed));
     for (auto& glyph : results) if (glyph.has_value()) compiled.glyphs.push_back(std::move(*glyph));
+    std::vector<PfcFont> specials;
+    for (const auto& path : options.special_pfc_paths) specials.push_back(PfcFont::load(path));
+    const auto merge_stats = merge_special_glyphs(compiled, specials, codepoints);
+    if (std::none_of(compiled.glyphs.begin(), compiled.glyphs.end(), [](const auto& glyph) {
+            return glyph.codepoint == kFallbackCodepoint;
+        })) throw std::runtime_error("font is missing required fallback glyph '?'");
     write_pfc(options.output_path, compiled, metadata_for(options));
-    CompilationReport report{codepoints.size(), compiled.glyphs.size(), missing.load(std::memory_order_relaxed)};
+    CompilationReport report;
+    report.requested_codepoints = codepoints.size();
+    report.compiled_glyphs = compiled.glyphs.size();
+    report.skipped_missing_glyphs = merge_stats.missing_codepoints;
+    report.merge_stats = merge_stats;
     for (const auto& item : glyph_reports) {
         report.raw_centerline_points += item.raw_centerline_points;
         report.clean_centerline_points += item.clean_centerline_points;

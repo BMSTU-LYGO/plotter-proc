@@ -13,7 +13,26 @@ int main(int argc, char** argv) {
     if (!parsed.options.has_value()) return parsed.exit_code;
 
     try {
+        const auto print_merge = [](const fontc::PfcMergeStats& stats) {
+            std::cout << "pfc_merge: user_glyphs=" << stats.user_glyphs
+                      << " special_glyphs_added=" << stats.special_glyphs_added
+                      << " duplicate_special_glyphs_skipped=" << stats.duplicate_special_glyphs_skipped
+                      << " missing_codepoints=" << stats.missing_codepoints << '\n';
+        };
+        if (parsed.options->merge_only) {
+            const auto& options = *parsed.options;
+            if (std::filesystem::exists(options.output_path) && !options.force)
+                throw std::runtime_error("output already exists (pass --force to replace it)");
+            const auto required = options.chars_file.empty() ? std::vector<std::uint32_t>{}
+                : fontc::read_codepoints_file(options.chars_file);
+            if (!options.output_path.parent_path().empty())
+                std::filesystem::create_directories(options.output_path.parent_path());
+            print_merge(fontc::merge_pfc(options.font_path, options.special_pfc_paths,
+                                        options.output_path, required));
+            return 0;
+        }
         const fontc::CompilationReport report = fontc::compile_font(*parsed.options);
+        print_merge(report.merge_stats);
         std::cout << "fontc: wrote " << parsed.options->output_path << " ("
                   << report.compiled_glyphs << " glyphs";
         if (report.skipped_missing_glyphs != 0) {
