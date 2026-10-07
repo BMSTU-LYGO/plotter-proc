@@ -65,6 +65,15 @@ int main(int argc, char** argv) {
         }
         else if (argument == "--join-words") options.join_words = true;
         else if (argument == "--no-join-words") options.join_words = false;
+        else if (argument == "--max-word-join-distance-mm") {
+            const auto value = next();
+            const auto parsed = std::from_chars(value.data(), value.data() + value.size(), options.max_word_join_distance_mm);
+            if (value.empty() || parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() ||
+                !std::isfinite(options.max_word_join_distance_mm) || options.max_word_join_distance_mm < 0.0 ||
+                options.max_word_join_distance_mm > 2.0) {
+                std::cerr << "--max-word-join-distance-mm must be between 0 and 2\n"; return 2;
+            }
+        }
         else if (argument == "--optimize") options.optimize_geometry = true;
         else if (argument == "--simplify") options.simplify_geometry = true;
         else if (argument == "--no-simplify") options.simplify_geometry = false;
@@ -80,7 +89,7 @@ int main(int argc, char** argv) {
             else { std::cerr << "unsupported document layout: " << mode << '\n'; return 2; }
         }
         else if (argument == "--help") {
-            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>]... [--digit-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--size-mm 1..20] [--join-words|--no-join-words] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify|--no-simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
+            std::cout << "usage: plotter-doc --input <file> --output <directory> [--font <font.pfc|font.ttf>] [--fallback-font <font.pfc|font.ttf>]... [--digit-font <font.pfc|font.ttf>] [--font-mode centerline|outline] [--page A5|A4] [--cache-dir <directory>] [--no-cache] [--no-preview] [--layout-config <yaml>] [--machine-config <yaml>] [--size small|normal|large] [--size-mm 1..20] [--join-words|--no-join-words] [--max-word-join-distance-mm 0..2] [--artifact-level minimal|normal|debug|audit] [--threads auto|N] [--optimize] [--simplify|--no-simplify] [--page-numbers] [--handwriting] [--document-layout auto|hybrid|preserve|contain|reflow]\n";
             return 0;
         } else { std::cerr << "unknown option: " << argument << '\n'; return 2; }
     }

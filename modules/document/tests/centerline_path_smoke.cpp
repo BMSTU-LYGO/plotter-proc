@@ -2,6 +2,7 @@
 
 #include "fontc/pfc.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <stdexcept>
 
@@ -64,6 +65,11 @@ int main() {
     const auto continuous = plotter::doc::build_word_route({body, adjacent});
     require(continuous.moves.size() == 1 && continuous.moves[0].stroke.points.size() == 4,
             "safe adjacent Cyrillic strokes should form one draw group");
+    std::reverse(adjacent.points.begin(), adjacent.points.end());
+    const auto reversible = plotter::doc::build_word_route({body, adjacent});
+    require(reversible.moves.size() == 1 &&
+            reversible.moves[0].stroke.points.back().x.value == 3.5,
+            "reversing a stroke must recover a safe continuous route");
     adjacent.points = {{{5}, {5}}, {{6}, {5}}};
     const auto separated = plotter::doc::build_word_route({body, adjacent});
     require(separated.moves.size() == 3 && separated.moves[1].kind == plotter::doc::WordMoveKind::travel,
