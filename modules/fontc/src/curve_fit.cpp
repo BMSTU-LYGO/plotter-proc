@@ -18,6 +18,11 @@ Point eval(const Cubic& c,float t) {
     return add(add(mul(c.a,u*u*u),mul(c.b,3*u*u*t)),
                add(mul(c.c,3*u*t*t),mul(c.d,t*t*t)));
 }
+Point derivative(const Cubic& c,float t) {
+    const float u=1-t;
+    return add(add(mul(sub(c.b,c.a),3*u*u),mul(sub(c.c,c.b),6*u*t)),
+               mul(sub(c.d,c.c),3*t*t));
+}
 float point_segment_distance(Point p, Point a, Point b) {
     const Point v=sub(b,a), w=sub(p,a);
     const float n=v.x*v.x+v.y*v.y;
@@ -28,9 +33,11 @@ void tessellate(const Cubic& c,float lo,float hi,Point a,Point b,
                 const CurveOptions& o,std::vector<Point>& out,int depth) {
     const float mid=(lo+hi)*0.5F;
     const Point m=eval(c,mid);
-    const float error=std::max({point_segment_distance(m,a,b),
-        point_segment_distance(eval(c,(3*lo+hi)*0.25F),a,b),
-        point_segment_distance(eval(c,(lo+3*hi)*0.25F),a,b)});
+    const float span=(hi-lo)/3;
+    // The subcurve is inside the hull of these four controls. Their distance
+    // to the chord bounds the deviation of every point on the cubic.
+    const float error=std::max(point_segment_distance(add(a,mul(derivative(c,lo),span)),a,b),
+        point_segment_distance(sub(b,mul(derivative(c,hi),span)),a,b));
     const float chord=distance(a,b);
     const float bend=chord>0 ? error/chord : 0;
     const float target=bend>0.12F ? o.tight_target_pixels :
