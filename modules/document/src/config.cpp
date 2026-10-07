@@ -25,6 +25,12 @@ PreflightReport validate_config(const PipelineConfig& c) {
     else if (!inside(w, m.page_origin)) add(r, PreflightSeverity::error, "page_origin.workspace", "origin is outside workspace");
     if (m.page_origin.x.value + p.width.value > w.max_x.value || m.page_origin.y.value + p.height.value > w.max_y.value) add(r, PreflightSeverity::error, "page.workspace", "configured page extends outside workspace");
     positive(r, m.feedrate.draw_mm_min, "feedrate.draw"); positive(r, m.feedrate.travel_mm_min, "feedrate.travel"); positive(r, m.feedrate.z_mm_min, "feedrate.z");
+    positive(r, m.motion.max_xy_feedrate_mm_s, "motion.max_xy_feedrate_mm_s");
+    positive(r, m.motion.draw_acceleration_mm_s2, "motion.draw_acceleration_mm_s2");
+    positive(r, m.motion.travel_acceleration_mm_s2, "motion.travel_acceleration_mm_s2");
+    if (m.motion.junction_mode != "none" && m.motion.junction_mode != "classic_jerk" && m.motion.junction_mode != "junction_deviation") add(r, PreflightSeverity::error, "motion.junction_mode", "must be none, classic_jerk or junction_deviation");
+    if (m.motion.junction_mode == "classic_jerk") positive(r, m.motion.xy_jerk_mm_s, "motion.xy_jerk_mm_s");
+    if (m.motion.junction_mode == "junction_deviation") positive(r, m.motion.junction_deviation_mm, "motion.junction_deviation_mm");
     if (!finite(m.pen.up_z.value) || !finite(m.pen.down_z.value) || m.pen.up_z.value <= m.pen.down_z.value) add(r, PreflightSeverity::error, "pen.z", "up height must exceed down height");
     if (m.gcode.decimals > 6U) add(r, PreflightSeverity::error, "gcode.decimals", "must be between 0 and 6");
     for (const auto& k : m.keep_out) if (!finite(k.center.x.value) || !finite(k.center.y.value) || !finite(k.radius.value) || !finite(k.clearance.value) || k.radius.value <= 0.0 || k.clearance.value < 0.0) add(r, PreflightSeverity::error, "keep_out", "needs finite center and positive radius");

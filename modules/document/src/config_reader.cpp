@@ -141,16 +141,24 @@ PipelineConfig load_pipeline_config(const std::filesystem::path& layout_yaml,
     assign_bool(machine.scalars, "axes.invert_y", m.invert_y);
     assign(machine.scalars, "pen.up_z_mm", m.pen.up_z);
     assign(machine.scalars, "pen.down_z_mm", m.pen.down_z);
+    assign(machine.scalars, profile + "down_z_mm", m.pen.down_z);
     assign_uint(machine.scalars, "pen.settle_ms", m.pen.down_settle_ms);
     assign(machine.scalars, "feedrate_mm_min.draw", m.feedrate.draw_mm_min);
     assign(machine.scalars, "feedrate_mm_min.travel", m.feedrate.travel_mm_min);
     assign(machine.scalars, "feedrate_mm_min.z", m.feedrate.z_mm_min);
+    assign(machine.scalars, "motion.max_xy_feedrate_mm_s", m.motion.max_xy_feedrate_mm_s);
+    assign(machine.scalars, "motion.draw_acceleration_mm_s2", m.motion.draw_acceleration_mm_s2);
+    assign(machine.scalars, "motion.travel_acceleration_mm_s2", m.motion.travel_acceleration_mm_s2);
+    assign(machine.scalars, "motion.xy_jerk_mm_s", m.motion.xy_jerk_mm_s);
+    assign(machine.scalars, "motion.junction_deviation_mm", m.motion.junction_deviation_mm);
+    if (auto found = machine.scalars.find("motion.junction_mode"); found != machine.scalars.end()) m.motion.junction_mode = found->second;
     assign_bool(machine.scalars, "gcode.home", m.gcode.home);
     assign_bool(machine.scalars, "gcode.absolute_positioning", m.gcode.absolute_positioning);
     assign_bool(machine.scalars, "gcode.units_mm", m.gcode.units_mm);
     assign_uint(machine.scalars, "gcode.decimals", m.gcode.decimals);
     assign_bool(machine.scalars, "page_change.enabled", m.page_change.enabled);
     assign(machine.scalars, "page_change.pause_seconds", m.page_change.pause_seconds);
+    assign(machine.scalars, profile + "pause_seconds", m.page_change.pause_seconds);
     assign_bool(machine.scalars, "page_change.keep_steppers_enabled", m.page_change.keep_steppers_enabled);
     assign(machine.scalars, "page_change.park.inset_mm", m.page_change.park_inset);
     for (const auto& [key, target] : {std::pair{"page_change.wait_command", &m.page_change.wait_command},

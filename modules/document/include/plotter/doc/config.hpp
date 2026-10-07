@@ -16,6 +16,15 @@ struct FeedrateConfig final {
     double draw_mm_min{6000.0};
     double travel_mm_min{6000.0}, z_mm_min{1200.0};
 };
+struct MotionConfig final {
+    double max_xy_feedrate_mm_s{120.0};
+    double draw_acceleration_mm_s2{1500.0};
+    double travel_acceleration_mm_s2{2000.0};
+    // Set to "classic_jerk" only for firmware configured for Classic Jerk.
+    std::string junction_mode{"none"};
+    double xy_jerk_mm_s{15.0};
+    double junction_deviation_mm{0.02};
+};
 struct PenConfig final { Millimetres up_z{2.5}, down_z{1.0}; std::uint32_t down_settle_ms{20}; };
 struct GcodeConfig final { bool home{}; bool absolute_positioning{true}; bool units_mm{true}; std::uint32_t decimals{3}; };
 struct PageChangeConfig final {
@@ -36,6 +45,7 @@ struct MachineConfig final {
     bool invert_y{};
     PenConfig pen{};
     FeedrateConfig feedrate{};
+    MotionConfig motion{};
     GcodeConfig gcode{};
     PageChangeConfig page_change{};
     std::vector<CircularKeepOut> keep_out{};

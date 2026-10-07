@@ -8,7 +8,9 @@ page_position_profiles:
     origin_y_mm: 10.0
   A4:
     origin_x_mm: 5.0
-    origin_y_mm: 5.0
+    origin_y_mm: 55.0
+    down_z_mm: 0.1
+    pause_seconds: 90
 
 axes:
   invert_x: false
@@ -24,11 +26,19 @@ feedrate_mm_min:
   travel: 6000
   z: 1200
 
+motion:
+  max_xy_feedrate_mm_s: 120
+  draw_acceleration_mm_s2: 1500
+  travel_acceleration_mm_s2: 2000
+  junction_mode: none # use classic_jerk only after confirming firmware configuration
+  xy_jerk_mm_s: 15
+  junction_deviation_mm: 0.02
+
 workspace_mm:
   min_x: 0.0
-  max_x: 220.0
+  max_x: 225.0
   min_y: 0.0
-  max_y: 350.0
+  max_y: 355.0
 
 gcode:
   home: false

@@ -70,7 +70,8 @@ std::vector<std::string> drawing_lines(const PathDocument& paths, const MachineC
     while (std::getline(input, line)) all.push_back(std::move(line));
     std::size_t first = 1;
     while (first < all.size() &&
-           (all[first] == "G21" || all[first] == "G90" || all[first] == "G28")) ++first;
+           (all[first] == "G21" || all[first] == "G90" || all[first] == "G28" ||
+            all[first].starts_with("M203 ") || all[first].starts_with("M204 ") || all[first].starts_with("M205 "))) ++first;
     if (first < all.size()) ++first; // The per-page initial pen-up belongs to the job header.
     if (all.size() < first + 3) throw std::runtime_error("Invalid single-page G-code body");
     return {all.begin() + static_cast<std::ptrdiff_t>(first), all.end() - 3};
@@ -93,6 +94,12 @@ std::string generate_job_gcode(const PlotterJob& job, const MachineConfig& machi
     if (machine.gcode.units_mm) lines.emplace_back("G21");
     if (machine.gcode.absolute_positioning) lines.emplace_back("G90");
     if (machine.gcode.home) lines.emplace_back("G28");
+    lines.push_back("M203 X" + fixed(machine.motion.max_xy_feedrate_mm_s, decimals) + " Y" + fixed(machine.motion.max_xy_feedrate_mm_s, decimals));
+    lines.push_back("M204 P" + fixed(machine.motion.draw_acceleration_mm_s2, decimals) + " T" + fixed(machine.motion.travel_acceleration_mm_s2, decimals));
+    if (machine.motion.junction_mode == "classic_jerk")
+        lines.push_back("M205 X" + fixed(machine.motion.xy_jerk_mm_s, decimals) + " Y" + fixed(machine.motion.xy_jerk_mm_s, decimals));
+    if (machine.motion.junction_mode == "junction_deviation")
+        lines.push_back("M205 J" + fixed(machine.motion.junction_deviation_mm, decimals));
     lines.push_back(pen_up);
     for (std::size_t index = 0; index < job.pages.size(); ++index) {
         const auto& page = job.pages[index];
@@ -113,6 +120,7 @@ std::string generate_job_gcode(const PlotterJob& job, const MachineConfig& machi
             machine.page_change.pause_seconds < 0.0)
             throw std::invalid_argument("Invalid page-change wait behavior");
         append_unique(lines, pen_up);
+        lines.push_back("M204 T" + fixed(machine.motion.travel_acceleration_mm_s2, decimals));
         lines.push_back("; PAGE " + label + " COMPLETE");
         const Point park = park_point(job, machine);
         lines.push_back("G0 X" + fixed(park.x.value, decimals) + " Y" +
@@ -134,7 +142,7 @@ std::string generate_job_gcode(const PlotterJob& job, const MachineConfig& machi
     std::string output;
     output.reserve(byte_count);
     for (const auto& line : lines) { output += line; output += '\n'; }
-    return output;
+    return normalize_modal_feedrate(output);
 }
 
 }  // namespace plotter::doc
