@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     try {
-        if (!layout_config.empty() || !machine_config.empty()) {
+        {
             if (layout_config.empty()) layout_config = "configs/layout.yaml";
             if (machine_config.empty()) machine_config = "configs/machine.yaml";
             options.config = load_pipeline_config(layout_config, machine_config, options.config.page.name);
@@ -108,6 +108,9 @@ int main(int argc, char** argv) {
     }
     const PipelineResult result = run_pipeline(options);
     if (!result.ok) { std::cerr << result.error << '\n'; return 1; }
+    std::cerr << "DRAW feedrates:";
+    for (double feed : result.report.gcode.draw_feedrates_mm_min) std::cerr << ' ' << feed;
+    std::cerr << " mm/min; estimated total: " << result.report.gcode.estimated_total_time_seconds << " s\n";
     std::cout << result.gcode_path << '\n';
     return 0;
 }

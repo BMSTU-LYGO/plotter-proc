@@ -10,13 +10,15 @@ int main() {
     assert(a5.machine.feedrate.draw_mm_min == 6000.0);
     assert(a5.machine.keep_out.size() == 2);
     assert(a5.machine.keep_out.front().radius.value == 3.0);
-    const auto a4 = load_pipeline_config("configs/layout.yaml", "configs/machine-a4.yaml", "A4");
+    const auto a4 = load_pipeline_config("configs/layout.yaml", "configs/machine.yaml", "A4");
     assert(a4.page.width.value == 210.0 && a4.page.height.value == 297.0);
     assert(a4.page.margins.left.value == 10.0 && a4.page.margins.right.value == 10.0);
     assert(a4.page.margins.top.value == 10.0 && a4.page.margins.bottom.value == 10.0);
     assert(a4.machine.workspace.min_x.value == 0.0 && a4.machine.workspace.max_x.value == 225.0);
-    assert(a4.machine.workspace.min_y.value == 55.0 && a4.machine.workspace.max_y.value == 355.0);
+    assert(a4.machine.workspace.min_y.value == 0.0 && a4.machine.workspace.max_y.value == 355.0);
     assert(a4.machine.page_origin.x.value == 5.0 && a4.machine.page_origin.y.value == 55.0);
     assert(a4.machine.keep_out.empty());
     assert(a4.machine.feedrate.draw_mm_min == 6000.0);
+    assert(a4.machine.pen.down_z.value == 0.1 && a4.machine.page_change.pause_seconds == 90.0);
+    assert(a4.machine.motion.max_xy_feedrate_mm_s == 120.0);
 }

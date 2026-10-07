@@ -118,7 +118,7 @@ doc:
 	join_words='$(JOIN_WORDS)'; \
 	case "$$join_words" in 0) join_arg='';; 1) join_arg='--join-words';; *) echo 'JOIN_WORDS должен быть 0 или 1' >&2; exit 2;; esac; \
 	page='$(or $(PAGE),A4)'; \
-	case "$$page" in A5) machine='configs/machine.yaml';; A4) machine='configs/machine-a4.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
+	case "$$page" in A5|A4) machine='configs/machine.yaml';; *) echo 'PAGE должен быть A5 или A4' >&2; exit 2;; esac; \
 	[ -f "$(FALLBACK_CHARS)" ] || { echo 'Нет набора символов: $(FALLBACK_CHARS)' >&2; exit 2; }; \
 	[ -f "$(DIGIT_TTF)" ] || [ -f "$(DIGIT_PFC)" ] || { echo 'Нет шрифта цифр: $(DIGIT_TTF) или $(DIGIT_PFC)' >&2; exit 2; }; \
 	[ -f "$(MATH_TTF)" ] || [ -f "$(MATH_PFC)" ] || { echo 'Нет Cambria Math: $(MATH_TTF) или $(MATH_PFC)' >&2; exit 2; }; \
