@@ -92,16 +92,43 @@ void gcode_json(Json& json, const GcodeAnalysis& value) {
     count("gcode_travel_segments", value.travel_segment_count);
     count("pen_down_count", value.pen_down_count);
     count("pen_lift_count", value.pen_lift_count);
+    count("page_count", value.page_count);
+    count("page_change_count", value.page_change_count);
+    count("draw_moves", value.draw_segment_count);
+    count("travel_moves", value.travel_segment_count);
     count("feedrate_change_count", value.feedrate_change_count);
     measurement("pen_up_travel_mm", value.pen_up_travel_mm);
     count("feedrate_changes", value.feedrate_changes);
     count("segments_below_0_05mm", value.segments_below_0_05mm);
     count("segments_below_0_10mm", value.segments_below_0_10mm);
+    count("segments_lt_0_1mm", value.segments_lt_0_1mm);
+    count("segments_lt_0_25mm", value.segments_lt_0_25mm);
+    count("segments_lt_0_5mm", value.segments_lt_0_5mm);
+    count("segments_lt_1mm", value.segments_lt_1mm);
     measurement("draw_length_mm", value.draw_length_mm);
     measurement("min_segment_mm", value.min_segment_mm);
     measurement("median_segment_mm", value.median_segment_mm);
+    measurement("p25_segment_mm", value.p25_segment_mm);
+    measurement("p75_segment_mm", value.p75_segment_mm);
     measurement("mean_segment_mm", value.mean_segment_mm);
     measurement("max_segment_mm", value.max_segment_mm);
+    measurement("draw_distance_mm", value.draw_length_mm);
+    measurement("travel_distance_mm", value.pen_up_travel_mm);
+    measurement("z_distance_mm", value.z_motion_distance_mm);
+    measurement("estimated_draw_time_seconds", value.estimated_draw_time_seconds);
+    measurement("estimated_travel_time_seconds", value.estimated_travel_time_seconds);
+    measurement("estimated_z_time_seconds", value.estimated_z_time_seconds);
+    measurement("estimated_total_time_seconds", value.estimated_total_time_seconds);
+    measurement("dwell_time_seconds", value.dwell_time_seconds);
+    measurement("requested_draw_speed_mm_s", value.requested_draw_speed_mm_s);
+    measurement("estimated_average_draw_speed_mm_s", value.estimated_average_draw_speed_mm_s);
+    measurement("segments_reaching_cruise_speed_ratio", value.segments_reaching_cruise_speed_ratio);
+    json.key("draw_feedrates_mm_min"); json.raw("[");
+    for (std::size_t i = 0; i < value.draw_feedrates_mm_min.size(); ++i) {
+        if (i) json.raw(",");
+        json.number(value.draw_feedrates_mm_min[i]);
+    }
+    json.raw("],");
     json.key("ideal_total_time_seconds"); json.number(value.ideal_total_time_seconds);
     json.raw("}");
 }

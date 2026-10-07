@@ -55,6 +55,15 @@ double round6(double value) {
     return std::nearbyint(value * 1'000'000.0) / 1'000'000.0;
 }
 
+double segment_seconds(double distance, double speed, double acceleration, bool* reaches_cruise = nullptr) {
+    if (distance <= 0.0) return 0.0;
+    const double ramp_distance = speed * speed / acceleration;
+    const bool cruise = distance >= ramp_distance;
+    if (reaches_cruise) *reaches_cruise = cruise;
+    return cruise ? 2.0 * speed / acceleration + (distance - ramp_distance) / speed
+                  : 2.0 * std::sqrt(distance / acceleration);
+}
+
 struct PageLabel final { std::size_t number{}, total{}; };
 
 std::optional<PageLabel> page_start(const std::string& comment) {
@@ -105,6 +114,9 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     std::optional<double> feed;
     std::optional<double> previous_draw_feed;
     std::vector<double> draw_segments;
+    std::size_t cruise_segments = 0;
+    bool saw_m203 = false, saw_m204 = false, saw_m205 = false;
+    double active_acceleration = machine.motion.travel_acceleration_mm_s2;
     PagePhase page_phase = PagePhase::normal;
     std::size_t expected_page = 1;
     std::size_t marker_total = 0;
@@ -148,7 +160,8 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
         std::string command;
         words >> command;
         if (command != "G0" && command != "G1" && command != "G4" && command != "G21" &&
-            command != "G90" && command != "G28" && command != "M400" && command != "M84")
+            command != "G90" && command != "G28" && command != "M400" && command != "M84" &&
+            command != "M203" && command != "M204" && command != "M205")
             invalid(line_number, "unsupported command");
         std::unordered_map<char, double> values;
         std::string token;
@@ -185,6 +198,29 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
                 invalid(line_number, "homing is disabled or out of sequence");
             x = y = z = 0.0;
             pen_up = pen_down = false;
+            continue;
+        }
+        if (command == "M203" || command == "M204" || command == "M205") {
+            if (motion_started && command != "M204") invalid(line_number, "motion setup must precede movement");
+            if (command == "M203") {
+                if (saw_m203 || !only(values, "XY") || !values.contains('X') || !values.contains('Y') ||
+                    values.at('X') <= 0 || values.at('Y') <= 0) invalid(line_number, "invalid M203");
+                saw_m203 = true;
+            } else if (command == "M204") {
+                if (!only(values, "PT") || !values.contains('T') ||
+                    (values.contains('P') && values.at('P') <= 0) || values.at('T') <= 0 ||
+                    (!saw_m204 && !values.contains('P'))) invalid(line_number, "invalid M204");
+                active_acceleration = values.at('T');
+                saw_m204 = true;
+            } else {
+                const bool classic = machine.motion.junction_mode == "classic_jerk" && only(values, "XY") &&
+                    values.contains('X') && values.contains('Y') && values.at('X') > 0 && values.at('Y') > 0;
+                const bool deviation = machine.motion.junction_mode == "junction_deviation" && only(values, "J") &&
+                    values.contains('J') && values.at('J') > 0;
+                if (saw_m205 || (!classic && !deviation))
+                    invalid(line_number, "invalid M205");
+                saw_m205 = true;
+            }
             continue;
         }
         if (machine.gcode.units_mm && !saw_g21) invalid(line_number, "G21 must precede executable motion");
@@ -245,11 +281,25 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
         if (command == "G0" && moves_xy && distance > 0) {
             ++result.travel_segment_count;
             result.pen_up_travel_mm += std::hypot(dx, dy);
+            if (feed) result.estimated_travel_time_seconds += segment_seconds(std::hypot(dx, dy),
+                std::min(*feed / 60.0, machine.motion.max_xy_feedrate_mm_s), active_acceleration);
         }
         if (command == "G1" && moves_xy && distance > 0) {
             const double segment = std::hypot(dx, dy);
             draw_segments.push_back(segment);
+            if (segment < 0.1) ++result.segments_lt_0_1mm;
+            if (segment < 0.25) ++result.segments_lt_0_25mm;
+            if (segment < 0.5) ++result.segments_lt_0_5mm;
+            if (segment < 1.0) ++result.segments_lt_1mm;
             result.draw_length_mm += segment;
+            if (feed) {
+                if (std::find(result.draw_feedrates_mm_min.begin(), result.draw_feedrates_mm_min.end(), *feed) == result.draw_feedrates_mm_min.end())
+                    result.draw_feedrates_mm_min.push_back(*feed);
+                bool cruise = false;
+                result.estimated_draw_time_seconds += segment_seconds(segment,
+                    std::min(*feed / 60.0, machine.motion.max_xy_feedrate_mm_s), active_acceleration, &cruise);
+                if (cruise) ++cruise_segments;
+            }
             if (segment < 0.05) ++result.segments_below_0_05mm;
             if (segment < 0.10) ++result.segments_below_0_10mm;
             if (feed && previous_draw_feed && *feed != *previous_draw_feed)
@@ -260,6 +310,7 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
             result.ideal_motion_time_seconds += distance / *feed * 60.0;
             ++result.motion_command_count;
             if (moves_z) ++result.z_command_count;
+            if (moves_z) result.estimated_z_time_seconds += distance / *feed * 60.0;
         }
         if (moves_xy) result.xy_motion_distance_mm += std::hypot(dx, dy);
         if (moves_z) result.z_motion_distance_mm += std::abs(dz);
@@ -269,6 +320,7 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     if (machine.gcode.units_mm != saw_g21) throw std::invalid_argument("G21 does not match machine configuration");
     if (machine.gcode.absolute_positioning != saw_g90) throw std::invalid_argument("G90 does not match machine configuration");
     if (!program_ended) throw std::invalid_argument("Generated G-code does not terminate with M84");
+    if (saw_m203 != saw_m204 || (saw_m205 && !saw_m203)) throw std::invalid_argument("Incomplete Marlin motion setup");
     if (page_phase != PagePhase::normal) throw std::invalid_argument("Incomplete page-change sequence");
     if (saw_page_marker) {
         if (expected_page != marker_total + 1) throw std::invalid_argument("Missing page start marker");
@@ -282,11 +334,21 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     result.z_motion_distance_mm = round6(result.z_motion_distance_mm);
     result.pen_up_travel_mm = round6(result.pen_up_travel_mm);
     result.draw_segment_count = draw_segments.size();
+    std::sort(result.draw_feedrates_mm_min.begin(), result.draw_feedrates_mm_min.end());
+    result.estimated_total_time_seconds = round6(result.estimated_draw_time_seconds + result.estimated_travel_time_seconds + result.estimated_z_time_seconds + result.dwell_time_seconds);
+    result.estimated_draw_time_seconds = round6(result.estimated_draw_time_seconds);
+    result.estimated_travel_time_seconds = round6(result.estimated_travel_time_seconds);
+    result.estimated_z_time_seconds = round6(result.estimated_z_time_seconds);
+    if (!result.draw_feedrates_mm_min.empty()) result.requested_draw_speed_mm_s = result.draw_feedrates_mm_min.back() / 60.0;
+    if (result.estimated_draw_time_seconds > 0) result.estimated_average_draw_speed_mm_s = round6(result.draw_length_mm / result.estimated_draw_time_seconds);
+    if (!draw_segments.empty()) result.segments_reaching_cruise_speed_ratio = round6(static_cast<double>(cruise_segments) / draw_segments.size());
     if (!draw_segments.empty()) {
         std::sort(draw_segments.begin(), draw_segments.end());
         result.min_segment_mm = round6(draw_segments.front());
         result.max_segment_mm = round6(draw_segments.back());
         result.median_segment_mm = round6(draw_segments[draw_segments.size()/2]);
+        result.p25_segment_mm = round6(draw_segments[draw_segments.size()/4]);
+        result.p75_segment_mm = round6(draw_segments[draw_segments.size()*3/4]);
         result.mean_segment_mm = round6(result.draw_length_mm/draw_segments.size());
         result.draw_length_mm = round6(result.draw_length_mm);
     }

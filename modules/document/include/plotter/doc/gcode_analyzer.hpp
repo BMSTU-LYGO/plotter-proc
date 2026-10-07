@@ -4,11 +4,13 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace plotter::doc {
 
 // A deterministic summary of a validated, generated G-code program.  Distances
-// are in millimetres and times are ideal feedrate-based estimates.
+// are in millimetres and times in seconds. Segment estimates assume a stop at
+// each junction, so firmware lookahead can make physical execution faster.
 struct GcodeAnalysis final {
     std::size_t gcode_command_count{};
     std::size_t motion_command_count{};
@@ -28,6 +30,11 @@ struct GcodeAnalysis final {
     std::size_t feedrate_change_count{};
     double pen_up_travel_mm{};
     double draw_length_mm{}, min_segment_mm{}, median_segment_mm{}, mean_segment_mm{}, max_segment_mm{};
+    double p25_segment_mm{}, p75_segment_mm{};
+    std::size_t segments_lt_0_1mm{}, segments_lt_0_25mm{}, segments_lt_0_5mm{}, segments_lt_1mm{};
+    double estimated_draw_time_seconds{}, estimated_travel_time_seconds{}, estimated_z_time_seconds{}, estimated_total_time_seconds{};
+    double requested_draw_speed_mm_s{}, estimated_average_draw_speed_mm_s{}, segments_reaching_cruise_speed_ratio{};
+    std::vector<double> draw_feedrates_mm_min{};
 };
 
 // Validates the restricted dialect emitted by this module.  It throws
