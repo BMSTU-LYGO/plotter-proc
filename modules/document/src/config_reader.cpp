@@ -145,6 +145,12 @@ PipelineConfig load_pipeline_config(const std::filesystem::path& layout_yaml,
     assign(machine.scalars, "feedrate_mm_min.draw", m.feedrate.draw_mm_min);
     m.feedrate.draw_fast_mm_min = m.feedrate.draw_mm_min;
     assign(machine.scalars, "feedrate_mm_min.draw_fast", m.feedrate.draw_fast_mm_min);
+    m.feedrate.curve_mm_min = (m.feedrate.draw_mm_min + m.feedrate.draw_fast_mm_min) / 2.0;
+    m.feedrate.tight_mm_min = m.feedrate.draw_mm_min;
+    assign(machine.scalars, "feedrate_mm_min.curve", m.feedrate.curve_mm_min);
+    assign(machine.scalars, "feedrate_mm_min.tight_curve", m.feedrate.tight_mm_min);
+    assign(machine.scalars, "feedrate.curvature_threshold_1", m.feedrate.curvature_threshold_1);
+    assign(machine.scalars, "feedrate.curvature_threshold_2", m.feedrate.curvature_threshold_2);
     assign(machine.scalars, "feedrate_mm_min.travel", m.feedrate.travel_mm_min);
     assign(machine.scalars, "feedrate_mm_min.z", m.feedrate.z_mm_min);
     assign_bool(machine.scalars, "gcode.home", m.gcode.home);

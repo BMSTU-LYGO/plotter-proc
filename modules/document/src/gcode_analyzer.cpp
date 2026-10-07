@@ -1,5 +1,6 @@
 #include "plotter/doc/gcode_analyzer.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -7,6 +8,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace plotter::doc {
 namespace {
@@ -101,6 +103,8 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     bool program_ended = false;
     double x = 0.0, y = 0.0, z = 0.0;
     std::optional<double> feed;
+    std::optional<double> previous_draw_feed;
+    std::vector<double> draw_segments;
     PagePhase page_phase = PagePhase::normal;
     std::size_t expected_page = 1;
     std::size_t marker_total = 0;
@@ -231,6 +235,16 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
             invalid(line_number, "XY target is outside workspace");
         const double dx = next_x - x, dy = next_y - y, dz = next_z - z;
         const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (command == "G1" && moves_xy && distance > 0) {
+            const double segment = std::hypot(dx, dy);
+            draw_segments.push_back(segment);
+            result.draw_length_mm += segment;
+            if (segment < 0.05) ++result.segments_below_0_05mm;
+            if (segment < 0.10) ++result.segments_below_0_10mm;
+            if (feed && previous_draw_feed && *feed != *previous_draw_feed)
+                ++result.feedrate_changes;
+            previous_draw_feed = feed;
+        }
         if (distance > 0.0 && feed) {
             result.ideal_motion_time_seconds += distance / *feed * 60.0;
             ++result.motion_command_count;
@@ -255,6 +269,15 @@ GcodeAnalysis analyze_gcode(const std::string& gcode, const MachineConfig& machi
     result.ideal_total_time_seconds = round6(result.ideal_motion_time_seconds + result.dwell_time_seconds);
     result.xy_motion_distance_mm = round6(result.xy_motion_distance_mm);
     result.z_motion_distance_mm = round6(result.z_motion_distance_mm);
+    result.draw_segment_count = draw_segments.size();
+    if (!draw_segments.empty()) {
+        std::sort(draw_segments.begin(), draw_segments.end());
+        result.min_segment_mm = round6(draw_segments.front());
+        result.max_segment_mm = round6(draw_segments.back());
+        result.median_segment_mm = round6(draw_segments[draw_segments.size()/2]);
+        result.mean_segment_mm = round6(result.draw_length_mm/draw_segments.size());
+        result.draw_length_mm = round6(result.draw_length_mm);
+    }
     return result;
 }
 

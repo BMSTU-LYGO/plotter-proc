@@ -20,9 +20,16 @@ pen:
   settle_ms: 20
 
 feedrate_mm_min:
-  draw: 2000
+  draw: 1200
+  draw_fast: 2700
+  curve: 2000
+  tight_curve: 1200
   travel: 6000
   z: 1200
+
+feedrate:
+  curvature_threshold_1: 0.94
+  curvature_threshold_2: 0.5
 
 workspace_mm:
   min_x: 0.0

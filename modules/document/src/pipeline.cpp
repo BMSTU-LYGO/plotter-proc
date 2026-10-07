@@ -556,7 +556,7 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
             result.report.layout.glyphs += static_cast<std::uint32_t>(page.glyphs.size());
         }
         const auto gcode = generate_job_gcode(result.job, options.config.machine);
-        static_cast<void>(analyze_gcode(gcode, options.config.machine));
+        result.report.gcode = analyze_gcode(gcode, options.config.machine);
         result.gcode_path = options.output_directory / "output.gcode";
         write_gcode_atomic(gcode, result.gcode_path);
         result.report.timings.gcode_ms = elapsed_ms(paths_at, std::chrono::steady_clock::now());

@@ -21,6 +21,9 @@ struct GcodeAnalysis final {
     double ideal_total_time_seconds{};
     double xy_motion_distance_mm{};
     double z_motion_distance_mm{};
+    std::size_t draw_segment_count{}, segments_below_0_05mm{}, segments_below_0_10mm{};
+    std::size_t feedrate_changes{};
+    double draw_length_mm{}, min_segment_mm{}, median_segment_mm{}, mean_segment_mm{}, max_segment_mm{};
 };
 
 // Validates the restricted dialect emitted by this module.  It throws

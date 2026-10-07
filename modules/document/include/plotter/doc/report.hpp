@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plotter/doc/job.hpp"
+#include "plotter/doc/gcode_analyzer.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -51,6 +52,7 @@ struct PipelineReport final {
     MotionStats motion{};
     CacheStats cache{};
     StageTimings timings{};
+    GcodeAnalysis gcode{};
     std::vector<PageReport> pages;
     std::vector<std::string> warnings;
     std::vector<std::string> errors;

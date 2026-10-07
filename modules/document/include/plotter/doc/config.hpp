@@ -15,6 +15,8 @@ struct WorkspaceConfig final { Millimetres min_x{}, max_x{220.0}, min_y{}, max_y
 struct FeedrateConfig final {
     double draw_mm_min{2000.0}, draw_fast_mm_min{2000.0};
     double travel_mm_min{6000.0}, z_mm_min{1200.0};
+    double curve_mm_min{2000.0}, tight_mm_min{2000.0};
+    double curvature_threshold_1{0.94}, curvature_threshold_2{0.5};
 };
 struct PenConfig final { Millimetres up_z{2.5}, down_z{1.0}; std::uint32_t down_settle_ms{20}; };
 struct GcodeConfig final { bool home{}; bool absolute_positioning{true}; bool units_mm{true}; std::uint32_t decimals{3}; };
