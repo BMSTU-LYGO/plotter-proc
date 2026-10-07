@@ -558,6 +558,10 @@ PipelineResult run_pipeline_impl(const PipelineOptions& options, const Document*
         }
         const auto gcode = generate_job_gcode(result.job, options.config.machine);
         result.report.gcode = analyze_gcode(gcode, options.config.machine);
+        if (!result.report.gcode.draw_feedrates_mm_min.empty() &&
+            (result.report.gcode.draw_feedrates_mm_min.size() != 1 ||
+             result.report.gcode.draw_feedrates_mm_min.front() != options.config.machine.feedrate.draw_mm_min))
+            throw std::runtime_error("Generated draw feedrate differs from machine config");
         result.gcode_path = options.output_directory / "output.gcode";
         write_gcode_atomic(gcode, result.gcode_path);
         result.report.timings.gcode_ms = elapsed_ms(paths_at, std::chrono::steady_clock::now());
